@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ListProducts } from "../ListProducts";
@@ -17,6 +17,8 @@ export function CatalogClientWrapper({
 }: {
   productos: ProductProps[];
 }) {
+  useEffect(() => {}, [productos]);
+
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<
     string | null
   >(null);

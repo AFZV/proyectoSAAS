@@ -21,20 +21,24 @@ model Empresa {
   logoUrl          String             @db.Text
   creado           DateTime           @default(now())
   actualizado      DateTime           @updatedAt
+  estado           String             @db.Text
 
   usuarios         Usuario[]
   clientes         ClienteEmpresa[]
   productos        Producto[]
+  inventario Inventario[]
+  movimientoInventario MovimientoInventario[]
 }
 
 model Usuario {
   id        String   @id @default(uuid())
-  codigo    String   @unique @db.Text
-  nombres   String   @db.Text
+  codigo    String   @unique @db.Text /// es un id unico de clerk
+  nombre   String   @db.Text
   apellidos String   @db.Text
   telefono  String   @db.Text
   correo    String   @db.Text
   rol       String   @db.Text
+  estado    String @db.Text //// activo inactivo
 
   empresaId String
   empresa   Empresa  @relation(fields: [empresaId], references: [id])
@@ -42,6 +46,8 @@ model Usuario {
   clientes  ClienteEmpresa[] // relación con clientes como vendedor
   recibos   Recibo[]
   pedidos   Pedido[]
+  movimientoInventario MovimientoInventario[]
+  movimientosCartera MovimientosCartera[]
 
   @@index([empresaId])
 }
@@ -49,17 +55,20 @@ model Usuario {
 model Cliente {
   id         String            @id @default(uuid())
   nit        String            @db.Text
-  nombres    String            @db.Text
+  nombre    String            @db.Text
   apellidos  String            @db.Text
   telefono   String            @db.Text
   email      String            @db.Text
   direccion  String            @db.Text
-  codigoDpto String            @db.Text
-  codigoCiud String            @db.Text
+  departamento String            @db.Text
+  ciudad String            @db.Text
+  estado Boolean @db.Boolean /// activo // inactivo
 
   empresas   ClienteEmpresa[]
   recibos    Recibo[]
   pedidos    Pedido[]
+  movimientosCartera MovimientosCartera[]
+
 
   @@index([nit])
 }
@@ -68,72 +77,151 @@ model ClienteEmpresa {
   id          String   @id @default(uuid())
   clienteId   String
   empresaId   String
-  vendedorId  String
+  usuarioId  String
 
   cliente     Cliente  @relation(fields: [clienteId], references: [id])
   empresa     Empresa  @relation(fields: [empresaId], references: [id])
-  vendedor    Usuario  @relation(fields: [vendedorId], references: [id])
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id])
 
   @@unique([clienteId, empresaId])
   @@index([empresaId])
-  @@index([vendedorId])
+  @@index([usuarioId])
 }
 
 model Producto {
   id          String   @id @default(uuid())
   codigo      Int      @default(autoincrement())
   nombre      String   @db.Text
-  precio      Float    @db.DoublePrecision
+  precioCompra      Float    @db.DoublePrecision
+  precioVenta      Float    @db.DoublePrecision
   categoria   String   @db.Text
   imagenUrl   String   @db.Text
-  creado      DateTime @default(now())
-  actualizado DateTime @updatedAt
+  fechaCreado      DateTime @default(now())
+  fechaActualizado DateTime @updatedAt
+  estado String @db.Text
 
   empresaId   String
   empresa     Empresa  @relation(fields: [empresaId], references: [id])
 
-  pedidoProductos PedidoProducto[]
+  detallePedido DetallePedido[]
+  inventario  Inventario[]
+  detalleCompra DetalleCompra[]
+  movimientoInventario MovimientoInventario[]
 
   @@index([empresaId])
+  @@unique([codigo, empresaId])
+
+}
+
+
+model Inventario {
+  idInventario String   @id @default(uuid())
+  idProducto String
+  idEmpresa String
+  stockActual Float @default(0) @db.DoublePrecision
+
+  producto Producto @relation(fields: [idProducto],references: [id])
+  empresa Empresa @relation(fields: [idEmpresa],references: [id])
+
+  @@index([idProducto])
+  @@index([idEmpresa])
+   
+}
+
+model DetalleCompra {
+    idDetalleCompra String   @id @default(uuid())
+    idCompra String
+    idProducto String
+    cantidad Float    @db.DoublePrecision
+
+    producto Producto @relation(fields: [idProducto],references: [id])
+    compra Compras @relation(fields: [idCompra],references: [idCompra])
+
+    @@index([idCompra])
+    @@index([idProducto])
+
+
+
+}
+
+model Compras {
+  idCompra String   @id @default(uuid())
+  idProveedor String
+  FechaCompra DateTime @default(now())
+
+  proveedor Proveedores @relation(fields: [idProveedor],references: [idProveedor])
+  detalleCompra DetalleCompra[]
+
+
+@@index([idProveedor])
+
+}
+
+model Proveedores {
+  idProveedor String   @id @default(uuid())
+  identificacion String @unique
+  razonsocial String @db.Text
+  telefono String @db.Text
+  direccion String @db.Text
+
+  compras Compras[]
 }
 
 model Recibo {
   id          String   @id @default(uuid())
   clienteId   String
   usuarioId   String
-  valor       Float    @db.DoublePrecision
   tipo        String   @db.Text
   concepto    String   @db.Text
-  creado      DateTime @default(now())
+  Fechacrecion      DateTime @default(now())
 
   cliente     Cliente  @relation(fields: [clienteId], references: [id])
-  vendedor    Usuario  @relation(fields: [usuarioId], references: [id])
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id])
+  detalleRecibo DetalleRecibo[]
+
 
   @@index([usuarioId])
   @@index([clienteId])
 }
 
+model DetalleRecibo{
+  idDetalleRecibo String   @id @default(uuid())
+  idPedido String
+  idRecibo String 
+  valorTotal       Float    @db.DoublePrecision
+  estado     String @default("abonado") // o parcial, completo
+  saldoPendiente Float? // opcional
+
+  pedido Pedido @relation(fields: [idPedido],references: [id])
+  recibo Recibo @relation(fields: [idRecibo],references: [id])
+  @@index([idRecibo])
+  @@index([idPedido])
+
+
+
+}
+
 model Pedido {
   id            String           @id @default(uuid())
   clienteId     String
-  vendedorId    String
+  usuarioId    String
   total         Float            @db.DoublePrecision
-  fecha         DateTime         @default(now())
+  fechaPedido         DateTime         @default(now())
   observaciones String?          @db.Text
-  enviado       Boolean          @default(false)
   fechaEnvio    DateTime?
-  actualizado   DateTime         @updatedAt
+  fechaActualizado   DateTime         @updatedAt
 
   cliente       Cliente          @relation(fields: [clienteId], references: [id])
-  vendedor      Usuario          @relation(fields: [vendedorId], references: [id])
-  productos     PedidoProducto[]
+  usuario      Usuario          @relation(fields: [usuarioId], references: [id])
+  productos     DetallePedido[]
   estados       EstadoPedido[]
+  detalleRecibo DetalleRecibo[]
 
   @@index([clienteId])
-  @@index([vendedorId])
+  @@index([usuarioId])
 }
 
-model PedidoProducto {
+model DetallePedido {
   id         String @id @default(uuid())
   pedidoId   String
   productoId String
@@ -148,13 +236,66 @@ model PedidoProducto {
   @@index([productoId])
 }
 
-model EstadoPedido {
+model EstadoPedido { /// este modelo es para controlar lo estados
   id        String   @id @default(uuid())
   pedidoId  String
   estado    String
-  fecha     DateTime @default(now())
+  fechaEstado     DateTime @default(now())
 
   pedido    Pedido   @relation(fields: [pedidoId], references: [id])
 
   @@index([pedidoId])
 }
+
+
+model MovimientoInventario {
+  idMovimiento String   @id @default(uuid())
+  idEmpresa String
+  idProducto String
+  fechaMovimiento DateTime @default(now())
+  cantidadMovimiendo Int
+  idTipoMovimiento String
+  IdUsuario String
+
+  empresa Empresa @relation(fields: [idEmpresa],references: [id])
+  producto Producto @relation(fields: [idProducto],references: [id])
+  usuario Usuario @relation(fields: [IdUsuario],references: [id])
+  tipoMovimiento TipoMovimientos @relation(fields: [idTipoMovimiento],references: [idTipoMovimiento])
+
+  @@index([idEmpresa])
+  @@index([idProducto])
+  @@index([IdUsuario])
+  @@index([idTipoMovimiento])
+
+}
+
+model TipoMovimientos {
+  idTipoMovimiento String @id @default(uuid())
+  tipo             TipoMovimientoEnum
+  movimientoInventario MovimientoInventario[]
+}
+
+enum TipoMovimientoEnum {
+  ENTRADA
+  SALIDA
+  AJUSTE
+}
+
+
+model MovimientosCartera {
+  idMovimientoCartera String @id @default(uuid())
+  idCliente String
+  valorMovimiento Float @db.DoublePrecision
+  idUsuario String
+  fechaMovimientoCartera DateTime @default(now())
+
+
+  cliente Cliente @relation(fields: [idCliente],references: [id])
+  usuario Usuario @relation(fields: [idUsuario],references: [id])
+
+  @@index([idCliente])
+  @@index([idUsuario])
+}
+
+
+

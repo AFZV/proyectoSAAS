@@ -44,7 +44,7 @@ export function ReciboActions({ id }: { id: string }) {
           }
         );
         const usuario = res.data;
-        console.log("usuario actual:", usuario); // ✅ aquí basta
+        console.log("usuario actual:", usuario);
         setUser({ ...usuario });
         setAdmin(usuario.rol === "admin");
       } catch (err) {

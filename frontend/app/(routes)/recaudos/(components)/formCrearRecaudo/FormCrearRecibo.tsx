@@ -137,7 +137,7 @@ export function FormCrearRecibo({
       });
 
       toast({ title: "Recibo creado y enviado correctamente" });
-      onSuccess?.(); // 👈 esto forzará el refreshKey
+      onSuccess?.();
       router.push("/recaudos");
       setOpenModalCreate(false);
     } catch (error) {
