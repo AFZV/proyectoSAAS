@@ -6,7 +6,7 @@ export class CreateUsuarioDto {
   codigo: string;
   @IsString()
   @IsNotEmpty()
-  nombres: string;
+  nombre: string;
 
   @IsString()
   @IsNotEmpty()
@@ -27,4 +27,8 @@ export class CreateUsuarioDto {
   @IsString()
   @IsNotEmpty()
   empresaId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  estado: string;
 }

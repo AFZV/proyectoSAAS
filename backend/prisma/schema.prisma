@@ -73,6 +73,8 @@ model Cliente {
   @@index([nit])
 }
 
+
+
 model ClienteEmpresa {
   id          String   @id @default(uuid())
   clienteId   String

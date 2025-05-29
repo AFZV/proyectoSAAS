@@ -42,7 +42,7 @@ export class ClienteEmpresaService {
         empresa: {
           connect: { id: empresaId },
         },
-        vendedor: {
+        usuario: {
           connect: { id: vendedorId },
         },
       },

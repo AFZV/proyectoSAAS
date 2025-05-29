@@ -17,6 +17,11 @@ import { UpdateEmpresaDto } from './dto/update-empresa.dto';
 export class EmpresaController {
   constructor(private empresaService: EmpresaService) {}
 
+  @Get('prueba')
+  ejecutarPrueba() {
+    return 'esta corriendo el backend';
+  }
+
   @Post()
   create(
     @Body() data: CreateEmpresaDto,

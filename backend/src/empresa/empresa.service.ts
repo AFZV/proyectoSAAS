@@ -16,6 +16,7 @@ export class EmpresaService {
     const usuario = await this.prisma.usuario.findUnique({
       where: { codigo: userId },
     });
+
     console.log('estoy hay en usuario en el backend:', usuario);
 
     if (!usuario || usuario.rol !== 'superadmin') {
@@ -25,7 +26,7 @@ export class EmpresaService {
 
   async create(data: CreateEmpresaDto, userId: string) {
     await this.verificarSuperadmin(userId);
-    return this.prisma.empresa.create({ data });
+    //return this.prisma.empresa.create({ data });
   }
 
   async findAll(userId: string) {

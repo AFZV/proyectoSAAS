@@ -12,7 +12,7 @@ export class AuthService {
         id: true,
         empresaId: true,
         rol: true,
-        nombres: true,
+        nombre: true,
         apellidos: true,
         empresa: {
           select: {
@@ -31,7 +31,7 @@ export class AuthService {
       usuarioId: usuario.id,
       empresaId: usuario.empresaId,
       rol: usuario.rol,
-      nombres: usuario.nombres,
+      nombre: usuario.nombre,
       apellidos: usuario.apellidos,
       logoUrl: usuario.empresa.logoUrl,
       nombreEmpresa: usuario.empresa.nombreComercial,

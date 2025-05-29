@@ -18,7 +18,8 @@ export class UsuarioService {
       data: {
         ...data,
         rol: 'superadmin',
-        empresaId: '', // O null si lo permites en el modelo
+        empresaId: '',
+        estado: 'activo',
       },
     });
   }
@@ -72,7 +73,7 @@ export class UsuarioService {
       },
       select: {
         codigo: true,
-        nombres: true,
+        nombre: true,
         apellidos: true,
         rol: true,
       },

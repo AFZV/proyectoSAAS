@@ -53,9 +53,25 @@ export class ClienteService {
       return existente;
     }
 
-    return await this.prisma.cliente.create({
+    const cliente = await this.prisma.cliente.create({
       data: {
-        ...data,
+        nit: data.nit,
+        nombre: data.nombre,
+        apellidos: data.apellidos,
+        telefono: data.telefono,
+        email: data.email,
+        direccion: data.direccion,
+        departamento: data.departamento,
+        ciudad: data.ciudad,
+        estado: data.estado,
+      },
+    });
+
+    await this.prisma.clienteEmpresa.create({
+      data: {
+        clienteId: cliente.id,
+        empresaId: data.empresaId,
+        usuarioId: data.usuarioId,
       },
     });
   }
@@ -75,7 +91,7 @@ export class ClienteService {
       throw new UnauthorizedException('Usuario no encontrado');
     }
 
-    const { id: vendedorId, rol, empresaId } = usuario;
+    const { id: usuarioId, rol, empresaId } = usuario;
 
     // Consultar los clientes según el rol
     const clienteEmpresas = await this.prisma.clienteEmpresa.findMany({
@@ -84,29 +100,29 @@ export class ClienteService {
           ? { empresaId }
           : {
               empresaId,
-              vendedorId,
+              usuarioId,
             },
       include: {
         cliente: {
           select: {
             nit: true,
-            nombres: true,
+            nombre: true,
             apellidos: true,
             telefono: true,
-            codigoCiud: true,
+            ciudad: true,
             email: true,
           },
         },
-        vendedor: {
+        usuario: {
           select: {
             id: true,
-            nombres: true,
+            nombre: true,
           },
         },
       },
       orderBy: {
         cliente: {
-          nombres: 'asc',
+          nombre: 'asc',
         },
       },
     });
@@ -114,7 +130,7 @@ export class ClienteService {
     // Devolver los datos del cliente junto con su vendedor
     return clienteEmpresas.map((ce) => ({
       ...ce.cliente,
-      vendedor: ce.vendedor,
+      usuario: ce.usuario,
     }));
   }
 }

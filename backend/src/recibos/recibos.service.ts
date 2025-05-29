@@ -24,14 +24,14 @@ export class RecibosService {
     });
     const recibos = await this.prisma.recibo.findMany({
       where: {
-        creado: {
+        Fechacrecion: {
           gte: from,
           lte: to,
         },
-        vendedor:
+        usuario:
           nombreVendedor !== 'todos'
             ? {
-                nombres: nombreVendedor, // Filtra por el nombre del vendedor específico
+                nombre: nombreVendedor, // Filtra por el nombre del vendedor específico
                 empresa: {
                   id: usuarioEmpresa?.empresaId, // Filtra por la empresa relacionada con el vendedor
                 },
@@ -44,18 +44,18 @@ export class RecibosService {
       select: {
         id: true,
         tipo: true,
-        creado: true,
+        Fechacrecion: true,
         concepto: true,
-        valor: true,
+        //valor: true,
         cliente: {
           select: {
-            nombres: true,
+            nombre: true,
             apellidos: true,
           },
         },
-        vendedor: {
+        usuario: {
           select: {
-            nombres: true,
+            nombre: true,
           },
         },
       },
@@ -98,7 +98,7 @@ export class RecibosService {
       data: {
         clienteId: relacion.cliente.id,
         usuarioId: usuario.id,
-        valor: data.valor,
+        //valor: data.valor,
         tipo: data.tipo,
         concepto: data.concepto,
       },
@@ -131,7 +131,7 @@ export class RecibosService {
                 empresas: {
                   some: {
                     empresaId,
-                    vendedorId: id,
+                    usuarioId: id,
                   },
                 },
               },
@@ -140,15 +140,15 @@ export class RecibosService {
       },
       include: {
         cliente: true,
-        vendedor: {
+        usuario: {
           select: {
             id: true,
-            nombres: true,
+            nombre: true,
           },
         },
       },
       orderBy: {
-        creado: 'desc',
+        Fechacrecion: 'desc',
       },
     });
   }
@@ -226,16 +226,16 @@ export class RecibosService {
           select: {
             id: true,
             nit: true,
-            nombres: true,
+            nombre: true,
             apellidos: true,
             email: true,
-            codigoCiud: true,
+            ciudad: true,
           },
         },
-        vendedor: {
+        usuario: {
           select: {
             id: true,
-            nombres: true,
+            nombre: true,
           },
         },
       },
