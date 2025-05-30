@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -36,5 +36,15 @@ export class AuthService {
       logoUrl: usuario.empresa.logoUrl,
       nombreEmpresa: usuario.empresa.nombreComercial,
     };
+  }
+  async verificarSuperAdmin(userId: string) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { codigo: userId },
+    });
+
+    if (!usuario || usuario.rol !== 'admin') {
+      throw new ForbiddenException('Acceso denegado: no es admin');
+    }
+    return usuario;
   }
 }
