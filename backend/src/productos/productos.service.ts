@@ -23,6 +23,13 @@ export class ProductosService {
         where: {
           empresaId: empresaId,
         },
+        include: {
+          //Incluimos el inventario del producto
+          inventario: {
+            where: { idEmpresa: empresaId },
+            select: { stockActual: true },
+          },
+        },
       });
     } catch (error: any) {
       throw new InternalServerErrorException('Error al obtener los productos');
