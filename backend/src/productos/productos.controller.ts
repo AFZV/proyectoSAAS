@@ -1,12 +1,22 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param } from '@nestjs/common';
 import { ProductosService } from './productos.service';
-//import { CreateProductoDto } from './dto/create-producto.dto';
+import { CreateProductoDto } from './dto/create-producto.dto';
 
 @Controller('productos')
 export class ProductosController {
   constructor(private productosService: ProductosService) {}
-  // @Post()
-  // create(@Body() data: CreateProductoDto) {
-  //   return this.productosService.create(data);
-  // }
+  //Crear un producto validando los datos con el DTO
+  @Post('create')
+  async create(@Body() data: CreateProductoDto) {
+    //Se crea el producto usando el servicio
+    const producto = await this.productosService.create(data);
+    //Se retorna un mensaje de éxito y el producto creado
+    return { message: `Se ha creado el producto ${producto.nombre}`, producto };
+  }
+  //Obtener todos los productos de una empresa
+  @Get('empresa/:empresaId')
+  async findAll(@Param('empresaId') empresaId: string) {
+    const productos = await this.productosService.findAllforEmpresa(empresaId);
+    return { productos };
+  }
 }
