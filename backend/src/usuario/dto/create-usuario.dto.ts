@@ -3,7 +3,7 @@ import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 export class CreateUsuarioDto {
   @IsString()
   @IsNotEmpty()
-  codigo: string;
+  codigo: string; ///codigo unico que genera clerk al crear el usuario
   @IsString()
   @IsNotEmpty()
   nombre: string;
@@ -27,8 +27,4 @@ export class CreateUsuarioDto {
   @IsString()
   @IsNotEmpty()
   empresaId: string;
-
-  @IsString()
-  @IsNotEmpty()
-  estado: string;
 }

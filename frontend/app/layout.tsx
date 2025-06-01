@@ -28,7 +28,9 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body className={noto.className}>
+        <body
+          className={`${noto.className} min-h-screen bg-background text-foreground`}
+        >
           <ThemeProvider
             attribute="class"
             defaultTheme="system"

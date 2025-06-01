@@ -1,91 +1,90 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
-//import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { CreateSuperadminDto } from './dto/create-superadmin.dto';
+import { UpdateUsuarioAdminDto } from './dto/update-usuarioadmin.dto';
+import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 
 @Injectable()
 export class UsuarioService {
   constructor(private prisma: PrismaService) {}
 
-  create(data: CreateUsuarioDto) {
-    return this.prisma.usuario.create({ data });
-  }
-
-  // ✅ Este es el método correcto
-  async createSuperadmin(data: CreateSuperadminDto) {
+  async createSuperAdmin(data: CreateSuperadminDto, empresaId: string) {
+    console.log('empresa id u¿que llega a crera superadmin:', empresaId);
     return this.prisma.usuario.create({
       data: {
         ...data,
         rol: 'superadmin',
-        empresaId: '',
+        empresaId: empresaId,
         estado: 'activo',
       },
     });
   }
 
-  // usuario.service.ts
-  async getUsuarioConEmpresa(userId: string) {
-    console.log('Buscando usuario con codigo:', userId);
-    console.log('userId recibido en backend:', userId);
-
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { codigo: userId },
-      select: {
-        id: true,
-        codigo: true,
-        rol: true,
-        empresaId: true,
-        empresa: {
-          select: {
-            nombreComercial: true,
-            nit: true,
-          },
-        },
-      },
+  async actualizarAdmin(id: string, data: UpdateUsuarioAdminDto) {
+    return this.prisma.usuario.update({
+      where: { id },
+      data,
     });
-
-    if (!usuario) {
-      console.log('⚠️ No se encontró el usuario con código:', userId);
-    } else {
-      console.log('✅ Usuario encontrado:', usuario);
-    }
-
-    return usuario;
   }
 
-  async getRolUsuario(userId: string): Promise<string | null> {
-    const user = await this.prisma.usuario.findUnique({
+  async obtenerSuperAdmins() {
+    const usuarios = await this.prisma.usuario.findMany({
       where: {
-        codigo: userId,
-      },
-      select: {
-        rol: true,
+        rol: 'superadmin',
+        estado: 'activo',
       },
     });
-    return user?.rol ?? null;
+    return usuarios;
   }
+
+  async cambiarEstadoSuperAdmin(id: string) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id },
+    });
+    if (!usuario) throw new NotFoundException('Usuario no encontrado');
+
+    const nuevoEstado = usuario.estado === 'activo' ? 'inactivo' : 'activo';
+
+    return this.prisma.usuario.update({
+      where: { id },
+      data: { estado: nuevoEstado },
+    });
+  }
+  ///aca empiezan servicios para crear usaurios de empresas nuevas
+  async crearUsuario(data: CreateUsuarioDto) {
+    return this.prisma.usuario.create({
+      data: { ...data, estado: 'activo' },
+    });
+  }
+
+  async actualizarUsuarioEmpresa(data: UpdateUsuarioDto, id: string) {
+    const actualizado = await this.prisma.usuario.update({
+      where: {
+        id: id,
+      },
+      data: {
+        ...data,
+      },
+    });
+    return actualizado;
+  }
+
+  async obtenerTodosUsuarios() {
+    return this.prisma.usuario.findMany({});
+  }
+
+  async obtenerUsuarioPorId(userId: string) {
+    return this.prisma.usuario.findUnique({
+      where: { codigo: userId },
+    });
+  }
+
+  //obtiene los usuarios por empresa
 
   async getUsuariosPorEmpresa(empresaId: string) {
     return this.prisma.usuario.findMany({
-      where: {
-        empresaId,
-      },
-      select: {
-        codigo: true,
-        nombre: true,
-        apellidos: true,
-        rol: true,
-      },
-    });
-  }
-
-  async usuarioExistePorCodigo(userId: string) {
-    return this.prisma.usuario.findFirst({
-      where: { codigo: userId },
-      select: {
-        codigo: true,
-      },
+      where: { empresaId },
     });
   }
 }

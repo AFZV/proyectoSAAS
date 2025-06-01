@@ -20,7 +20,7 @@ export async function SideBar() {
   return (
     <div className="h-screen overflow-y-auto">
       <div className="h-full flex flex-col border-r">
-        <Logo logoUrl={usuario.logoUrl} empresaName={usuario.nombreEmpresa} />
+        <Logo logoUrl={usuario.logoUrl} empresaName={usuario.nombreComercial} />
         <SideBarRoutes />
       </div>
     </div>

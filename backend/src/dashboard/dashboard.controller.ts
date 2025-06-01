@@ -1,29 +1,36 @@
-import { Controller /*Get, Query*/ } from '@nestjs/common';
+import { Controller, Get, UseGuards, Req } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
-
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { UsuarioGuard } from 'src/common/guards/usuario.guard';
+import { UsuarioRequest } from 'src/types/request-with-usuario';
+@UseGuards(UsuarioGuard, RolesGuard)
+@Roles('superadmin', 'admin', 'vendedor')
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
+  @Roles('superadmin', 'admin', 'vendedor')
+  @Get('prueba')
+  getResume() {
+    return { mensaje: 'respuesta del backend' };
+  }
 
-  // @Get('summary')
-  // getResumen(@Query('userId') userId: string) {
-  //   console.log(
-  //     '✅ Petición recibida en /dashboard/summary con userId:',
-  //     userId,
-  //   );
-  //   return this.dashboardService.getResumen(userId);
-  // }
-  // @Get('ventas')
-  // getResumeVentas(@Query('userId') userId: string) {
-  //   return this.dashboardService.getDataGraphiscVentas(userId);
-  // }
+  @Get('summary')
+  getResumen(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return this.dashboardService.getResumen(usuario);
+  }
 
-  // @Get('cobros')
-  // getResumeCobros(@Query('userId') userId: string) {
-  //   console.log(
-  //     'llega al backend y el usuario en getresumecobros es :',
-  //     userId,
-  //   );
-  //   return this.dashboardService.getDataGraphicsCobros(userId);
-  // }
+  @Get('ventas')
+  getResumeVentas(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return this.dashboardService.getDataGraphiscVentas(usuario);
+  }
+
+  @Get('cobros')
+  getResumeCobros(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+
+    return this.dashboardService.getDataGraphicsCobros(usuario);
+  }
 }

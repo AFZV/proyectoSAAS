@@ -2,7 +2,7 @@
 
 const nextConfig = {
   images: {
-    domains: ["utfs.io", "xqtnsjfw0c.ufs.sh"],
+    domains: ["utfs.io", "xqtnsjfw0c.ufs.sh", "example.com"],
   },
 };
 

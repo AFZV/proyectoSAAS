@@ -23,12 +23,12 @@ export async function getClientes(): Promise<any[]> {
 
 export default async function ListClientsPage() {
   const data = await getClientes();
-  console.log("esto hay en data :", data);
-  console.log("si llego al backend");
 
   return (
-    <div className="container mx-auto py-10">
-      {<DataTable columns={columns} data={data} />}
-    </div>
+    <section className="min-h-screen bg-background text-foreground px-4 py-4">
+      <div className="max-w-6xl mx-auto">
+        <DataTable columns={columns} data={data} />
+      </div>
+    </section>
   );
 }
