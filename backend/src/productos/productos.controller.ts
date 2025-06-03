@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Get, Param, Headers } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  Headers,
+  Delete,
+} from '@nestjs/common';
 import { ProductosService } from './productos.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 
@@ -24,5 +32,14 @@ export class ProductosController {
   async findAll(@Param('empresaId') empresaId: string) {
     const productos = await this.productosService.findAllforEmpresa(empresaId);
     return { productos };
+  }
+  //Eliminar un producto por su ID
+  @Delete('delete/:productoId')
+  async delete(
+    @Param('productoId') productoId: string,
+    @Headers('Authorization') userId: string,
+  ) {
+    await this.productosService.deleteProduct(productoId, userId);
+    return { message: 'Producto eliminado con exito' };
   }
 }

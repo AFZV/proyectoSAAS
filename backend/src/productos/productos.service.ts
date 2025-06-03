@@ -43,4 +43,34 @@ export class ProductosService {
       throw new InternalServerErrorException('Error al obtener los productos');
     }
   }
+
+  async deleteProduct(productoId: string, userId: string) {
+    const producto = await this.prisma.producto.findUnique({
+      where: { id: productoId },
+    });
+
+    if ( !producto ) {
+      throw new InternalServerErrorException('Producto no encontrado');
+    }
+
+    try {
+      await this.AuthService.verificarSuperAdmin(userId);
+     // Eliminar inventario asociado al producto
+      await this.prisma.inventario.deleteMany({
+        where: { idProducto: productoId },
+      });
+      // Eliminar producto
+      await this.prisma.producto.delete({
+        where: { id: productoId },
+      });
+    } catch (error: any) {
+      console.error('Error al crear el producto:', error);
+      // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
+      if (error.getStatus && typeof error.getStatus === 'function') {
+        throw error;
+      }
+      // Si no, lanza una InternalServerErrorException
+      throw new InternalServerErrorException('Error al crear el producto');
+    }
+  }
 }
