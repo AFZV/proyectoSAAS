@@ -5,7 +5,7 @@ import {
   Get,
   Param,
   Headers,
-  Delete,
+  Patch,
 } from '@nestjs/common';
 import { ProductosService } from './productos.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
@@ -33,13 +33,24 @@ export class ProductosController {
     const productos = await this.productosService.findAllforEmpresa(empresaId);
     return { productos };
   }
-  //Eliminar un producto por su ID
-  @Delete('delete/:productoId')
-  async delete(
+
+  //Obtener los productos activos de una empresa
+  @Get('empresa/:empresaId/activos')
+  async findAllActivos(@Param('empresaId') empresaId: string) {
+    const productos = await this.productosService.findAllforEmpresa(empresaId);
+    //Filtramos los productos activos
+    const productosActivos = productos.filter(
+      (producto) => producto.estado === 'activo',
+    );
+    return { productos: productosActivos };
+  }
+  //Actualizar el Estado de  un producto (Activo/Inactivo) por su ID
+  @Patch('update/:productoId')
+  async update(
     @Param('productoId') productoId: string,
     @Headers('Authorization') userId: string,
   ) {
-    await this.productosService.deleteProduct(productoId, userId);
-    return { message: 'Producto eliminado con exito' };
+    await this.productosService.UpdateProduct(productoId, userId);
+    return { message: 'Estado actualizado con exito' };
   }
 }

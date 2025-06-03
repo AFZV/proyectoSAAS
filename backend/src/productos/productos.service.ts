@@ -44,7 +44,7 @@ export class ProductosService {
     }
   }
 
-  async deleteProduct(productoId: string, userId: string) {
+  async UpdateProduct(productoId: string, userId: string) {
     const producto = await this.prisma.producto.findUnique({
       where: { id: productoId },
     });
@@ -54,23 +54,24 @@ export class ProductosService {
     }
 
     try {
+      //verifiar si el usuario es super admin
       await this.AuthService.verificarSuperAdmin(userId);
-     // Eliminar inventario asociado al producto
-      await this.prisma.inventario.deleteMany({
-        where: { idProducto: productoId },
-      });
-      // Eliminar producto
-      await this.prisma.producto.delete({
+     // Obtener el estado del producto
+     const nuevoEstado = producto.estado === 'activo' ? 'inactivo' : 'activo';
+
+      // Actualizar producto
+      await this.prisma.producto.update({
         where: { id: productoId },
+        data: { estado: nuevoEstado },
       });
     } catch (error: any) {
-      console.error('Error al crear el producto:', error);
+      console.error('Error al Actualizar el estado  del producto:', error);
       // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
       if (error.getStatus && typeof error.getStatus === 'function') {
         throw error;
       }
       // Si no, lanza una InternalServerErrorException
-      throw new InternalServerErrorException('Error al crear el producto');
+      throw new InternalServerErrorException('Error al Actualizar  el estado');
     }
   }
 }
