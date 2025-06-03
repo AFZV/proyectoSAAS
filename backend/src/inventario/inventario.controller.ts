@@ -9,7 +9,7 @@ import {
 import { InventarioService } from './inventario.service';
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
 
-@Controller('empresa/:empresaId/producto/:productoId/inventario')
+@Controller('inventario/empresa/:empresaId/producto/:productoId')
 export class InventarioController {
   constructor(private inventarioService: InventarioService) {}
   //Crear el inventario de un producto

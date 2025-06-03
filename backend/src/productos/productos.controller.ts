@@ -6,9 +6,11 @@ import {
   Param,
   Headers,
   Patch,
+  Put,
 } from '@nestjs/common';
 import { ProductosService } from './productos.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
+import { UpdateProductoDto } from './dto/actualizar-producto.dto';
 
 @Controller('productos')
 export class ProductosController {
@@ -50,7 +52,25 @@ export class ProductosController {
     @Param('productoId') productoId: string,
     @Headers('Authorization') userId: string,
   ) {
-    await this.productosService.UpdateProduct(productoId, userId);
+    await this.productosService.UpdateEstadoProduct(productoId, userId);
     return { message: 'Estado actualizado con exito' };
+  }
+
+  //Actualizar un producto por su ID
+  @Put('update/:productoId')
+  async updateall(
+    @Param('productoId') productoId: string,
+    @Body() data: UpdateProductoDto,
+    @Headers('Authorization') userId: string,
+
+  ) {
+    //Se actualiza el producto usando el servicio
+    const producto = await this.productosService.UpdateProducto(
+      productoId,
+      userId,
+      data,
+    );
+    //Se retorna un mensaje de éxito y el producto actualizado
+    return { message: `Se ha actualizado el producto ${producto.id}`, producto };
   }
 }

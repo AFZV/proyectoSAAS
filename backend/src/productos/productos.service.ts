@@ -2,7 +2,7 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
-
+import { UpdateProductoDto } from './dto/actualizar-producto.dto';
 @Injectable()
 export class ProductosService {
   constructor(
@@ -44,7 +44,7 @@ export class ProductosService {
     }
   }
 
-  async UpdateProduct(productoId: string, userId: string) {
+  async UpdateEstadoProduct(productoId: string, userId: string) {
     const producto = await this.prisma.producto.findUnique({
       where: { id: productoId },
     });
@@ -72,6 +72,42 @@ export class ProductosService {
       }
       // Si no, lanza una InternalServerErrorException
       throw new InternalServerErrorException('Error al Actualizar  el estado');
+    }
+  }
+
+  async UpdateProducto(
+    productoId: string,
+    userId: string,
+    data: UpdateProductoDto,
+  ) {
+    const producto = await this.prisma.producto.findUnique({
+      where: { id: productoId },
+    });
+
+    if ( !producto ) {
+      throw new InternalServerErrorException('Producto no encontrado');
+    }
+    try{
+      //verificar si el usuario es super admin
+      await this.AuthService.verificarSuperAdmin(userId);
+      // Actualizar producto
+      return await this.prisma.producto.update({
+        where: { id: productoId },
+        data: {
+          nombre: data.nombre,
+          precioCompra: data.precioCompra,
+          precioVenta: data.precioVenta,
+          categoria: data.categoria,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error al actualizar el producto:', error);
+      // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
+      if (error.getStatus && typeof error.getStatus === 'function') {
+        throw error;
+      }
+      // Si no, lanza una InternalServerErrorException
+      throw new InternalServerErrorException('Error al actualizar el producto');
     }
   }
 }
