@@ -39,4 +39,8 @@ export class UpdateEmpresaDto {
   @IsString()
   @IsOptional()
   logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  estado?: string;
 }

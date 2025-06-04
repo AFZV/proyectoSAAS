@@ -1,4 +1,10 @@
-import { IsEmail, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateEmpresaDto {
   @IsString()
@@ -37,4 +43,8 @@ export class CreateEmpresaDto {
   @IsString()
   @IsNotEmpty()
   logoUrl: string;
+
+  @IsOptional()
+  @IsString()
+  estado?: string;
 }

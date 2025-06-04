@@ -29,12 +29,9 @@ export class CreateSuperadminDto {
 
   @IsEmail({}, { message: 'El correo no tiene un formato válido.' })
   correo: string;
-
-  @IsString()
-  @IsNotEmpty()
-  rol: string;
-
-  @IsString()
-  @IsNotEmpty()
-  estado: string;
 }
+//   codigo    String   @unique @db.Text /// es un id unico de clerk
+//   nombre   String   @db.Text
+//   apellidos String   @db.Text
+//   telefono  String   @db.Text
+//   correo    String   @db.Text

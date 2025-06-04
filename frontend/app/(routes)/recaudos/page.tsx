@@ -36,7 +36,7 @@ export default async function RecaudosPage() {
   }
 
   return (
-    <div>
+    <div className="min-h-screen bg-background text-foreground px-4 py-6">
       <HeaderRecaudos user={usuario.rol} />
       <ListRecaudos />
     </div>

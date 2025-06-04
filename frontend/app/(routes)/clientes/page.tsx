@@ -3,7 +3,7 @@ import ListClientsPage from "./components/ListClientes/ListClients";
 
 export default function ClientesPage() {
   return (
-    <div>
+    <div className="min-h-screen bg-background text-foreground">
       <HeaderCliente />
       <ListClientsPage />
     </div>

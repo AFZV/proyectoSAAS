@@ -1,6 +1,6 @@
 // src/middleware/auth.middleware.ts
 import { NextFunction, Request, Response } from 'express';
-import { ClerkClient, verifyToken } from '@clerk/backend';
+import { verifyToken } from '@clerk/backend';
 
 export async function authMiddleware(
   req: Request,

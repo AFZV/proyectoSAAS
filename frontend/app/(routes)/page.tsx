@@ -1,61 +1,60 @@
 import { CardSummary } from "./components/CardSummary";
 import { DollarSign, UserRound, BookCheck } from "lucide-react";
-import { auth } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import { clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import NoDisponible from "@/components/NoDisponible/NoDisponible";
 import { SalesDistribution } from "./components/SalesDistribution";
 import { formatValue } from "@/utils/FormartValue";
 import { Loading } from "@/components/Loading";
+import { getToken } from "@/lib/getToken";
 
-// Reemplaza con tu URL real
+// URL del backend NestJS
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default async function Home() {
-  const { userId } = auth();
+  const token = await getToken();
 
-  if (!userId) {
-    redirect("/noAutorizado");
-  }
-
-  //fetch dashboard
-  const res = await fetch(`${BACKEND_URL}/dashboard/summary?userId=${userId}`, {
-    next: { revalidate: 0 }, // no cache
+  const res = await fetch(`${BACKEND_URL}/dashboard/summary`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
   });
-
   if (!res.ok) {
-    console.error("Error al obtener datos del backend");
+    console.error("Error al obtener datos del backend", res);
     return <NoDisponible />;
   }
 
   const data = await res.json();
+  console.log("esto hay en data:", data);
 
-  if (!data?.usuario || !data?.empresa) {
+  if (!data) {
     return <Loading title="Cargando datos..." />;
   }
-
+  console.log("token en front verificado en backend:", token);
   const totalCobrosFormat = formatValue(data.totalRecibos);
   const totalVentasFormat = formatValue(data.totalVentas);
 
   return (
     <div>
-      <div className="max-w-3xl mx-auto mb-8 p-6 bg-white shadow-md rounded-2xl border border-gray-200 text-center space-y-2">
-        <h2 className="text-lg font-semibold text-gray-700">
-          <span className="text-muted-foreground"> NIT:</span>{" "}
-          {data.empresa.nit}
+      <div className="max-w-3xl mx-auto mb-8 p-6 bg-card text-card-foreground shadow-md rounded-2xl border text-center space-y-2">
+        <h2 className="text-lg font-semibold">
+          <span className="text-muted-foreground">NIT:</span> {data.empresa.nit}
         </h2>
-        <h2 className="text-lg font-semibold text-gray-700">
+        <h2 className="text-lg font-semibold">
           <span className="text-muted-foreground">Nombre Comercial:</span>{" "}
           {data.empresa.nombreComercial}
         </h2>
-        <h2 className="text-lg font-semibold text-gray-700">
+        <h2 className="text-lg font-semibold">
           <span className="text-muted-foreground">Teléfono:</span>{" "}
           {data.empresa.telefono}
         </h2>
-        <h2 className="text-lg font-semibold text-gray-700">
+        <h2 className="text-lg font-semibold">
           <span className="text-muted-foreground">Usuario:</span>{" "}
-          {data.usuario.nombres}
+          {data.usuario.nombre}
         </h2>
-        <h2 className="text-lg font-semibold text-gray-700">
+        <h2 className="text-lg font-semibold">
           <span className="text-muted-foreground">Rol del Usuario:</span>{" "}
           {data.usuario.rol}
         </h2>

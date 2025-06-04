@@ -1,202 +1,189 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsuarioPayload } from 'src/types/usuario-payload';
 
 @Injectable()
 export class DashboardService {
   constructor(private prisma: PrismaService) {}
+  async getDataGraphicsCobros(usuario: UsuarioPayload) {
+    if (!usuario) throw new Error('Usuario no encontrado');
 
-  // async getDataGraphicsCobros(userId: string) {
-  //   const usuario = await this.prisma.usuario.findUnique({
-  //     where: { codigo: userId },
-  //     select: {
-  //       id: true,
-  //       rol: true,
-  //       empresaId: true,
-  //     },
-  //   });
+    const { codigo: usuarioId, empresaId, rol } = usuario;
 
-  //   if (!usuario) throw new Error('Usuario no encontrado');
+    const recaudos = await this.prisma.recibo.findMany({
+      where:
+        rol === 'admin'
+          ? { usuario: { empresaId } }
+          : { usuario: { empresaId }, usuarioId },
+      include: {
+        detalleRecibo: {
+          select: {
+            valorTotal: true,
+          },
+        },
+      },
+    });
 
-  //   const { rol, empresaId, id } = usuario;
+    const meses = [
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre',
+    ];
 
-  //   const whereClause =
-  //     rol === 'admin'
-  //       ? { vendedor: { empresaId } }
-  //       : { usuarioId: id, vendedor: { empresaId } };
+    const cobrosPorMes = Array.from({ length: 12 }, (_, i) => ({
+      Mes: meses[i],
+      cobros: 0,
+    }));
 
-  //   const recaudos = await this.prisma.recibo.groupBy({
-  //     by: ['Fechacrecion'],
-  //     _sum: { : true },
-  //     where: whereClause,
-  //   });
+    // ✅ Agrupación correcta por mes
+    recaudos.forEach((recaudo) => {
+      const mesIndex = new Date(recaudo.Fechacrecion).getMonth();
+      const totalRecibo = recaudo.detalleRecibo.reduce(
+        (sum, detalle) => sum + detalle.valorTotal,
+        0,
+      );
+      cobrosPorMes[mesIndex].cobros += totalRecibo;
+    });
 
-  //   const meses = [
-  //     'enero',
-  //     'febrero',
-  //     'marzo',
-  //     'abril',
-  //     'mayo',
-  //     'junio',
-  //     'julio',
-  //     'agosto',
-  //     'septiembre',
-  //     'octubre',
-  //     'noviembre',
-  //     'diciembre',
-  //   ];
+    return cobrosPorMes;
+  }
 
-  //   const ventasPorMes = Array.from({ length: 12 }, (_, i) => ({
-  //     Mes: meses[i],
-  //     cobros: 0,
-  //   }));
+  async getDataGraphiscVentas(usuario: UsuarioPayload) {
+    if (!usuario) throw new Error('Usuario no encontrado');
+    const { codigo: usuarioId, empresaId, rol } = usuario;
 
-  //   recaudos.forEach((recaudo) => {
-  //     const mesIndex = new Date(recaudo.creado).getMonth();
-  //     ventasPorMes[mesIndex].cobros += Number(recaudo._sum.valor || 0);
-  //   });
+    const ventas = await this.prisma.pedido.groupBy({
+      by: ['fechaPedido'],
+      _sum: { total: true },
+      where:
+        rol === 'admin'
+          ? { usuario: { empresaId: empresaId } }
+          : { usuario: { empresaId: empresaId }, usuarioId: usuarioId },
+    });
 
-  //   return ventasPorMes;
-  // }
+    const meses = [
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre',
+    ];
 
-  // async getDataGraphiscVentas(userId: string) {
-  //   const usuario = await this.prisma.usuario.findUnique({
-  //     where: { codigo: userId },
-  //     select: {
-  //       id: true,
-  //       rol: true,
-  //       empresaId: true,
-  //     },
-  //   });
+    const ventasPorMes = Array.from({ length: 12 }, (_, i) => ({
+      Mes: meses[i],
+      ventas: 0,
+    }));
 
-  //   if (!usuario) throw new Error('Usuario no encontrado');
+    ventas.forEach((venta) => {
+      const mesIndex = new Date(venta.fechaPedido).getMonth();
+      ventasPorMes[mesIndex].ventas += Number(venta._sum.total || 0);
+    });
 
-  //   const { rol, empresaId, id } = usuario;
+    return ventasPorMes;
+  }
 
-  //   const whereClause =
-  //     rol === 'admin'
-  //       ? { vendedor: { empresaId } }
-  //       : { vendedorId: id, vendedor: { empresaId } };
+  ///obtiene el resumen de total clientes, cobros diarios, y ventas diarias de usuario o emepresa segun rol
+  async getResumen(usuario: UsuarioPayload) {
+    const hoy = new Date();
+    const inicioDia = new Date(
+      hoy.getFullYear(),
+      hoy.getMonth(),
+      hoy.getDate(),
+    );
+    const finDia = new Date(
+      hoy.getFullYear(),
+      hoy.getMonth(),
+      hoy.getDate(),
+      23,
+      59,
+      59,
+    );
 
-  //   const ventas = await this.prisma.pedido.groupBy({
-  //     by: ['fecha'],
-  //     _sum: { total: true },
-  //     where: whereClause,
-  //   });
+    if (!usuario) throw new Error('Usuario no encontrado');
 
-  //   const meses = [
-  //     'enero',
-  //     'febrero',
-  //     'marzo',
-  //     'abril',
-  //     'mayo',
-  //     'junio',
-  //     'julio',
-  //     'agosto',
-  //     'septiembre',
-  //     'octubre',
-  //     'noviembre',
-  //     'diciembre',
-  //   ];
+    const { rol, empresaId, codigo: dbUserId, nombre } = usuario;
 
-  //   const ventasPorMes = Array.from({ length: 12 }, (_, i) => ({
-  //     Mes: meses[i],
-  //     ventas: 0,
-  //   }));
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: empresaId },
+    });
 
-  //   ventas.forEach((venta) => {
-  //     const mesIndex = new Date(venta.fecha).getMonth();
-  //     ventasPorMes[mesIndex].ventas += Number(venta._sum.total || 0);
-  //   });
+    const totalClientes = await this.prisma.clienteEmpresa.count({
+      where: {
+        empresaId,
+        ...(rol !== 'admin' && { usuarioId: dbUserId }),
+      },
+    });
 
-  //   return ventasPorMes;
-  // }
+    const recibos = await this.prisma.recibo.findMany({
+      where:
+        rol === 'admin'
+          ? {
+              usuario: { empresaId: empresaId },
+              Fechacrecion: { gte: inicioDia, lte: finDia },
+            }
+          : {
+              usuarioId: dbUserId,
+              Fechacrecion: { gte: inicioDia, lte: finDia },
+              usuario: { empresaId: empresaId },
+            },
+      include: {
+        detalleRecibo: true,
+      },
+    });
 
-  // async getResumen(userId: string) {
-  //   const hoy = new Date();
-  //   const inicioDia = new Date(
-  //     hoy.getFullYear(),
-  //     hoy.getMonth(),
-  //     hoy.getDate(),
-  //   );
-  //   const finDia = new Date(
-  //     hoy.getFullYear(),
-  //     hoy.getMonth(),
-  //     hoy.getDate(),
-  //     23,
-  //     59,
-  //     59,
-  //   );
+    const totalValorRecibos = recibos.reduce((total, recibo) => {
+      const sumaDetalles = recibo.detalleRecibo.reduce(
+        (suma, detalle) => suma + detalle.valorTotal,
+        0,
+      );
+      return total + sumaDetalles;
+    }, 0);
 
-  //   const usuario = await this.prisma.usuario.findUnique({
-  //     where: { codigo: userId },
-  //     select: {
-  //       id: true,
-  //       rol: true,
-  //       empresaId: true,
-  //       nombres: true,
-  //     },
-  //   });
+    const totalVentas = await this.prisma.pedido
+      .aggregate({
+        _sum: { total: true },
+        where:
+          rol === 'admin'
+            ? {
+                usuario: { empresaId: empresaId },
+                fechaPedido: { gte: inicioDia, lte: finDia },
+              }
+            : {
+                usuarioId: dbUserId,
+                fechaPedido: { gte: inicioDia, lte: finDia },
+              },
+      })
+      .then((res) => res._sum.total ?? 0);
 
-  //   if (!usuario) throw new Error('Usuario no encontrado');
-
-  //   const { rol, empresaId, id: dbUserId, nombres } = usuario;
-
-  //   const empresa = await this.prisma.empresa.findUnique({
-  //     where: { id: empresaId },
-  //   });
-
-  //   const totalClientes = await this.prisma.clienteEmpresa.count({
-  //     where: {
-  //       empresaId,
-  //       ...(rol !== 'admin' && { vendedorId: dbUserId }),
-  //     },
-  //   });
-
-  //   const totalRecibos = await this.prisma.recibo
-  //     .aggregate({
-  //       _sum: { valor: true },
-  //       where:
-  //         rol === 'admin'
-  //           ? {
-  //               vendedor: { empresaId },
-  //               creado: { gte: inicioDia, lte: finDia },
-  //             }
-  //           : {
-  //               usuarioId: dbUserId,
-  //               creado: { gte: inicioDia, lte: finDia },
-  //             },
-  //     })
-  //     .then((res) => res._sum.valor ?? 0);
-
-  //   const totalVentas = await this.prisma.pedido
-  //     .aggregate({
-  //       _sum: { total: true },
-  //       where:
-  //         rol === 'admin'
-  //           ? {
-  //               vendedor: { empresaId },
-  //               fecha: { gte: inicioDia, lte: finDia },
-  //             }
-  //           : {
-  //               vendedorId: dbUserId,
-  //               fecha: { gte: inicioDia, lte: finDia },
-  //             },
-  //     })
-  //     .then((res) => res._sum.total ?? 0);
-
-  //   return {
-  //     empresa: {
-  //       nit: empresa?.nit,
-  //       nombreComercial: empresa?.nombreComercial,
-  //       telefono: empresa?.telefono,
-  //     },
-  //     usuario: {
-  //       rol,
-  //       nombres,
-  //     },
-  //     totalClientes,
-  //     totalRecibos,
-  //     totalVentas,
-  //   };
-  // }
+    return {
+      empresa: {
+        nit: empresa?.nit,
+        nombreComercial: empresa?.nombreComercial,
+        telefono: empresa?.telefono,
+      },
+      usuario: {
+        rol,
+        nombre,
+      },
+      totalClientes,
+      totalValorRecibos,
+      totalVentas,
+    };
+  }
 }
