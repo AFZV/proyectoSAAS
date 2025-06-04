@@ -121,6 +121,7 @@ model Inventario {
   idProducto String
   idEmpresa String
   stockActual Float @default(0) @db.DoublePrecision
+  stockReferenciaOinicial Float @default(0) @db.DoublePrecision
 
   producto Producto @relation(fields: [idProducto],references: [id])
   empresa Empresa @relation(fields: [idEmpresa],references: [id])

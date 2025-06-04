@@ -9,10 +9,12 @@ interface LogoProps {
 }
 
 export function Logo({ logoUrl, empresaName }: LogoProps) {
+  console.log("Logo props:", { logoUrl, empresaName });
+
   const router = useRouter();
   return (
     <div
-      className="min-h-20 h-20 flex items-center px-6 border-b cursor-pointer gap-2"
+      className="min-h-20 h-20 flex items-center px-6 border-b cursor-pointer gap-2 bg-background text-foreground"
       onClick={() => router.push("/")}
     >
       <Image
@@ -23,9 +25,7 @@ export function Logo({ logoUrl, empresaName }: LogoProps) {
         className="rounded-full object-cover"
         priority
       />
-      <h1 className="font-bold text-l text-center text-blue-600">
-        {empresaName}
-      </h1>
+      <h1 className=" bg-background text-foreground">{empresaName}</h1>
     </div>
   );
 }
