@@ -4,7 +4,6 @@ import {
   Body,
   Get,
   Param,
-  Headers,
   Patch,
   Put,
   UseGuards,
@@ -37,7 +36,7 @@ export class ProductosController {
     return { message: `Se ha creado el producto ${producto.nombre}`, producto };
   }
   //Obtener todos los productos de una empresa
-  @Roles('admin')
+  @Roles('admin', 'superadmin')
   @Get('empresa')
   async findAll(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
@@ -46,8 +45,8 @@ export class ProductosController {
   }
 
   //Obtener los productos activos de una empresa
-  @Roles('admin', 'vendedor')
-  @Get('empresa/:empresaId/activos')
+  @Roles('admin', 'vendedor', 'superadmin')
+  @Get('empresa/activos')
   async findAllActivos(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
     const productos = await this.productosService.findAllforEmpresa(usuario);
@@ -58,30 +57,29 @@ export class ProductosController {
     return { productos: productosActivos };
   }
   //Actualizar el Estado de  un producto (Activo/Inactivo) por su ID
+  @Roles('admin')
   @Patch('update/:productoId')
-  async update(
-    @Param('productoId') productoId: string,
-    @Headers('Authorization') userId: string,
-  ) {
-    await this.productosService.UpdateEstadoProduct(productoId, userId);
+  async update(@Param('productoId') productoId: string) {
+    await this.productosService.UpdateEstadoProduct(productoId);
     return { message: 'Estado actualizado con exito' };
   }
 
   //Actualizar un producto por su ID
+  @Roles('admin')
   @Put('update/:productoId')
   async updateall(
     @Param('productoId') productoId: string,
     @Body() data: UpdateProductoDto,
-    @Headers('Authorization') userId: string,
-
   ) {
     //Se actualiza el producto usando el servicio
     const producto = await this.productosService.UpdateProducto(
       productoId,
-      userId,
       data,
     );
     //Se retorna un mensaje de éxito y el producto actualizado
-    return { message: `Se ha actualizado el producto ${producto.id}`, producto };
+    return {
+      message: `Se ha actualizado el producto ${producto.id}`,
+      producto,
+    };
   }
 }

@@ -1,15 +1,11 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuthService } from '../auth/auth.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/actualizar-producto.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 @Injectable()
 export class ProductosService {
-  constructor(
-    private prisma: PrismaService,
-    private AuthService: AuthService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   async create(usuario: UsuarioPayload, data: CreateProductoDto) {
     try {
@@ -35,7 +31,10 @@ export class ProductosService {
           //Incluimos el inventario del producto
           inventario: {
             where: { idEmpresa: usuario.empresaId },
-            select: { stockActual: true },
+            select: {
+              stockActual: true,
+              stockReferenciaOinicial: true, // Incluimos el stock inicial
+            },
           },
         },
       });
@@ -44,7 +43,7 @@ export class ProductosService {
     }
   }
 
-  async UpdateEstadoProduct(productoId: string, userId: string) {
+  async UpdateEstadoProduct(productoId: string) {
     const producto = await this.prisma.producto.findUnique({
       where: { id: productoId },
     });
@@ -54,8 +53,6 @@ export class ProductosService {
     }
 
     try {
-      //verifiar si el usuario es super admin
-      await this.AuthService.verificarSuperAdmin(userId);
      // Obtener el estado del producto
      const nuevoEstado = producto.estado === 'activo' ? 'inactivo' : 'activo';
 
@@ -75,11 +72,7 @@ export class ProductosService {
     }
   }
 
-  async UpdateProducto(
-    productoId: string,
-    userId: string,
-    data: UpdateProductoDto,
-  ) {
+  async UpdateProducto(productoId: string, data: UpdateProductoDto) {
     const producto = await this.prisma.producto.findUnique({
       where: { id: productoId },
     });
@@ -98,10 +91,10 @@ export class ProductosService {
           categoria: data.categoria,
         },
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error al actualizar el producto:', error);
       // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
-      if (error.getStatus && typeof error.getStatus === 'function') {
+      if (error) {
         throw error;
       }
       // Si no, lanza una InternalServerErrorException

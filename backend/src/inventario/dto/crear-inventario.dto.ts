@@ -5,5 +5,6 @@ export class CrearInventarioDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  stockActual: number;
+  stockReferenciaOinicial: number;
+
 }
