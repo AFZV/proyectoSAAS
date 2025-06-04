@@ -25,21 +25,21 @@ export class ProductosService {
     }
   }
 
-  async findAllforEmpresa(empresaId: string) {
+  async findAllforEmpresa(usuario: UsuarioPayload) {
     try {
       return await this.prisma.producto.findMany({
         where: {
-          empresaId: empresaId,
+          empresaId: usuario.empresaId,
         },
         include: {
           //Incluimos el inventario del producto
           inventario: {
-            where: { idEmpresa: empresaId },
+            where: { idEmpresa: usuario.empresaId },
             select: { stockActual: true },
           },
         },
       });
-    } catch (error: any) {
+    } catch (error) {
       throw new InternalServerErrorException('Error al obtener los productos');
     }
   }

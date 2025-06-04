@@ -37,16 +37,20 @@ export class ProductosController {
     return { message: `Se ha creado el producto ${producto.nombre}`, producto };
   }
   //Obtener todos los productos de una empresa
-  @Get('empresa/:empresaId')
-  async findAll(@Param('empresaId') empresaId: string) {
-    const productos = await this.productosService.findAllforEmpresa(empresaId);
+  @Roles('admin')
+  @Get('empresa')
+  async findAll(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    const productos = await this.productosService.findAllforEmpresa(usuario);
     return { productos };
   }
 
   //Obtener los productos activos de una empresa
+  @Roles('admin', 'vendedor')
   @Get('empresa/:empresaId/activos')
-  async findAllActivos(@Param('empresaId') empresaId: string) {
-    const productos = await this.productosService.findAllforEmpresa(empresaId);
+  async findAllActivos(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    const productos = await this.productosService.findAllforEmpresa(usuario);
     //Filtramos los productos activos
     const productosActivos = productos.filter(
       (producto) => producto.estado === 'activo',
