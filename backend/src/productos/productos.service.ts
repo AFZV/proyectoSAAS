@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/actualizar-producto.dto';
+import { UsuarioPayload } from 'src/types/usuario-payload';
 @Injectable()
 export class ProductosService {
   constructor(
@@ -10,14 +11,13 @@ export class ProductosService {
     private AuthService: AuthService,
   ) {}
 
-  async create(userId: string, data: CreateProductoDto) {
+  async create(usuario: UsuarioPayload, data: CreateProductoDto) {
     try {
-      await this.AuthService.verificarSuperAdmin(userId);
       return await this.prisma.producto.create({ data });
     } catch (error: any) {
       console.error('Error al crear el producto:', error);
       // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
-      if (error.getStatus && typeof error.getStatus === 'function') {
+      if (error) {
         throw error;
       }
       // Si no, lanza una InternalServerErrorException
@@ -87,9 +87,7 @@ export class ProductosService {
     if ( !producto ) {
       throw new InternalServerErrorException('Producto no encontrado');
     }
-    try{
-      //verificar si el usuario es super admin
-      await this.AuthService.verificarSuperAdmin(userId);
+    try {
       // Actualizar producto
       return await this.prisma.producto.update({
         where: { id: productoId },

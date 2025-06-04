@@ -7,25 +7,32 @@ import {
   Headers,
   Patch,
   Put,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { ProductosService } from './productos.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/actualizar-producto.dto';
+import { UsuarioGuard } from 'src/common/guards/usuario.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { UsuarioRequest } from 'src/types/request-with-usuario';
 
+@UseGuards(UsuarioGuard, RolesGuard)
 @Controller('productos')
 export class ProductosController {
   constructor(private productosService: ProductosService) {}
   //Crear un producto validando los datos con el DTO
+  @Roles('admin')
   @Post('create')
   async create(
     @Body() data: CreateProductoDto,
-    @Headers('Authorization') userId: string,
+    @Req() req: UsuarioRequest,
+    //@
   ) {
+    const usuario = req.usuario;
     //Se crea el producto usando el servicio
-    if (!userId) {
-      throw new Error('No se ha proporcionado el ID del usuario');
-    }
-    const producto = await this.productosService.create(userId, data);
+    const producto = await this.productosService.create(usuario, data);
     //Se retorna un mensaje de éxito y el producto creado
     return { message: `Se ha creado el producto ${producto.nombre}`, producto };
   }
