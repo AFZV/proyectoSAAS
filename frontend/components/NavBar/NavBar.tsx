@@ -1,11 +1,28 @@
 import { Input } from "@/components/ui/input";
 import { SheetContent, Sheet, SheetTrigger } from "@/components/ui/sheet";
 import { UserButton } from "@clerk/nextjs";
-import { Menu, Search } from "lucide-react";
+import { Menu } from "lucide-react";
 import { SideBarRoutes } from "../SideBarRoutes";
 import { ToogleTheme } from "../ToogleTheme";
+import { getToken } from "@/lib/getToken";
+import { redirect } from "next/navigation";
 
-export function NavBar() {
+export async function NavBar() {
+  const token = await getToken();
+
+  if (!token) redirect("/sign-in");
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/auth/usuario-actual`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    }
+  );
+
+  const usuario = await res.json();
+  const rol = usuario.rol as string;
+
   return (
     <nav
       className="flex items-center 
@@ -18,8 +35,10 @@ export function NavBar() {
           <SheetTrigger className="flex items-center">
             <Menu />
           </SheetTrigger>
-          <SheetContent side="left">
-            <SideBarRoutes />
+
+          {/* ✅ Scroll vertical dentro del sidebar en móviles */}
+          <SheetContent side="left" className="h-full overflow-y-auto p-0">
+            <SideBarRoutes rol={rol} />
           </SheetContent>
         </Sheet>
       </div>

@@ -76,7 +76,7 @@ export class UsuarioService {
 
   async obtenerUsuarioPorId(userId: string) {
     return this.prisma.usuario.findUnique({
-      where: { codigo: userId },
+      where: { id: userId },
     });
   }
 

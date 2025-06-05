@@ -1,10 +1,8 @@
+"use client";
 import {
   BarChart4,
   Building2,
   PanelsTopLeft,
-  Settings,
-  Calendar,
-  ShieldCheck,
   NotebookPenIcon,
   ContactRound,
   FolderIcon,
