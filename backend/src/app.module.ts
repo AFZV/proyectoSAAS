@@ -15,6 +15,7 @@ import { RecibosService } from './recibos/recibos.service';
 import { ProductosModule } from './productos/productos.module';
 import { EstadisticasModule } from './estadisticas/estadisticas.module';
 import { ProveedoresModule } from './proveedores/proveedores.module';
+import { ComprasModule } from './compras/compras.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ProveedoresModule } from './proveedores/proveedores.module';
     ProductosModule,
     EstadisticasModule,
     ProveedoresModule,
+    ComprasModule,
   ],
   controllers: [PrismaController, EmpresaController, RecibosController],
   providers: [EmpresaService, RecibosService],

@@ -63,7 +63,7 @@ export class RecibosService {
 
     return recibos;
   }
-
+   /*
   async CrearRecibo(data: CrearReciboDto, userId: string) {
     // 1. Obtener el usuario autenticado (vendedor)
     const usuario = await this.prisma.usuario.findUnique({
@@ -95,9 +95,10 @@ export class RecibosService {
 
     // 3. Crear el recibo
     const nuevoRecibo = await this.prisma.recibo.create({
-      data: {
+     data: {
         clienteId: relacion.cliente.id,
-        usuarioId: usuario.id,
+        usuario: { connect: { id: data.usuarioId } },
+        empresa: { connect: { id: usuario.empresaId } },
         //valor: data.valor,
         tipo: data.tipo,
         concepto: data.concepto,
@@ -105,7 +106,9 @@ export class RecibosService {
     });
 
     return nuevoRecibo;
-  }
+  } 
+
+   */
 
   async getRecibosPorUsuario(userId: string) {
     const usuario = await this.prisma.usuario.findUnique({

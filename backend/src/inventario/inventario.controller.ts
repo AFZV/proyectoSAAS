@@ -7,6 +7,7 @@ import {
   HttpStatus,
   UseGuards,
   Req,
+  Put,
 } from '@nestjs/common';
 import { InventarioService } from './inventario.service';
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
@@ -20,7 +21,7 @@ import { UsuarioRequest } from 'src/types/request-with-usuario';
 export class InventarioController {
   constructor(private inventarioService: InventarioService) {}
   //Crear el inventario de un producto
-  @Roles('superadmin')
+  @Roles('admin')
   @Post('')
   @HttpCode(HttpStatus.CREATED)
   async create(
@@ -38,5 +39,13 @@ export class InventarioController {
       message: `Inventario registrado para el producto ${productoId}`,
       registroinv,
     };
+  }
+  @Roles('admin')
+  @Put('')
+  async updateinventario(
+    @Param('productoId') productoId: string,
+    
+  ){
+
   }
 }
