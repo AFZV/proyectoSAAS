@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -19,13 +18,15 @@ import {
 } from "@/components/ui/form";
 import { FormCrearUsuarioProps } from "./FormCrearUsuario.types";
 import { useAuth } from "@clerk/nextjs";
+import { Loading } from "@/components/Loading";
+
 const formSchema = z.object({
   codigo: z.string().min(5),
-  nombres: z.string().min(2),
+  nombre: z.string().min(2),
   apellidos: z.string().min(2),
   correo: z.string().email(),
   telefono: z.string().min(7),
-  rol: z.enum(["admin", "vendedor", "superadmin"]),
+  rol: z.enum(["admin", "vendedor", "superadmin", "bodega"]),
   empresaId: z.string().uuid(),
 });
 
@@ -36,17 +37,21 @@ type Empresa = {
 
 export function FormCrearUsuario({
   setOpenModalUsuarioCreate,
-}: FormCrearUsuarioProps) {
+  refetchUsuarios,
+  usuarioId,
+}: FormCrearUsuarioProps & { usuarioId?: string }) {
   const router = useRouter();
   const { toast } = useToast();
+  const { getToken } = useAuth();
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const { userId } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmiting, setIsSubmiting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       codigo: "",
-      nombres: "",
+      nombre: "",
       apellidos: "",
       correo: "",
       telefono: "",
@@ -55,43 +60,110 @@ export function FormCrearUsuario({
     },
   });
 
+  // Cargar empresas
   useEffect(() => {
     const fetchEmpresas = async () => {
       try {
-        if (userId) {
-          const res = await axios.get(
-            `${process.env.NEXT_PUBLIC_API_URL}/empresa?userId=${userId}`
-          );
-          console.log("response:", res);
-          setEmpresas(res.data);
-        }
+        const token = await getToken();
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/empresa/all`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-cache",
+          }
+        );
+
+        const data = await res.json();
+        const empresasFiltradas: Empresa[] = data.map((empresa: any) => ({
+          id: empresa.id,
+          nombreComercial: empresa.nombreComercial,
+        }));
+        setEmpresas(empresasFiltradas);
       } catch (error) {
-        console.error("Error al cargar empresas:", error);
-        toast({
-          title: "Error al cargar empresas",
-          variant: "destructive",
-        });
+        toast({ title: "Error al cargar empresas", variant: "destructive" });
       }
     };
 
     fetchEmpresas();
-  }, [toast]);
+  }, []);
+
+  // Si estamos editando, cargar usuario
+  useEffect(() => {
+    const fetchUsuario = async () => {
+      if (!usuarioId) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const token = await getToken();
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/usuario/${usuarioId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        const data = await res.json();
+        form.reset(data);
+      } catch (error) {
+        toast({ title: "Error al cargar usuario", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUsuario();
+  }, [usuarioId]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    console.log("valores a enviar al backend:", values);
     try {
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/usuario`, values);
-      toast({ title: "Usuario creado con éxito" });
-      router.refresh();
+      setIsSubmiting(true);
+      const token = await getToken();
+
+      const url = usuarioId
+        ? `${process.env.NEXT_PUBLIC_API_URL}/usuario/${usuarioId}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/usuario`;
+
+      const method = usuarioId ? "PATCH" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(values),
+      });
+
+      if (!res.ok) throw new Error("Error al guardar usuario");
+
+      toast({
+        title: usuarioId
+          ? "Usuario actualizado con éxito"
+          : "Usuario creado con éxito",
+      });
+
+      refetchUsuarios();
       setOpenModalUsuarioCreate(false);
     } catch (error) {
-      console.error("Error al crear usuario:", error);
+      console.error("Error al guardar usuario:", error);
       toast({
-        title: "Error al crear usuario",
+        title: "Error al guardar usuario",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmiting(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-48">
+        <Loading title="Cargando usuario..." />
+      </div>
+    );
+  }
 
   return (
     <Form {...form}>
@@ -103,16 +175,17 @@ export function FormCrearUsuario({
             <FormItem>
               <FormLabel>Código</FormLabel>
               <FormControl>
-                <Input {...field} placeholder="ID de Clerk u otro código" />
+                <Input {...field} placeholder="ID de Clerk" />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+
         <div className="grid grid-cols-2 gap-3">
           <FormField
             control={form.control}
-            name="nombres"
+            name="nombre"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Nombres</FormLabel>
@@ -137,6 +210,7 @@ export function FormCrearUsuario({
             )}
           />
         </div>
+
         <FormField
           control={form.control}
           name="correo"
@@ -150,6 +224,7 @@ export function FormCrearUsuario({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="telefono"
@@ -163,6 +238,7 @@ export function FormCrearUsuario({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="rol"
@@ -173,6 +249,7 @@ export function FormCrearUsuario({
                 <select {...field} className="w-full border p-2 rounded">
                   <option value="vendedor">Vendedor</option>
                   <option value="admin">Admin</option>
+                  <option value="superadmin">Superadmin</option>
                   <option value="bodega">Bodega</option>
                 </select>
               </FormControl>
@@ -180,6 +257,7 @@ export function FormCrearUsuario({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="empresaId"
@@ -200,8 +278,11 @@ export function FormCrearUsuario({
             </FormItem>
           )}
         />
+
         <div className="flex justify-center">
-          <Button type="submit">Crear Usuario</Button>
+          <Button type="submit" disabled={isSubmiting}>
+            {usuarioId ? "Actualizar Usuario" : "Crear Usuario"}
+          </Button>
         </div>
       </form>
     </Form>

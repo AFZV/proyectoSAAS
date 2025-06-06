@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { PrismaController } from './prisma/prisma.controller';
 import { UsuarioModule } from './usuario/usuario.module';
@@ -14,14 +13,11 @@ import { RecibosController } from './recibos/recibos.controller';
 import { RecibosModule } from './recibos/recibos.module';
 import { RecibosService } from './recibos/recibos.service';
 import { ProductosModule } from './productos/productos.module';
-import { InventarioModule } from './inventario/inventario.module';
+import { EstadisticasModule } from './estadisticas/estadisticas.module';
+import { ProveedoresModule } from './proveedores/proveedores.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: '.env', // busca en backend/.env
-    }),
     PrismaModule,
     UsuarioModule,
     DashboardModule,
@@ -31,7 +27,8 @@ import { InventarioModule } from './inventario/inventario.module';
     ClienteEmpresaModule,
     RecibosModule,
     ProductosModule,
-    InventarioModule,
+    EstadisticasModule,
+    ProveedoresModule,
   ],
   controllers: [PrismaController, EmpresaController, RecibosController],
   providers: [EmpresaService, RecibosService],

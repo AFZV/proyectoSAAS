@@ -7,13 +7,17 @@ import {
   Patch,
   Param,
   UseGuards,
+  // Req,
 } from '@nestjs/common';
 import { EmpresaService } from './empresa.service';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { UpdateEmpresaDto } from './dto/update-empresa.dto';
 import { SuperadminGuard } from 'src/common/guards/superadmin.guard';
+//import { UsuarioRequest } from 'src/types/request-with-usuario';
+import { Roles } from 'src/common/decorators/roles.decorator';
 
 @UseGuards(SuperadminGuard)
+@Roles('superadmin')
 @Controller('empresa')
 export class EmpresaController {
   constructor(private empresaService: EmpresaService) {}

@@ -9,17 +9,6 @@ export class EstadisticasService {
   //   if (!usuario) throw new Error('Usuario no encontrado');
 
   //   const { codigo: usuarioId, empresaId, rol } = usuario;
-  //   const stockInicial = await this.prisma.movimientoInventario.findMany({
-  //     where: {
-  //       idEmpresa: empresaId,
-  //     },
-  //     include: {
-  //       tipoMovimiento: {
-  //         select: {
-  //           tipo:true,
-  //       },
-  //     },
-  //   });
   // }
 
   ///estadosticas de productos con poco movimientos

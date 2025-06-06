@@ -23,6 +23,11 @@ model Empresa {
   actualizado      DateTime           @updatedAt
   estado           String             @db.Text
 
+ proveedores Proveedores[]
+ pedidos Pedido[]
+ compras Compras[]
+ reciboss Recibo[]
+ movimientosCartera MovimientosCartera[]
   usuarios         Usuario[]
   clientes         ClienteEmpresa[]
   productos        Producto[]
@@ -151,7 +156,9 @@ model Compras {
   idCompra String   @id @default(uuid())
   idProveedor String
   FechaCompra DateTime @default(now())
+  idEmpresa String
 
+ empresa Empresa @relation(fields: [idEmpresa],references: [id])
   proveedor Proveedores @relation(fields: [idProveedor],references: [idProveedor])
   detalleCompra DetalleCompra[]
 
@@ -166,7 +173,10 @@ model Proveedores {
   razonsocial String @db.Text
   telefono String @db.Text
   direccion String @db.Text
+  idEmpresa String
 
+
+ empresa Empresa @relation(fields: [idEmpresa],references: [id])
   compras Compras[]
 }
 
@@ -177,7 +187,10 @@ model Recibo {
   tipo        String   @db.Text
   concepto    String   @db.Text
   Fechacrecion      DateTime @default(now())
+  empresaId String
 
+
+empresa Empresa @relation(fields: [empresaId],references: [id])
   cliente     Cliente  @relation(fields: [clienteId], references: [id])
   usuario    Usuario  @relation(fields: [usuarioId], references: [id])
   detalleRecibo DetalleRecibo[]
@@ -213,7 +226,9 @@ model Pedido {
   observaciones String?          @db.Text
   fechaEnvio    DateTime?
   fechaActualizado   DateTime         @updatedAt
+  empresaId String
 
+empresa Empresa @relation(fields: [empresaId],references: [id])
   cliente       Cliente          @relation(fields: [clienteId], references: [id])
   usuario      Usuario          @relation(fields: [usuarioId], references: [id])
   productos     DetallePedido[]
@@ -291,8 +306,10 @@ model MovimientosCartera {
   valorMovimiento Float @db.DoublePrecision
   idUsuario String
   fechaMovimientoCartera DateTime @default(now())
+  empresaId String
 
 
+empresa Empresa @relation(fields: [empresaId],references: [id])
   cliente Cliente @relation(fields: [idCliente],references: [id])
   usuario Usuario @relation(fields: [idUsuario],references: [id])
 

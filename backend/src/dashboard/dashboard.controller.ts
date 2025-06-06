@@ -9,7 +9,6 @@ import { UsuarioRequest } from 'src/types/request-with-usuario';
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
-  @Roles('superadmin', 'admin', 'vendedor')
   @Get('prueba')
   getResume() {
     return { mensaje: 'respuesta del backend' };

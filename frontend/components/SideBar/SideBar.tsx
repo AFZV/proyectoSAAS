@@ -17,12 +17,13 @@ export async function SideBar() {
   );
 
   const usuario = await res.json();
+  const rol = usuario.rol as string;
   console.log("usuario en sidebar:", usuario);
   return (
     <div className="h-screen overflow-y-auto">
       <div className="h-full flex flex-col border-r">
         <Logo logoUrl={usuario.logoUrl} empresaName={usuario.nombreEmpresa} />
-        <SideBarRoutes />
+        <SideBarRoutes rol={rol} />
       </div>
     </div>
   );

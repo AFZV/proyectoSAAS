@@ -1,10 +1,12 @@
 import React from "react";
-import HeaderAdmin from "./components/HeaderAdmin/HeaderAdmin";
+import { EmpresaModulo } from "./components/EmpresaModulo";
+import { UsuarioModulo } from "./components/UsuarioModulo";
 
 export default function AdminPage() {
   return (
-    <>
-      <HeaderAdmin />
-    </>
+    <div>
+      <EmpresaModulo />
+      <UsuarioModulo />
+    </div>
   );
 }
