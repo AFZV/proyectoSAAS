@@ -28,7 +28,7 @@ export class UsuarioGuard implements CanActivate {
       throw new UnauthorizedException('Usuario no encontrado en base de datos');
     }
 
-    req['usuario'] = usuario; // ✅ Inyectas rol y empresaId
+    req['usuario'] = usuario;
 
     return true;
   }

@@ -8,6 +8,8 @@ import {
   Param,
   Put,
   UnauthorizedException,
+  Req,
+  UseGuards,
   //Res,
 } from '@nestjs/common';
 //import { parseISO } from 'date-fns';
@@ -15,17 +17,21 @@ import {
 import { CrearReciboDto } from './dto/create-recibo.dto';
 import { RecibosService } from './recibos.service';
 import { UpdateReciboDto } from './dto/update-recibo.dto';
-//import { Response } from 'express';
+import { UsuarioRequest } from 'src/types/request-with-usuario';
+import { UsuarioGuard } from 'src/common/guards/usuario.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+
+@UseGuards(UsuarioGuard, RolesGuard)
+@Roles('vendedor', 'admin')
 @Controller('recibos')
 export class RecibosController {
   constructor(private recibosService: RecibosService) {}
 
   @Post()
-  async crearRecibo(
-    @Body() data: CrearReciboDto,
-    @Headers('authorization') userId: string,
-  ) {
-    return await this.recibosService.CrearRecibo(data, userId);
+  async crearRecibo(@Body() data: CrearReciboDto, @Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return await this.recibosService.crearRecibo(data, usuario);
   }
 
   @Post('exportar')

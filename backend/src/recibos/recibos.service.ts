@@ -6,6 +6,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CrearReciboDto } from './dto/create-recibo.dto';
 import { UpdateReciboDto } from './dto/update-recibo.dto';
+import { UsuarioPayload } from 'src/types/usuario-payload';
 
 @Injectable()
 export class RecibosService {
@@ -63,48 +64,53 @@ export class RecibosService {
 
     return recibos;
   }
-
-  async CrearRecibo(data: CrearReciboDto, userId: string) {
-    // 1. Obtener el usuario autenticado (vendedor)
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { codigo: userId },
-      select: {
-        id: true,
-        rol: true,
-        empresaId: true,
+  //crea un recibo y registra en detalle recibo
+  async crearRecibo(data: CrearReciboDto, usuario: UsuarioPayload) {
+    const { clienteId, tipo, concepto, pedidos } = data;
+    console.log('este es el codigo en back del usuario:', usuario.id);
+    const recibo = await this.prisma.recibo.create({
+      data: {
+        clienteId,
+        usuarioId: usuario.id, // desde el token
+        empresaId: usuario.empresaId, // desde el token
+        tipo,
+        concepto,
       },
     });
 
-    if (!usuario) throw new UnauthorizedException('Usuario no autorizado');
+    // crear cada detalle del recibo
+    for (const pedido of pedidos) {
+      const pedidoOriginal = await this.prisma.pedido.findUnique({
+        where: { id: pedido.pedidoId },
+        include: { detalleRecibo: true },
+      });
+      if (!pedidoOriginal) {
+        throw new Error(`Pedido con ID ${pedido.pedidoId} no encontrado`);
+      }
 
-    // 2. Buscar cliente relacionado a la empresa y al vendedor (si no es admin)
-    const relacion = await this.prisma.clienteEmpresa.findFirst({
-      where: {
-        empresaId: usuario.empresaId,
-        cliente: { nit: data.nit },
-        ...(usuario.rol !== 'admin' && { vendedorId: usuario.id }),
-      },
-      include: {
-        cliente: true,
-      },
-    });
+      const totalAbonadoAnterior = pedidoOriginal.detalleRecibo.reduce(
+        (sum, r) => sum + r.valorTotal,
+        0,
+      );
 
-    if (!relacion) {
-      throw new NotFoundException('Cliente no encontrado o no asignado');
+      const nuevoSaldo =
+        pedidoOriginal.total - totalAbonadoAnterior - pedido.valorAplicado;
+
+      await this.prisma.detalleRecibo.create({
+        data: {
+          idRecibo: recibo.id,
+          idPedido: pedido.pedidoId,
+          valorTotal: pedido.valorAplicado,
+          estado: nuevoSaldo <= 0 ? 'completo' : 'parcial',
+          saldoPendiente: Math.max(nuevoSaldo, 0),
+        },
+      });
     }
 
-    // 3. Crear el recibo
-    const nuevoRecibo = await this.prisma.recibo.create({
-      data: {
-        clienteId: relacion.cliente.id,
-        usuarioId: usuario.id,
-        //valor: data.valor,
-        tipo: data.tipo,
-        concepto: data.concepto,
-      },
-    });
-
-    return nuevoRecibo;
+    return {
+      message: 'Recibo creado con éxito',
+      recibo: recibo,
+    };
   }
 
   async getRecibosPorUsuario(userId: string) {

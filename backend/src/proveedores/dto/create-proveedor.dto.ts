@@ -6,7 +6,7 @@ export class createProveedorDto {
 
   @IsString()
   @IsNotEmpty()
-  razonSocial: string;
+  razonsocial: string;
 
   @IsString()
   @IsNotEmpty()
@@ -21,3 +21,4 @@ export class createProveedorDto {
 //   razonsocial String @db.Text
 //   telefono String @db.Text
 //   direccion String @db.Text
+//empresaId: string; este lo extraemos del request
