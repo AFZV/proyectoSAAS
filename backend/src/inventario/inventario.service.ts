@@ -27,7 +27,7 @@ export class InventarioService {
     return this.prisma.inventario.create({
       data: {
         stockReferenciaOinicial,
-        stockActual: stockReferenciaOinicial,   
+        stockActual: stockReferenciaOinicial,
         producto: {
           connect: { id: productoId },
         },

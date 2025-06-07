@@ -8,6 +8,7 @@ import {
   UseGuards,
   Req,
   Put,
+  Get,
 } from '@nestjs/common';
 import { InventarioService } from './inventario.service';
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
@@ -40,6 +41,8 @@ export class InventarioController {
       registroinv,
     };
   }
+
+
   @Roles('admin')
   @Put('')
   async updateinventario(
