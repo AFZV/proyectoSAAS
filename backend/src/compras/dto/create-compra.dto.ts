@@ -14,3 +14,5 @@ export class CreateCompraDto {
   @Min(1)
   cantidad: number;
 }
+
+interface ProductosPedidos {}

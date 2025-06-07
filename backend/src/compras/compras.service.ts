@@ -43,7 +43,7 @@ export class ComprasService {
           await tx.inventario.update({
             where: {idInventario: inv.idInventario},
             data: {
-              stockReferenciaOinicial: inv.stockReferenciaOinicial + data.cantidad,
+              stockReferenciaOinicial: inv.stockActual + data.cantidad,
               stockActual: inv.stockActual + data.cantidad,
             },
           });

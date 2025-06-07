@@ -9,7 +9,12 @@ export class ProductosService {
 
   async create(usuario: UsuarioPayload, data: CreateProductoDto) {
     try {
-      return await this.prisma.producto.create({ data });
+      return await this.prisma.producto.create({ data: {
+        ...data,
+        estado: 'activo', // Por defecto, el producto se crea como activo
+        empresaId: usuario.empresaId, // Asignamos la empresa del usuario
+        },
+      });
     } catch (error: any) {
       console.error('Error al crear el producto:', error);
       // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
