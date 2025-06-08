@@ -37,6 +37,7 @@ export class ReportesService {
       return {
         nombre: p.nombre,
         cantidades: stock,
+        precio: p.precioCompra,
         total,
       };
     });

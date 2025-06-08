@@ -36,13 +36,16 @@ export class ReportesController {
     // Creamos el archivo excel
     const wb = new ExcelJS.Workbook();
     const sheet = wb.addWorksheet('Reporte de Inventario');
-    sheet.addRow(['Nombre', 'Cantidad', 'Total']);
-    rows.forEach((r) => sheet.addRow([r.nombre, r.cantidades, r.total]));
+    sheet.addRow(['Nombre', 'Cantidad', 'Valor Unitario', 'Total']);
+    rows.forEach((r) => {
+      sheet.addRow([r.nombre, r.cantidades, r.precio, r.total]);
+    });
 
     sheet.columns = [
       { width: 30 }, // Nombre
       { width: 12, style: { numFmt: '#,##0' } }, // Cantidad
-      { width: 14, style: { numFmt: '[$$-en-US]#,##0.00' } },
+      { width: 14, style: { numFmt: '[$$-en-US]#,##0.00' } }, // Valor Unitario
+      { width: 14, style: { numFmt: '[$$-en-US]#,##0.00' } }, // Total
     ];
 
     //Devolver el archivo excel ya construido
@@ -51,8 +54,7 @@ export class ReportesController {
       .set({
         'Content-Type':
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition':
-        'attachment; filename="reporte-inventario.xlsx"',
+        'Content-Disposition': 'attachment; filename="reporte-inventario.xlsx"',
       });
 
     await wb.xlsx.write(res);
