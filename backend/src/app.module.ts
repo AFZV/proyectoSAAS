@@ -17,6 +17,7 @@ import { EstadisticasModule } from './estadisticas/estadisticas.module';
 import { ProveedoresModule } from './proveedores/proveedores.module';
 // import { PdfUploaderService } from './pdf-uploader/pdf-uploader.service';
 // import { ResendService } from './resend/resend.service';
+import { PedidosModule } from './pedidos/pedidos.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { ProveedoresModule } from './proveedores/proveedores.module';
     ProductosModule,
     EstadisticasModule,
     ProveedoresModule,
+    PedidosModule,
   ],
   controllers: [PrismaController, EmpresaController, RecibosController],
   providers: [EmpresaService, RecibosService],

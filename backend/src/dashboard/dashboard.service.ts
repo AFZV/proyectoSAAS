@@ -5,10 +5,46 @@ import { UsuarioPayload } from 'src/types/usuario-payload';
 @Injectable()
 export class DashboardService {
   constructor(private prisma: PrismaService) {}
+  obtenerRangosComparativos(hoy: Date) {
+    const diaActual = hoy.getDate(); // por ejemplo 8
+
+    // Rango del mes actual: del 1 al hoy
+    const inicioMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const finMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), diaActual);
+
+    // Rango del mes anterior: del 1 al "mismo día" del mes anterior
+    const inicioMesAnterior = new Date(
+      hoy.getFullYear(),
+      hoy.getMonth() - 1,
+      1,
+    );
+    let finMesAnterior = new Date(
+      hoy.getFullYear(),
+      hoy.getMonth() - 1,
+      diaActual,
+    );
+
+    // ⚠️ Ajustar si el mes anterior no tiene ese día (p.ej., 31 de mayo → 30 abril)
+    if (finMesAnterior.getMonth() !== inicioMesAnterior.getMonth()) {
+      finMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth(), 0); // último día del mes anterior
+    }
+
+    return {
+      rangoActual: {
+        desde: inicioMesActual,
+        hasta: finMesActual,
+      },
+      rangoAnterior: {
+        desde: inicioMesAnterior,
+        hasta: finMesAnterior,
+      },
+    };
+  }
+
   async getDataGraphicsCobros(usuario: UsuarioPayload) {
     if (!usuario) throw new Error('Usuario no encontrado');
 
-    const { codigo: usuarioId, empresaId, rol } = usuario;
+    const { id: usuarioId, empresaId, rol } = usuario;
 
     const recaudos = await this.prisma.recibo.findMany({
       where:
@@ -59,15 +95,15 @@ export class DashboardService {
 
   async getDataGraphiscVentas(usuario: UsuarioPayload) {
     if (!usuario) throw new Error('Usuario no encontrado');
-    const { codigo: usuarioId, empresaId, rol } = usuario;
+    const { id: usuarioId, empresaId, rol } = usuario;
 
     const ventas = await this.prisma.pedido.groupBy({
       by: ['fechaPedido'],
       _sum: { total: true },
       where:
         rol === 'admin'
-          ? { usuario: { empresaId: empresaId } }
-          : { usuario: { empresaId: empresaId }, usuarioId: usuarioId },
+          ? { empresaId: empresaId }
+          : { empresaId: empresaId, usuarioId: usuarioId },
     });
 
     const meses = [
@@ -106,6 +142,10 @@ export class DashboardService {
       hoy.getMonth(),
       hoy.getDate(),
     );
+    const rangos = this.obtenerRangosComparativos(hoy);
+    const { rangoActual, rangoAnterior } = rangos;
+
+    console.log('rangos de fechas hoy :', { rangoAnterior, rangoActual });
     const finDia = new Date(
       hoy.getFullYear(),
       hoy.getMonth(),
@@ -117,17 +157,20 @@ export class DashboardService {
 
     if (!usuario) throw new Error('Usuario no encontrado');
 
-    const { rol, empresaId, codigo: dbUserId, nombre } = usuario;
+    const { rol, empresaId, id: dbUserId, nombre } = usuario;
 
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: empresaId },
     });
 
     const totalClientes = await this.prisma.clienteEmpresa.count({
-      where: {
-        empresaId,
-        ...(rol !== 'admin' && { usuarioId: dbUserId }),
-      },
+      where:
+        rol === 'admin'
+          ? { empresaId: empresaId }
+          : {
+              empresaId: empresaId,
+              usuarioId: dbUserId,
+            },
     });
 
     const recibos = await this.prisma.recibo.findMany({
@@ -171,6 +214,150 @@ export class DashboardService {
       })
       .then((res) => res._sum.total ?? 0);
 
+    //se obtiene la variacion de las ventas respecto a la misma cantidad de ventas del ems anterior
+    const [ventasActual, ventasAnterior] = await Promise.all([
+      this.prisma.pedido.aggregate({
+        _sum: { total: true },
+        where:
+          rol === 'admin'
+            ? {
+                usuario: { empresaId },
+                fechaPedido: {
+                  gte: rangoActual.desde,
+                  lte: rangoActual.hasta,
+                },
+              }
+            : {
+                usuarioId: dbUserId,
+                fechaPedido: {
+                  gte: rangoActual.desde,
+                  lte: rangoActual.hasta,
+                },
+              },
+      }),
+      this.prisma.pedido.aggregate({
+        _sum: { total: true },
+        where:
+          rol === 'admin'
+            ? {
+                usuario: { empresaId },
+                fechaPedido: {
+                  gte: rangoAnterior.desde,
+                  lte: rangoAnterior.hasta,
+                },
+              }
+            : {
+                usuarioId: dbUserId,
+                fechaPedido: {
+                  gte: rangoAnterior.desde,
+                  lte: rangoAnterior.hasta,
+                },
+              },
+      }),
+    ]);
+    const totalActual = ventasActual._sum.total || 0;
+    const totalAnterior = ventasAnterior._sum.total || 0;
+
+    const variacionPorcentualVentas =
+      totalAnterior === 0
+        ? totalActual > 0
+          ? 100 // aumento absoluto (sin base anterior)
+          : 0 // sin cambios
+        : ((totalActual - totalAnterior) / totalAnterior) * 100;
+
+    // console.log(`🟢 Ventas actuales: ${totalActual}`);
+    // console.log(`🔵 Ventas anteriores: ${totalAnterior}`);
+    // console.log(`📈 Variación: ${variacionPorcentualVentas.toFixed(2)}%`);
+    //////////////////////////////////////////////////////////////////////////////
+
+    // retorna la variacion de los cobros respecto al mes anterior
+    const [cobrosActual, cobrosAnterior] = await Promise.all([
+      this.prisma.detalleRecibo.aggregate({
+        _sum: { valorTotal: true },
+        where:
+          rol === 'admin'
+            ? {
+                recibo: {
+                  empresaId: empresaId,
+                  Fechacrecion: {
+                    gte: rangoActual.desde,
+                    lte: rangoActual.hasta,
+                  },
+                },
+              }
+            : {
+                recibo: {
+                  usuarioId: dbUserId,
+                  Fechacrecion: {
+                    gte: rangoActual.desde,
+                    lte: rangoActual.hasta,
+                  },
+                },
+              },
+      }),
+      this.prisma.detalleRecibo.aggregate({
+        _sum: { valorTotal: true },
+        where:
+          rol === 'admin'
+            ? {
+                recibo: {
+                  empresaId: empresaId,
+                  Fechacrecion: {
+                    gte: rangoAnterior.desde,
+                    lte: rangoAnterior.hasta,
+                  },
+                },
+              }
+            : {
+                recibo: {
+                  usuarioId: dbUserId,
+                  Fechacrecion: {
+                    gte: rangoAnterior.desde,
+                    lte: rangoAnterior.hasta,
+                  },
+                },
+              },
+      }),
+    ]);
+    const totalActualCobros = cobrosActual._sum.valorTotal || 0;
+    const totalAnteriorCobros = cobrosAnterior._sum.valorTotal || 0;
+
+    const variacionPorcentualCobros =
+      totalAnteriorCobros === 0
+        ? totalActualCobros > 0
+          ? 100
+          : 0
+        : ((totalActualCobros - totalAnteriorCobros) / totalAnteriorCobros) *
+          100;
+
+    // console.log(`🟢 cobros actuales: ${totalActualCobros}`);
+    // console.log(`🔵 cobros anteriores: ${totalAnteriorCobros}`);
+    // console.log(`📈 Variación: ${variacionPorcentualCobros.toFixed(2)}%`);
+    ///////////////////////////////////////////////////////////////
+    const ultimosPedidos = await this.prisma.pedido.findMany({
+      where:
+        rol === 'admin' ? { empresaId } : { empresaId, usuarioId: dbUserId },
+      orderBy: { fechaPedido: 'desc' },
+      take: 5,
+      include: {
+        cliente: {
+          select: {
+            nombre: true,
+            apellidos: true,
+            rasonZocial: true,
+          },
+        },
+        estados: {
+          orderBy: { fechaEstado: 'desc' },
+          take: 1,
+          select: {
+            estado: true,
+            fechaEstado: true,
+          },
+        },
+      },
+    });
+
     return {
       empresa: {
         nit: empresa?.nit,
@@ -184,6 +371,12 @@ export class DashboardService {
       totalClientes,
       totalValorRecibos,
       totalVentas,
+
+      variaciones: {
+        variacionPorcentualVentas,
+        variacionPorcentualCobros,
+      },
+      ultimosPedidos,
     };
   }
 }

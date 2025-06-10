@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -49,16 +50,15 @@ export class RecibosService {
     return { saldoRestante: saldo };
   }
 
-  //crea un recibo y registra en detalle recibo
+  //crea un recibo y registra en detalle recibo y los movimientos te cartera correspondiente
   async crearRecibo(data: CrearReciboDto, usuario: UsuarioPayload) {
-    const { clienteId, tipo, concepto, pedidos } = data;
-
-    // 1. Validar saldos antes de crear
-    for (const pedido of pedidos) {
-      await this.validarSaldoPedido(pedido.pedidoId, pedido.valorAplicado);
+    if (!usuario) {
+      throw new UnauthorizedException('Usuario no autorizado');
     }
 
-    // 2. Crear el recibo
+    const { clienteId, tipo, concepto, pedidos } = data;
+
+    // Crea el recibo principal
     const recibo = await this.prisma.recibo.create({
       data: {
         clienteId,
@@ -69,15 +69,35 @@ export class RecibosService {
       },
     });
 
-    // 3. Crear detalles del recibo
+    // Procesa cada pedido relacionado al recibo
     for (const pedido of pedidos) {
-      const { saldoRestante } = await this.validarSaldoPedido(
-        pedido.pedidoId,
-        pedido.valorAplicado,
+      const pedidoOriginal = await this.prisma.pedido.findUnique({
+        where: { id: pedido.pedidoId },
+        include: { detalleRecibo: true },
+      });
+
+      if (!pedidoOriginal) {
+        throw new NotFoundException(
+          `Pedido con ID ${pedido.pedidoId} no encontrado`,
+        );
+      }
+
+      // Calcula cuánto ha sido abonado antes
+      const totalAbonadoAnterior = pedidoOriginal.detalleRecibo.reduce(
+        (sum, r) => sum + r.valorTotal,
+        0,
       );
 
+      const saldoRestante = pedidoOriginal.total - totalAbonadoAnterior;
       const nuevoSaldo = saldoRestante - pedido.valorAplicado;
 
+      if (pedido.valorAplicado > saldoRestante) {
+        throw new BadRequestException(
+          `El valor aplicado (${pedido.valorAplicado}) supera el saldo pendiente (${saldoRestante}) para el pedido ${pedido.pedidoId}`,
+        );
+      }
+
+      // Crear detalle del recibo
       await this.prisma.detalleRecibo.create({
         data: {
           idRecibo: recibo.id,
@@ -87,48 +107,24 @@ export class RecibosService {
           saldoPendiente: Math.max(nuevoSaldo, 0),
         },
       });
+
+      // Crear movimiento de cartera asociado a ese pedido
+      await this.prisma.movimientosCartera.create({
+        data: {
+          idCliente: clienteId,
+          valorMovimiento: pedido.valorAplicado,
+          idUsuario: usuario.id,
+          empresaId: usuario.empresaId,
+          idPedido: pedido.pedidoId,
+          idRecibo: recibo.id,
+          observacion: `Abono generado desde creación de recibo # ${recibo.id}`,
+        },
+      });
     }
 
-    // 4. Obtener datos del cliente
-    // const cliente = await this.prisma.cliente.findUnique({
-    //   where: { id: clienteId },
-    // });
-
-    // 5. Generar y subir el PDF
-    // const { url: pdfUrl, buffer: pdfBuffer } =
-    //   await this.pdfUploaderService.generarYSubirPDF({
-    //     data: {
-    //       id: recibo.id,
-    //       cliente: `${cliente?.nombre} ${cliente?.apellidos}`,
-    //       valorTotal: pedidos.reduce((sum, p) => sum + p.valorAplicado, 0),
-    //       concepto,
-    //       fecha: new Date().toLocaleDateString(),
-    //     },
-    //     tipo: 'recibo',
-    //     usuarioId: usuario.id,
-    //     entidadId: recibo.id,
-    //   });
-
-    // 6. Enviar el PDF como adjunto por correo (si hay email)
-    // if (cliente?.email) {
-    //   await this.resendService.enviarCorreoConAdjunto({
-    //     to: cliente.email,
-    //     subject: 'Tu recibo de pago',
-    //     html: `<p>Hola ${cliente.nombre},</p>
-    //          <p>Gracias por tu pago. Adjuntamos tu recibo en PDF.</p>`,
-    //     attachments: [
-    //       {
-    //         filename: `recibo-${recibo.id}.pdf`,
-    //         content: pdfBuffer.toString('base64'),
-    //       },
-    //     ],
-    //   });
-    // }
-
     return {
-      message: 'Recibo creado con éxito',
-      recibo,
-      // pdfUrl,
+      mensaje: 'Recibo creado con éxito',
+      reciboId: recibo.id,
     };
   }
 
