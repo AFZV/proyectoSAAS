@@ -1,56 +1,57 @@
 "use client";
 import {
-  BarChart4,
-  Building2,
-  PanelsTopLeft,
-  NotebookPenIcon,
-  ContactRound,
-  FolderIcon,
-  ShieldUserIcon,
-  BoxesIcon,
+  BarChart3,
+  CreditCard,
+  LayoutDashboard,
+  ShoppingCart,
+  Package,
+  Users,
+  FolderOpen,
+  Settings,
+  TrendingUp,
+  Wallet,
 } from "lucide-react";
+
+export const dataGeneralSideBar = [
+  {
+    icon: LayoutDashboard,
+    label: "Dashboard",
+    href: "/",
+  },
+];
 
 export const dataFacturacionSidebar = [
   {
-    icon: NotebookPenIcon,
+    icon: ShoppingCart,
     label: "Pedidos",
     href: "/invoices",
   },
   {
-    icon: FolderIcon,
-    label: "Catalogo",
+    icon: FolderOpen,
+    label: "Catálogo",
     href: "/catalog",
   },
 ];
 
-export const dataGeneralSideBar = [
-  {
-    icon: PanelsTopLeft,
-    label: "Principal",
-    href: "/",
-  },
-
-  // {
-  //   icon: Calendar,
-  //   label: "Calendario",
-  //   href: "/calendar",
-  // },
-];
-
 export const dataCuentasPorCobrarSideBar = [
   {
-    icon: Building2,
+    icon: Wallet,
     label: "Recaudos",
     href: "/recaudos",
   },
 ];
+
 export const dataInventarioSideBar = [
-  { icon: BoxesIcon, label: "Inventario", href: "/inventario" },
+  { 
+    icon: Package, 
+    label: "Inventario", 
+    href: "/inventario" 
+  },
 ];
 
 export const dataToolsSideBar = [
   {
-    icon: BarChart4,
+    icon: TrendingUp,
     label: "Estadísticas",
     href: "/analitycs",
   },
@@ -58,28 +59,16 @@ export const dataToolsSideBar = [
 
 export const dataClienteSideBar = [
   {
-    icon: ContactRound,
+    icon: Users,
     label: "Clientes",
     href: "/clientes",
   },
 ];
 
 export const dataSupportSideBar = [
-  // {
-  //   icon: Settings,
-  //   label: "Ajustes",
-  //   href: "/settings",
-  // },
-
-  // {
-  //   icon: ShieldCheck,
-  //   label: "Seguridad",
-  //   href: "/security",
-  // },
-
   {
-    icon: ShieldUserIcon,
-    label: "Administracion",
-    href: "admin",
+    icon: Settings,
+    label: "Administración",
+    href: "/admin",
   },
 ];
