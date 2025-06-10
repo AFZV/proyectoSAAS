@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
+import { FilterPedidoDto } from './dto/filter-pedido.dto';
 //import { UpdatePedidoDto } from './dto/update-pedido.dto';
 
 @Injectable()
@@ -341,5 +342,39 @@ export class PedidosService {
     ]);
 
     return pedidoActualizado;
+  }
+
+  /////////////////////////////////////////////////////////////////////
+  async obtenerPedidosFiltro(data: FilterPedidoDto, usuario: UsuarioPayload) {
+    const { filtro, tipoFiltro } = data;
+    if (!usuario) throw new BadRequestException('El usuario es requerido');
+
+    // Validar que solo se acepten filtros válidos
+    const filtrosValidos = [
+      'id',
+      'clienteId',
+      'usuarioId',
+      'total',
+      'empresaId',
+    ];
+    if (!filtrosValidos.includes(tipoFiltro)) {
+      throw new BadRequestException(`Filtro no válido: ${tipoFiltro}`);
+    }
+
+    // Construir cláusula where dinámica
+    const whereClausula: Record<string, unknown> = {
+      [tipoFiltro]: tipoFiltro === 'total' ? parseFloat(filtro) : filtro,
+      empresaId: usuario.empresaId,
+    };
+
+    const pedidos = await this.prisma.pedido.findMany({
+      where: whereClausula,
+      include: {
+        cliente: true,
+        productos: true,
+      },
+    });
+
+    return pedidos;
   }
 }
