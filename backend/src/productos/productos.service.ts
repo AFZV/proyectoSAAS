@@ -9,10 +9,12 @@ export class ProductosService {
 
   async create(usuario: UsuarioPayload, data: CreateProductoDto) {
     try {
-      return await this.prisma.producto.create({ data: {
-        ...data,
-        estado: 'activo', // Por defecto, el producto se crea como activo
-        empresaId: usuario.empresaId, // Asignamos la empresa del usuario
+      return await this.prisma.producto.create({
+        data: {
+          ...data,
+          estado: 'activo', // Por defecto, el producto se crea como activo
+          empresaId: usuario.empresaId, // Asignamos la empresa del usuario
+          categoriaId: data.categoriaId, // Asignamos la categoría por su ID
         },
       });
     } catch (error: any) {
@@ -93,7 +95,7 @@ export class ProductosService {
           nombre: data.nombre,
           precioCompra: data.precioCompra,
           precioVenta: data.precioVenta,
-          categoria: data.categoria,
+          categoriaId: data.categoriaId, // Asignamos la categoría por su ID
         },
       });
     } catch (error) {

@@ -1,11 +1,4 @@
-import {
-  IsString,
-  IsNumber,
-  IsUrl,
-  IsUUID,
-  Min,
-  IsEnum,
-} from 'class-validator';
+import { IsString, IsNumber, IsUUID, Min } from 'class-validator';
 
 export class UpdateProductoDto {
   @IsString()
@@ -19,7 +12,7 @@ export class UpdateProductoDto {
   @Min(0)
   precioVenta: number;
 
+  @IsUUID()
   @IsString()
-  categoria: string;
-
+  categoriaId: string;
 }

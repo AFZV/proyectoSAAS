@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsUrl, Min } from 'class-validator';
+import { IsString, IsNumber, IsUrl, Min, IsUUID } from 'class-validator';
 
 export enum ProductoEstado {
   ACTIVO = 'activo',
@@ -19,9 +19,10 @@ export class CreateProductoDto {
   @Min(0)
   precioVenta: number;
 
-  @IsString()
-  categoria: string;
-
   @IsUrl()
   imagenUrl: string;
+
+  @IsUUID()
+  @IsString()
+  categoriaId: string;
 }

@@ -45,7 +45,9 @@ export class ComprasService {
               where: { idInventario: inv.idInventario },
               data: {
                 stockReferenciaOinicial: inv.stockActual + item.cantidad,
-                stockActual: inv.stockActual + item.cantidad,
+                stockActual: {
+                  increment: item.cantidad,
+                },
               },
             });
           } else {
