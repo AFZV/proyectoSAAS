@@ -12,7 +12,7 @@ export type Cliente = {
   codigoCiud: string;
   email: string;
   vendedor: {
-    nombres: string;
+    nombre: string;
   };
 };
 
@@ -56,7 +56,7 @@ export const columns: ColumnDef<Cliente>[] = [
     header: "Vendedor",
     cell: ({ row }) => {
       const vendedor = row.original.vendedor;
-      return vendedor.nombres;
+      return vendedor.nombre;
     },
   },
 ];

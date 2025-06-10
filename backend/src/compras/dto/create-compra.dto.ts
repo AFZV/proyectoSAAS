@@ -21,9 +21,6 @@ export class CreateCompraDto {
   @IsString()
   idProveedor: string;
 
-  @IsString()
-  idEmpresa: string;
-
   @IsArray()
   @ArrayMinSize(1, { message: 'Debe haber al menos un producto en la compra' })
   @ValidateNested({ each: true })

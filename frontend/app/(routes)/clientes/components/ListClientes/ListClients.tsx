@@ -3,22 +3,25 @@ import { Cliente, columns } from "./columns";
 import { DataTable } from "./data-table";
 
 import { auth } from "@clerk/nextjs";
+import { getToken } from "@/lib/getToken";
 
 export async function getClientes(): Promise<any[]> {
-  const { userId } = auth();
+  //const { userId } = auth();
+  const token = await getToken();
 
-  if (!userId) {
+  if (token === null) {
+    console.error("No hay token de autenticación");
     console.error("No hay usuario autenticado");
     return [];
   }
 
-  const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/clientes`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clientes`, {
     headers: {
-      Authorization: userId,
+      Authorization: `Bearer ${token}`,
     },
   });
-
-  return res.data; // lista de clientes
+  const data = await res.json();
+  return data; // lista de clientes
 }
 
 export default async function ListClientsPage() {

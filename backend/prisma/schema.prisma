@@ -33,6 +33,7 @@ model Empresa {
   productos        Producto[]
   inventario Inventario[]
   movimientoInventario MovimientoInventario[]
+
 }
 
 model Usuario {
@@ -53,6 +54,7 @@ model Usuario {
   pedidos   Pedido[]
   movimientoInventario MovimientoInventario[]
   movimientosCartera MovimientosCartera[]
+  //clientes Cliente[]
 
   @@index([empresaId])
 }
@@ -60,6 +62,7 @@ model Usuario {
 model Cliente {
   id         String            @id @default(uuid())
   nit        String            @db.Text
+  rasonZocial String  @default("")
   nombre    String            @db.Text
   apellidos  String            @db.Text
   telefono   String            @db.Text
@@ -67,7 +70,9 @@ model Cliente {
   direccion  String            @db.Text
   departamento String            @db.Text
   ciudad String            @db.Text
-  estado Boolean @db.Boolean /// activo // inactivo
+
+  estado Boolean @db.Boolean /// true // false
+
 
   empresas   ClienteEmpresa[]
   recibos    Recibo[]
@@ -101,7 +106,7 @@ model Producto {
   nombre      String   @db.Text
   precioCompra      Float    @db.DoublePrecision
   precioVenta      Float    @db.DoublePrecision
-  categoria   String   @db.Text
+  categoriaId String ?
   imagenUrl   String   @db.Text
   fechaCreado      DateTime @default(now())
   fechaActualizado DateTime @updatedAt
@@ -109,6 +114,7 @@ model Producto {
 
   empresaId   String
   empresa     Empresa  @relation(fields: [empresaId], references: [id])
+ categoria CategoriasProducto? @relation(fields: [categoriaId],references: [idCategoria])
 
   detallePedido DetallePedido[]
   inventario  Inventario[]
@@ -119,6 +125,12 @@ model Producto {
   @@unique([codigo, empresaId])
 
 }
+
+model CategoriasProducto {
+  idCategoria String @id @default(uuid())
+  nombre String 
+producto Producto[]
+  }
 
 
 model Inventario {
@@ -161,6 +173,7 @@ model Compras {
  empresa Empresa @relation(fields: [idEmpresa],references: [id])
   proveedor Proveedores @relation(fields: [idProveedor],references: [idProveedor])
   detalleCompra DetalleCompra[]
+  movimientosInventario MovimientoInventario[]
 
 
 @@index([idProveedor])
@@ -178,6 +191,17 @@ model Proveedores {
 
  empresa Empresa @relation(fields: [idEmpresa],references: [id])
   compras Compras[]
+  proveedorEmpresa ProveedorEmpresa[]
+}
+
+model ProveedorEmpresa {
+  idProveedorEmpresa String @id @default(uuid())
+  proveedorId String
+
+  proveedor Proveedores @relation(fields: [proveedorId],references: [idProveedor])
+
+
+  
 }
 
 model Recibo {
@@ -194,6 +218,7 @@ empresa Empresa @relation(fields: [empresaId],references: [id])
   cliente     Cliente  @relation(fields: [clienteId], references: [id])
   usuario    Usuario  @relation(fields: [usuarioId], references: [id])
   detalleRecibo DetalleRecibo[]
+  movimientosCartera MovimientosCartera[]
 
 
   @@index([usuarioId])
@@ -221,10 +246,10 @@ model Pedido {
   id            String           @id @default(uuid())
   clienteId     String
   usuarioId    String
-  total         Float            @db.DoublePrecision
+  total         Float            @db.DoublePrecision 
   fechaPedido         DateTime         @default(now())
   observaciones String?          @db.Text
-  fechaEnvio    DateTime?
+  fechaEnvio    DateTime?  
   fechaActualizado   DateTime         @updatedAt
   empresaId String
 
@@ -234,10 +259,24 @@ empresa Empresa @relation(fields: [empresaId],references: [id])
   productos     DetallePedido[]
   estados       EstadoPedido[]
   detalleRecibo DetalleRecibo[]
+  movimientosInventario MovimientoInventario[]
+  movimientosCartera MovimientosCartera[]
+
 
   @@index([clienteId])
   @@index([usuarioId])
 }
+model EstadoPedido { /// este modelo es para controlar lo estados
+  id        String   @id @default(uuid())
+  pedidoId  String
+  estado    String
+  fechaEstado     DateTime @default(now())
+
+  pedido    Pedido   @relation(fields: [pedidoId], references: [id])
+
+  @@index([pedidoId])
+}
+
 
 model DetallePedido {
   id         String @id @default(uuid())
@@ -254,16 +293,6 @@ model DetallePedido {
   @@index([productoId])
 }
 
-model EstadoPedido { /// este modelo es para controlar lo estados
-  id        String   @id @default(uuid())
-  pedidoId  String
-  estado    String
-  fechaEstado     DateTime @default(now())
-
-  pedido    Pedido   @relation(fields: [pedidoId], references: [id])
-
-  @@index([pedidoId])
-}
 
 
 model MovimientoInventario {
@@ -274,7 +303,12 @@ model MovimientoInventario {
   cantidadMovimiendo Int
   idTipoMovimiento String
   IdUsuario String
+  IdPedido String?
+  idCompra String ?
+  observacion             String? @db.Text // <- nuevo campo para ajustes manuales
 
+  compra Compras? @relation(fields: [idCompra],references: [idCompra])
+  pedido Pedido? @relation(fields: [IdPedido],references: [id])
   empresa Empresa @relation(fields: [idEmpresa],references: [id])
   producto Producto @relation(fields: [idProducto],references: [id])
   usuario Usuario @relation(fields: [IdUsuario],references: [id])
@@ -307,11 +341,16 @@ model MovimientosCartera {
   idUsuario String
   fechaMovimientoCartera DateTime @default(now())
   empresaId String
+  idPedido String?
+  idRecibo String?
+  observacion             String? @db.Text // <- nuevo campo para ajustes manuales
 
 
 empresa Empresa @relation(fields: [empresaId],references: [id])
   cliente Cliente @relation(fields: [idCliente],references: [id])
   usuario Usuario @relation(fields: [idUsuario],references: [id])
+  pedido Pedido? @relation(fields: [idPedido],references: [id])
+  recibo Recibo? @relation(fields: [idRecibo],references: [id])
 
   @@index([idCliente])
   @@index([idUsuario])

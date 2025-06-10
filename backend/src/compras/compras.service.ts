@@ -18,7 +18,7 @@ export class ComprasService {
         const nuevaCompra = await tx.compras.create({
           data: {
             proveedor: { connect: { idProveedor: data.idProveedor } },
-            empresa: { connect: { id: data.idEmpresa } },
+            empresa: { connect: { id: usuario.empresaId } },
           },
         });
         //crear el detalle para cada producto en  la compra
@@ -35,7 +35,7 @@ export class ComprasService {
           const inv = await tx.inventario.findFirst({
             where: {
               idProducto: item.idProducto,
-              idEmpresa: data.idEmpresa,
+              idEmpresa: usuario.empresaId,
             },
           });
 
@@ -45,7 +45,9 @@ export class ComprasService {
               where: { idInventario: inv.idInventario },
               data: {
                 stockReferenciaOinicial: inv.stockActual + item.cantidad,
-                stockActual: inv.stockActual + item.cantidad,
+                stockActual: {
+                  increment: item.cantidad,
+                },
               },
             });
           } else {
@@ -53,9 +55,27 @@ export class ComprasService {
             await tx.inventario.create({
               data: {
                 idProducto: item.idProducto,
-                idEmpresa: data.idEmpresa,
+                idEmpresa: usuario.empresaId,
                 stockReferenciaOinicial: item.cantidad,
                 stockActual: item.cantidad,
+              },
+            });
+          }
+          const tipoMovimiento = await tx.tipoMovimientos.findFirst({
+            where: {
+              tipo: 'ENTRADA',
+            },
+          });
+          if (tipoMovimiento) {
+            await tx.movimientoInventario.create({
+              data: {
+                IdUsuario: usuario.id,
+                idProducto: item.idProducto,
+                idEmpresa: usuario.empresaId,
+                cantidadMovimiendo: item.cantidad,
+                idTipoMovimiento: tipoMovimiento.idTipoMovimiento,
+                idCompra: nuevaCompra.idCompra,
+                observacion: `Compra realizada por ${usuario.nombre}`,
               },
             });
           }
