@@ -9,7 +9,7 @@ import { UpdateReciboDto } from './dto/update-recibo.dto';
 
 @Injectable()
 export class RecibosService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
   async getRecaudosPorRango(
     from: Date,
     to: Date,
@@ -31,15 +31,15 @@ export class RecibosService {
         usuario:
           nombreVendedor !== 'todos'
             ? {
-                nombre: nombreVendedor, // Filtra por el nombre del vendedor específico
-                empresa: {
-                  id: usuarioEmpresa?.empresaId, // Filtra por la empresa relacionada con el vendedor
-                },
-              }
-            : {
-                // Si el vendedor es "todos", solo se filtra por empresa
-                empresaId: usuarioEmpresa?.empresaId,
+              nombre: nombreVendedor, // Filtra por el nombre del vendedor específico
+              empresa: {
+                id: usuarioEmpresa?.empresaId, // Filtra por la empresa relacionada con el vendedor
               },
+            }
+            : {
+              // Si el vendedor es "todos", solo se filtra por empresa
+              empresaId: usuarioEmpresa?.empresaId,
+            },
       },
       select: {
         id: true,
@@ -101,6 +101,7 @@ export class RecibosService {
         //valor: data.valor,
         tipo: data.tipo,
         concepto: data.concepto,
+        empresaId: usuario.empresaId,
       },
     });
 
@@ -120,23 +121,23 @@ export class RecibosService {
       where: {
         ...(rol === 'admin'
           ? {
-              cliente: {
-                empresas: {
-                  some: { empresaId },
-                },
+            cliente: {
+              empresas: {
+                some: { empresaId },
               },
-            }
+            },
+          }
           : {
-              cliente: {
-                empresas: {
-                  some: {
-                    empresaId,
-                    usuarioId: id,
-                  },
+            cliente: {
+              empresas: {
+                some: {
+                  empresaId,
+                  usuarioId: id,
                 },
               },
-              usuarioId: id, // 👈 obligatorio si no es admin
-            }),
+            },
+            usuarioId: id, // 👈 obligatorio si no es admin
+          }),
       },
       include: {
         cliente: true,

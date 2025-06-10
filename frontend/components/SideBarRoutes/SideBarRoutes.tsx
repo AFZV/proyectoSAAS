@@ -9,82 +9,106 @@ import {
   dataToolsSideBar,
 } from "./SideBar.data";
 import { SideBarItem } from "../SideBarItem";
-import { Separator } from "@/components/ui/separator";
 
 export function SideBarRoutes({ rol }: { rol: string }) {
   return (
-    <div className="flex flex-col justify-between h-full">
-      <div>
-        <div className="p-2 md:p-4">
-          <p>GENERAL</p>
-          {dataGeneralSideBar.map((item) => (
-            <SideBarItem key={item.label} item={item} />
-          ))}
-        </div>
-
-        <Separator />
-        <div className="p-2 md:p-4">
-          <p>FACTURACIÓN</p>
-          {dataFacturacionSidebar.map((item) => (
-            <SideBarItem key={item.label} item={item} />
-          ))}
-        </div>
-
-        <Separator />
-
-        <Separator />
-        <div className="p-2 md:p-4">
-          <p>CUENTAS POR COBRAR</p>
-          {dataCuentasPorCobrarSideBar.map((item) => (
-            <SideBarItem key={item.label} item={item} />
-          ))}
-        </div>
-
-        <Separator />
-        <Separator />
-        <div className="p-2 md:p-4">
-          <p>INVENTARIO</p>
-          {dataInventarioSideBar.map((item) => (
-            <SideBarItem key={item.label} item={item} />
-          ))}
-        </div>
-
-        <Separator />
-        <div className="p-2 md:p-4">
-          <p>CLIENTES</p>
-          {dataClienteSideBar.map((item) => (
-            <SideBarItem key={item.label} item={item} />
-          ))}
-        </div>
-
-        <Separator />
-
-        <Separator />
-        <div className="p-2 md:p-4">
-          <p>ESTADÍSTICAS</p>
-          {dataToolsSideBar.map((item) => (
-            <SideBarItem key={item.label} item={item} />
-          ))}
-        </div>
-
-        <Separator />
-
-        {rol === "superadmin" && (
-          <div className="p-2 md:p-4">
-            <p>SOPORTE</p>
-            {dataSupportSideBar.map((item) => (
+    <div className="flex flex-col h-full">
+      {/* Navegación Principal */}
+      <div className="flex-1 px-4 py-6 space-y-8">
+        
+        {/* General */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
+            General
+          </h3>
+          <nav className="space-y-1">
+            {dataGeneralSideBar.map((item) => (
               <SideBarItem key={item.label} item={item} />
             ))}
+          </nav>
+        </div>
+
+        {/* Facturación */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
+            Facturación
+          </h3>
+          <nav className="space-y-1">
+            {dataFacturacionSidebar.map((item) => (
+              <SideBarItem key={item.label} item={item} />
+            ))}
+          </nav>
+        </div>
+
+        {/* Cuentas por Cobrar */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
+            Recaudos
+          </h3>
+          <nav className="space-y-1">
+            {dataCuentasPorCobrarSideBar.map((item) => (
+              <SideBarItem key={item.label} item={item} />
+            ))}
+          </nav>
+        </div>
+
+        {/* Inventario */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
+            Inventario
+          </h3>
+          <nav className="space-y-1">
+            {dataInventarioSideBar.map((item) => (
+              <SideBarItem key={item.label} item={item} />
+            ))}
+          </nav>
+        </div>
+
+        {/* Clientes */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
+            Clientes
+          </h3>
+          <nav className="space-y-1">
+            {dataClienteSideBar.map((item) => (
+              <SideBarItem key={item.label} item={item} />
+            ))}
+          </nav>
+        </div>
+
+        {/* Estadísticas */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
+            Análisis
+          </h3>
+          <nav className="space-y-1">
+            {dataToolsSideBar.map((item) => (
+              <SideBarItem key={item.label} item={item} />
+            ))}
+          </nav>
+        </div>
+
+        {/* Administración - Solo para superadmin */}
+        {rol === "superadmin" && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
+              Administración
+            </h3>
+            <nav className="space-y-1">
+              {dataSupportSideBar.map((item) => (
+                <SideBarItem key={item.label} item={item} />
+              ))}
+            </nav>
           </div>
         )}
       </div>
-      {/* <Separator /> */}
 
-      <div>
-        <footer className="mt-6 p-4 text-center text-sm text-muted-foreground border-t">
-          © 2025 <span className="font-semibold">Softverse</span>. Todos los
-          derechos reservados. Software registrado.
-        </footer>
+      {/* Footer */}
+      <div className="px-4 py-4 border-t bg-muted/30">
+        <div className="text-center space-y-1">
+          <p className="text-xs font-semibold text-foreground">Softverse</p>
+          <p className="text-xs text-muted-foreground">© 2025 • Software registrado</p>
+        </div>
       </div>
     </div>
   );

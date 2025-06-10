@@ -2,29 +2,45 @@
 import Link from "next/link";
 import { SideBarItemProps } from "./SideBarItem.types";
 import { cn } from "@/lib/utils";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 export function SideBarItem(props: SideBarItemProps) {
   const { item } = props;
   const { href, icon: Icon, label } = item;
   const pathName = usePathname();
+  const router = useRouter();
   const activePath = pathName === href;
+
+  // ✅ Manejar navegación explícitamente
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(href);
+  };
+
   return (
-    <Link
-      href={href}
+    <button
+      onClick={handleClick}
       className={cn(
-        `flex gap-x-2 
-        mt-2 light:text-slate-700 
-        dark:text-white 
-        text-sm 
-        items-center
-        hover:bg-slate-300/20 
-        p-2 rounded-lg cursor-pointer `,
-        activePath && "bg-slate-400/20"
+        "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 hover:scale-[1.02] w-full text-left",
+        activePath
+          ? "bg-blue-600 text-white shadow-md"
+          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
       )}
     >
-      <Icon className="h-5 w-5 " strokeWidth={1} />
-      {label}
-    </Link>
+      <Icon
+        className={cn(
+          "h-4 w-4 transition-colors duration-200",
+          activePath ? "text-white" : "text-muted-foreground group-hover:text-accent-foreground"
+        )}
+        strokeWidth={1.5}
+      />
+      <span className="truncate">{label}</span>
+
+      {/* ✅ Punto blanco indicador */}
+      {activePath && (
+        <div className="ml-auto h-2 w-2 rounded-full bg-white/90" />
+      )}
+    </button>
   );
 }
