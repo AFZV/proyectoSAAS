@@ -15,20 +15,25 @@ export class UsuarioGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request>();
     const authHeader = req.headers.authorization;
+    console.log('🟡 Header recibido:', authHeader);
 
     const payload = await verificarTokenClerk(authHeader); // ✅ Reutilizas tu propia función
+    console.log('🟢 Payload decodificado:', payload);
 
     const userId = payload.sub;
 
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { codigo: userId },
+    const usuario = await this.prisma.usuario.findFirst({
+      where: {
+        codigo: userId,
+        estado: 'activo', // ✅ solo usuarios activos
+      },
     });
-
+    console.log('🔵 Usuario en base de datos:', usuario);
     if (!usuario) {
       throw new UnauthorizedException('Usuario no encontrado en base de datos');
     }
 
-    req['usuario'] = usuario; // ✅ Inyectas rol y empresaId
+    req['usuario'] = usuario;
 
     return true;
   }

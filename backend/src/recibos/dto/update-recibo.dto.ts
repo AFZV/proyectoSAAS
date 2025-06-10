@@ -1,15 +1,4 @@
-import { IsOptional, IsString, IsNumber } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+import { CrearReciboDto } from './create-recibo.dto';
 
-export class UpdateReciboDto {
-  @IsOptional()
-  @IsNumber()
-  valor?: number;
-
-  @IsOptional()
-  @IsString()
-  tipo?: string;
-
-  @IsOptional()
-  @IsString()
-  concepto?: string;
-}
+export class UpdateReciboDto extends PartialType(CrearReciboDto) {}

@@ -12,13 +12,21 @@ export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const roles = this.reflector.get<string[]>('roles', context.getHandler());
-    if (!roles) return true;
+    const roles = this.reflector.getAllAndOverride<string[]>('roles', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     const request = context.switchToHttp().getRequest<UsuarioRequest>();
-    const usuario = request['usuario'];
+    const usuario = request.usuario;
+
+    console.log('📌 Entrando al RolesGuard');
+    console.log('🧪 Roles requeridos:', roles);
+    console.log('🧪 Usuario:', usuario);
+    console.log('🧪 Rol del usuario:', usuario?.rol);
 
     if (!usuario || !roles.includes(usuario.rol)) {
+      console.log('❌ Acceso denegado en RolesGuard');
       const method = request.method;
       const path = request.originalUrl;
       throw new ForbiddenException(
@@ -26,6 +34,7 @@ export class RolesGuard implements CanActivate {
       );
     }
 
+    console.log('✅ RolesGuard pasó');
     return true;
   }
 }

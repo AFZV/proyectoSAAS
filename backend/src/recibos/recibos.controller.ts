@@ -1,13 +1,14 @@
 import {
   Body,
   Controller,
-  Headers,
   Post,
   Get,
   Delete,
   Param,
-  Put,
   UnauthorizedException,
+  Req,
+  UseGuards,
+  Patch,
   //Res,
 } from '@nestjs/common';
 //import { parseISO } from 'date-fns';
@@ -15,19 +16,53 @@ import {
 import { CrearReciboDto } from './dto/create-recibo.dto';
 import { RecibosService } from './recibos.service';
 import { UpdateReciboDto } from './dto/update-recibo.dto';
-//import { Response } from 'express';
+import { UsuarioRequest } from 'src/types/request-with-usuario';
+import { UsuarioGuard } from 'src/common/guards/usuario.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+
+@UseGuards(UsuarioGuard, RolesGuard)
 @Controller('recibos')
 export class RecibosController {
   constructor(private recibosService: RecibosService) {}
- /*
-  @Post()
-  async crearRecibo(
-    @Body() data: CrearReciboDto,
-    @Headers('authorization') userId: string,
-  ) {
-    return await this.recibosService.CrearRecibo(data, userId);
+  //endpoint para obtener todos los recibos si es admin o solo los del usuario logueado
+  @Roles('admin', 'vendedor')
+  @Get('/all')
+  async getRecibos(@Req() req: UsuarioRequest) {
+    console.log('Usuario recibido en controlador:', req.usuario);
+    const usuario = req.usuario;
+    //console.log('este es el usuario en back:', usuario);
+    return this.recibosService.getRecibos(usuario);
   }
-    */
+
+  //endpoint para crear un recibo
+  @Roles('admin', 'vendedor')
+  @Post()
+  async crearRecibo(@Body() data: CrearReciboDto, @Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return await this.recibosService.crearRecibo(data, usuario);
+  }
+
+  /// endpoint para actualizar cualquier o todos los campos de un recibo
+  @Roles('admin')
+  @Patch(':id')
+  async actualizarRecibo(
+    @Param('id') id: string,
+    @Body() data: UpdateReciboDto,
+    @Req() req: UsuarioRequest,
+  ) {
+    const usuario = req.usuario;
+    if (!usuario) throw new UnauthorizedException('userId requerido');
+    return this.recibosService.actualizarRecibo(id, data, usuario);
+  }
+
+  //endpoint para retornar un recibo por su id
+  @Roles('admin', 'vendedor')
+  @Get(':id')
+  async getRecibo(@Param('id') id: string, @Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return this.recibosService.getReciboPorId(id, usuario);
+  }
 
   @Post('exportar')
   // async exportarRecibos(
@@ -94,32 +129,8 @@ export class RecibosController {
   //     throw new Error('Error interno del servidor');
   //   }
   // }
-  @Get()
-  async getRecibos(@Headers('authorization') userId: string) {
-    return this.recibosService.getRecibosPorUsuario(userId);
-  }
-
   @Delete(':id')
   deleteRecibo(@Param('id') id: string) {
     return this.recibosService.eliminarRecibo(id);
-  }
-
-  @Put(':id')
-  async actualizarRecibo(
-    @Param('id') id: string,
-    @Body() data: UpdateReciboDto,
-    @Headers('authorization') userId: string,
-  ) {
-    if (!userId) throw new UnauthorizedException('userId requerido');
-    return this.recibosService.actualizarRecibo(id, data, userId);
-  }
-
-  @Get(':id')
-  async getRecibo(
-    @Param('id') id: string,
-    @Headers('authorization') userId: string,
-  ) {
-    if (!userId) throw new UnauthorizedException('userId requerido');
-    return this.recibosService.getReciboPorId(id, userId);
   }
 }

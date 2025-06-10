@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Recibo de Pago</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 40px;
+      }
+      h1 {
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Recibo de Pago</h1>
+    <p><strong>ID Recibo:</strong> <%= id %></p>
+    <p><strong>Cliente:</strong> <%= cliente %></p>
+    <p><strong>Valor Total:</strong> $<%= valorTotal.toLocaleString() %></p>
+    <p><strong>Concepto:</strong> <%= concepto %></p>
+    <p><strong>Fecha:</strong> <%= fecha %></p>
+  </body>
+</html>
