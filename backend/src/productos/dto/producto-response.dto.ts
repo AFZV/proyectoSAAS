@@ -5,7 +5,5 @@ export class ProductoResponseDto {
   precio: number;
   categoria: string;
   imagenUrl: string;
-  creado: string;
-  actualizado: string;
-  empresaId: string;
+  estado: string;
 }

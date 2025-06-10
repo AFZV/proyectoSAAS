@@ -19,7 +19,7 @@ import { UpdateReciboDto } from './dto/update-recibo.dto';
 @Controller('recibos')
 export class RecibosController {
   constructor(private recibosService: RecibosService) {}
-
+ /*
   @Post()
   async crearRecibo(
     @Body() data: CrearReciboDto,
@@ -27,6 +27,7 @@ export class RecibosController {
   ) {
     return await this.recibosService.CrearRecibo(data, userId);
   }
+    */
 
   @Post('exportar')
   // async exportarRecibos(
