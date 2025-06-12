@@ -49,10 +49,10 @@ export class ReportesController {
       });
 
       sheet.columns = [
-        { width: 30 }, // Nombre
+        { width: 40 }, // Nombre
         { width: 12, style: { numFmt: '#,##0' } }, // Cantidad
         { width: 14, style: { numFmt: '[$$-en-US]#,##0.00' } }, // Valor Unitario
-        { width: 14, style: { numFmt: '[$$-en-US]#,##0.00' } }, // Total
+        { width: 18, style: { numFmt: '[$$-en-US]#,##0.00' } }, // Total
       ];
 
       //Devolver el archivo excel ya construido
