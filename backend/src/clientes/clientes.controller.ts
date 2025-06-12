@@ -5,11 +5,17 @@ import {
   Headers,
   Param,
   Post,
+  Req,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { ClienteService } from './clientes.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
-
+import { UsuarioRequest } from 'src/types/request-with-usuario';
+import { UsuarioGuard } from 'src/common/guards/usuario.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+@UseGuards(UsuarioGuard, RolesGuard)
 @Controller('clientes')
 export class ClienteController {
   constructor(private readonly clienteService: ClienteService) {}
@@ -30,14 +36,15 @@ export class ClienteController {
   async crearCliente(@Body() body: CreateClienteDto) {
     return await this.clienteService.crearCliente(body);
   }
-
+  @Roles('admin', 'vendedor')
   @Get(':nit')
   async getClientePorNit(
     @Param('nit') nit: string,
-    @Headers('authorization') userId: string,
+    @Req() req: UsuarioRequest,
   ) {
-    console.log('💡 Recibido userId desde header:', userId);
-    if (!userId) throw new UnauthorizedException('userId requerido');
-    return this.clienteService.getCliente(nit, userId);
+    console.log('llega al backen:', req.usuario);
+    const usuario = req.usuario;
+    if (!usuario) throw new UnauthorizedException('userId requerido');
+    return this.clienteService.getCliente(nit, usuario);
   }
 }

@@ -5,31 +5,34 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
+import { UsuarioPayload } from 'src/types/usuario-payload';
 
 @Injectable()
 export class ClienteService {
   constructor(private prisma: PrismaService) {}
-  async getCliente(nit: string, userId: string) {
-    // 1. Obtener el usuario actual (vendedor o admin)
-    const usuario = await this.prisma.usuario.findFirst({
-      where: {
-        codigo: userId,
-      },
-      select: {
-        id: true,
-        rol: true,
-        empresaId: true,
-      },
-    });
-
+  async getCliente(nit: string, usuario: UsuarioPayload) {
     if (!usuario) throw new UnauthorizedException('Usuario no encontrado');
 
-    // 2. Buscar la relación ClienteEmpresa que coincida
+    const { empresaId, id: usuarioId, rol } = usuario;
+
+    // Buscar el cliente por NIT
+    const cliente = await this.prisma.cliente.findFirst({
+      where: { nit },
+      select: { id: true },
+    });
+
+    if (!cliente) {
+      throw new NotFoundException('Cliente no encontrado');
+    }
+
+    // Buscar la relación ClienteEmpresa, con condiciones según el rol
     const relacion = await this.prisma.clienteEmpresa.findFirst({
       where: {
-        empresa: { id: usuario.empresaId },
-        cliente: { nit: nit },
-        ...(usuario.rol !== 'admin' && { vendedorId: usuario.id }), // si no es admin, validar que sea su cliente
+        clienteId: cliente.id,
+        ...(rol !== 'admin' && {
+          empresaId,
+          usuarioId,
+        }),
       },
       include: {
         cliente: true,
@@ -40,7 +43,6 @@ export class ClienteService {
       throw new NotFoundException('Cliente no encontrado o no autorizado');
     }
 
-    // 3. Devolver todos los datos del cliente
     return relacion.cliente;
   }
 

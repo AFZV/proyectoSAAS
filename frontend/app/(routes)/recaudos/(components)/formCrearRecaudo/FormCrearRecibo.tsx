@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { FormCrearReciboProps } from "./FormCrearRecibo.types";
-import { useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
+import { Token } from "@clerk/nextjs/server";
 
 const formSchema = z.object({
   codigoCliente: z.string().min(5).max(11),
@@ -40,14 +41,20 @@ export function FormCrearRecibo({
   const [clienteEncontrado, setClienteEncontrado] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [token, setToken] = useState<string>("");
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useUser();
+  const { getToken } = useAuth();
+
   useEffect(() => {
-    if (user?.id) {
-      localStorage.setItem("clerkUserId", user.id);
-    }
-  }, [user]);
+    const fetchToken = async () => {
+      const resToken = await getToken();
+      setToken(resToken as string);
+    };
+
+    fetchToken();
+  }, [getToken]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -63,7 +70,7 @@ export function FormCrearRecibo({
 
   const buscarCliente = async () => {
     const nit = form.getValues("codigoCliente");
-    if (!nit) return;
+    if (!nit || !token) return;
 
     try {
       setIsLoading(true);
@@ -71,12 +78,13 @@ export function FormCrearRecibo({
         `${process.env.NEXT_PUBLIC_API_URL}/clientes/${nit}`,
         {
           headers: {
-            Authorization: localStorage.getItem("clerkUserId") || "",
+            Authorization: `Bearer ${token}`,
           },
         }
       );
 
       const data = response.data;
+      console.log("cliente que llega del backend:", data);
 
       if (!data) {
         toast({
@@ -86,14 +94,17 @@ export function FormCrearRecibo({
         return;
       }
 
-      form.setValue("customer", `${data.nombres} ${data.apellidos}`);
+      form.setValue(
+        "customer",
+        `${data.nombre} ${data.apellidos}` || `${data.razonSocial}`
+      );
       form.setValue("ciudad", data.codigoCiud || "");
       form.setValue("email", data.email || "");
 
       setClienteEncontrado(true);
 
       toast({
-        title: `Cliente encontrado: ${data.nombres}`,
+        title: `Cliente encontrado: ${data.nombre}`,
       });
     } catch (error) {
       console.error("Error buscando cliente:", error);
@@ -119,7 +130,7 @@ export function FormCrearRecibo({
         },
         {
           headers: {
-            Authorization: localStorage.getItem("clerkUserId") || "",
+            Authorization: `Bearer ${token}`,
           },
         }
       );

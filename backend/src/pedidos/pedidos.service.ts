@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
+import { FilterPedidoDto } from './dto/filter-pedido.dto';
 //import { UpdatePedidoDto } from './dto/update-pedido.dto';
 
 @Injectable()
@@ -25,7 +26,7 @@ export class PedidosService {
     }, 0);
     const { empresaId, id } = usuario;
 
-    console.log('est es la empresa logueada :', empresaId);
+    //console.log('est es la empresa logueada :', empresaId);
     const pedido = await this.prisma.pedido.create({
       data: {
         ...data,
@@ -54,7 +55,11 @@ export class PedidosService {
   }
   ///// cambia el estado del pedido y verifica si esta facturado lo descuenta del stock
   ///// se le debe enviar el id del pedido
-  async agregarEstado(pedidoId: string, estado: string) {
+  async agregarEstado(
+    pedidoId: string,
+    estado: string,
+    observaciones: UpdatePedidoDto,
+  ) {
     const estadoNormalizado = estado.toUpperCase();
 
     // 1. Verificar si ya tiene el estado
@@ -170,6 +175,16 @@ export class PedidosService {
         ...movimientosInventario,
         movimientoCartera,
       ]);
+    }
+    if (estadoNormalizado === 'ENVIADO') {
+      const fechaEnviado = new Date();
+      await this.prisma.pedido.update({
+        where: { id: pedidoId },
+        data: {
+          fechaActualizado: fechaEnviado,
+          observaciones: observaciones.observaciones, //aca deberian almacenar el numero de guia y flete
+        },
+      });
     }
 
     return nuevoEstado;
@@ -341,5 +356,40 @@ export class PedidosService {
     ]);
 
     return pedidoActualizado;
+  }
+
+  /////////////////////////////////////////////////////////////////////
+  async obtenerPedidosFiltro(data: FilterPedidoDto, usuario: UsuarioPayload) {
+    const { filtro, tipoFiltro } = data;
+    if (!usuario) throw new BadRequestException('El usuario es requerido');
+
+    // Validar que solo se acepten filtros válidos
+    const filtrosValidos = [
+      'id',
+      'clienteId',
+      'usuarioId',
+      'total',
+      'empresaId',
+      'fechaPedido',
+    ];
+    if (!filtrosValidos.includes(tipoFiltro)) {
+      throw new BadRequestException(`Filtro no válido: ${tipoFiltro}`);
+    }
+
+    // Construir cláusula where dinámica
+    const whereClausula: Record<string, unknown> = {
+      [tipoFiltro]: tipoFiltro === 'total' ? parseFloat(filtro) : filtro,
+      empresaId: usuario.empresaId,
+    };
+
+    const pedidos = await this.prisma.pedido.findMany({
+      where: whereClausula,
+      include: {
+        cliente: true,
+        productos: true,
+      },
+    });
+
+    return pedidos;
   }
 }
