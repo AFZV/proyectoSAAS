@@ -26,7 +26,7 @@ export class PedidosService {
     }, 0);
     const { empresaId, id } = usuario;
 
-    console.log('est es la empresa logueada :', empresaId);
+    //console.log('est es la empresa logueada :', empresaId);
     const pedido = await this.prisma.pedido.create({
       data: {
         ...data,
@@ -55,7 +55,11 @@ export class PedidosService {
   }
   ///// cambia el estado del pedido y verifica si esta facturado lo descuenta del stock
   ///// se le debe enviar el id del pedido
-  async agregarEstado(pedidoId: string, estado: string) {
+  async agregarEstado(
+    pedidoId: string,
+    estado: string,
+    observaciones: UpdatePedidoDto,
+  ) {
     const estadoNormalizado = estado.toUpperCase();
 
     // 1. Verificar si ya tiene el estado
@@ -171,6 +175,16 @@ export class PedidosService {
         ...movimientosInventario,
         movimientoCartera,
       ]);
+    }
+    if (estadoNormalizado === 'ENVIADO') {
+      const fechaEnviado = new Date();
+      await this.prisma.pedido.update({
+        where: { id: pedidoId },
+        data: {
+          fechaActualizado: fechaEnviado,
+          observaciones: observaciones.observaciones, //aca deberian almacenar el numero de guia y flete
+        },
+      });
     }
 
     return nuevoEstado;
@@ -356,6 +370,7 @@ export class PedidosService {
       'usuarioId',
       'total',
       'empresaId',
+      'fechaPedido',
     ];
     if (!filtrosValidos.includes(tipoFiltro)) {
       throw new BadRequestException(`Filtro no válido: ${tipoFiltro}`);

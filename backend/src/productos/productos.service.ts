@@ -55,13 +55,13 @@ export class ProductosService {
       where: { id: productoId },
     });
 
-    if ( !producto ) {
+    if (!producto) {
       throw new InternalServerErrorException('Producto no encontrado');
     }
 
     try {
-     // Obtener el estado del producto
-     const nuevoEstado = producto.estado === 'activo' ? 'inactivo' : 'activo';
+      // Obtener el estado del producto
+      const nuevoEstado = producto.estado === 'activo' ? 'inactivo' : 'activo';
 
       // Actualizar producto
       await this.prisma.producto.update({
@@ -84,7 +84,7 @@ export class ProductosService {
       where: { id: productoId },
     });
 
-    if ( !producto ) {
+    if (!producto) {
       throw new InternalServerErrorException('Producto no encontrado');
     }
     try {

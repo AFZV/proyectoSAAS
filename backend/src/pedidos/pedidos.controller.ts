@@ -32,9 +32,12 @@ export class PedidosController {
 
   @Roles('admin')
   @Post('/estado')
-  crearEstado(@Body() data: CrearEstadoPedidoDto) {
+  crearEstado(
+    @Body() data: CrearEstadoPedidoDto,
+    observaciones: UpdatePedidoDto,
+  ) {
     const { estado, pedidoId } = data;
-    return this.pedidosService.agregarEstado(pedidoId, estado);
+    return this.pedidosService.agregarEstado(pedidoId, estado, observaciones);
   }
 
   @Roles('admin', 'vendedor')
