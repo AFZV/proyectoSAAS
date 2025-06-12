@@ -18,12 +18,12 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
 
 @UseGuards(UsuarioGuard, RolesGuard)
-@Controller('inventario/:productoId')
+@Controller('inventario')
 export class InventarioController {
   constructor(private inventarioService: InventarioService) {}
   //Crear el inventario de un producto
-  @Roles('admin')
-  @Post('')
+  @Roles('vendedor')
+  @Post(':productoId')
   @HttpCode(HttpStatus.CREATED)
   async create(
     @Req() req: UsuarioRequest,
