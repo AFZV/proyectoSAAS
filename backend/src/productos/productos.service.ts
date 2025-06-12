@@ -112,9 +112,17 @@ export class ProductosService {
     }
   }
 
-  async createCategoria(data: CreateCategoriaProductoDto) {
+  async createCategoria(
+    usuario: UsuarioPayload,
+    data: CreateCategoriaProductoDto,
+  ) {
     try {
-      return await this.prisma.categoriasProducto.create({ data });
+      return await this.prisma.categoriasProducto.create({
+        data: {
+          ...data,
+          empresaId: usuario.empresaId,
+        },
+      });
     } catch (error) {
       console.error('Error al crear la categoría de producto:', error);
       // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
@@ -128,36 +136,15 @@ export class ProductosService {
     }
   }
 
-  async findAllCategorias(usuario: UsuarioPayload) {
+  async findAllCategoriasforEmpresa(usuario: UsuarioPayload) {
     try {
-      //Traemos todas las categorías de productos de la empresa del usuario
-      const productos = await this.prisma.producto.findMany({
-        where: {
-          empresaId: usuario.empresaId,
-        },
-        select: {
-          categoriaId: true, // Seleccionamos solo la categoría
-        },
-      });
-
-      //Extraemos las categorias unicas
-      const idCategorias = [
-        ...new Set(
-          productos
-            .map((p) => p.categoriaId)
-            .filter((c): c is string => typeof c === 'string'),
-        ),
-      ];
-      // 3. Buscamos las categorías cuyo id esté en ese array
-      const categorias = await this.prisma.categoriasProducto.findMany({
-        where: { idCategoria: { in: idCategorias } },
+      return await this.prisma.categoriasProducto.findMany({
+        where: { empresaId: usuario.empresaId },
         select: {
           idCategoria: true,
           nombre: true,
         },
       });
-
-      return categorias;
     } catch (error) {
       console.error('Error al obtener las categorías de productos:', error);
       // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
