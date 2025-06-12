@@ -15,6 +15,7 @@ import { RecibosService } from './recibos/recibos.service';
 import { ProductosModule } from './productos/productos.module';
 import { EstadisticasModule } from './estadisticas/estadisticas.module';
 import { ProveedoresModule } from './proveedores/proveedores.module';
+import { InventarioModule } from './inventario/inventario.module';
 
 // import { PdfUploaderService } from './pdf-uploader/pdf-uploader.service';
 // import { ResendService } from './resend/resend.service';
@@ -39,10 +40,9 @@ import { BalanceModule } from './balance/balance.module';
     EstadisticasModule,
     ProveedoresModule,
     ComprasModule,
+    InventarioModule,
     ReportesModule,
-
     PedidosModule,
-
     BalanceModule,
   ],
   controllers: [PrismaController, EmpresaController, RecibosController],

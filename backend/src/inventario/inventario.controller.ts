@@ -7,8 +7,7 @@ import {
   HttpStatus,
   UseGuards,
   Req,
-  Put,
-  Get,
+  Patch,
 } from '@nestjs/common';
 import { InventarioService } from './inventario.service';
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
@@ -22,7 +21,7 @@ import { UsuarioRequest } from 'src/types/request-with-usuario';
 export class InventarioController {
   constructor(private inventarioService: InventarioService) {}
   //Crear el inventario de un producto
-  @Roles('vendedor')
+  @Roles('admin')
   @Post(':productoId')
   @HttpCode(HttpStatus.CREATED)
   async create(
@@ -42,13 +41,19 @@ export class InventarioController {
     };
   }
 
-
   @Roles('admin')
-  @Put('')
+  @Patch('update/:productoId')
   async updateinventario(
     @Param('productoId') productoId: string,
-    
-  ){
-
+    @Body() dto: CrearInventarioDto,
+  ) {
+    const actinvt = await this.inventarioService.updateInventario(
+      productoId,
+      dto.stockReferenciaOinicial,
+    );
+    return {
+      message: `Inventario actualizado para el producto ${productoId}`,
+      actinvt,
+    };
   }
 }

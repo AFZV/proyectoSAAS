@@ -92,7 +92,10 @@ export class ProductosController {
     @Req() req: UsuarioRequest,
   ) {
     const usuario = req.usuario;
-    const categoria = await this.productosService.createCategoria(usuario, data);
+    const categoria = await this.productosService.createCategoria(
+      usuario,
+      data,
+    );
     return {
       message: `Se ha creado la categoría ${categoria.nombre}`,
       categoria,
@@ -107,5 +110,20 @@ export class ProductosController {
     const categorias =
       await this.productosService.findAllCategoriasforEmpresa(usuario);
     return { categorias };
+  }
+
+  //Obtener productos por categoria
+  @Roles('admin', 'superadmin')
+  @Get('categoria/:categoriaId')
+  async findByCategoria(
+    @Param('categoriaId') categoriaId: string,
+    @Req() req: UsuarioRequest,
+  ) {
+    const usuario = req.usuario;
+    const productos = await this.productosService.findByCategoria(
+      usuario,
+      categoriaId,
+    );
+    return { productos };
   }
 }

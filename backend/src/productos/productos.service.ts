@@ -157,4 +157,26 @@ export class ProductosService {
       );
     }
   }
+
+  //filtrar productos por categoria
+  async findByCategoria(usuario: UsuarioPayload, categoriaId: string) {
+    try {
+      return await this.prisma.producto.findMany({
+        where: { categoriaId, empresaId: usuario.empresaId },
+        include: {
+          inventario: true, // Incluimos el inventario del producto
+        },
+      });
+    } catch (error) {
+      console.error('Error al obtener los productos por categoría:', error);
+      // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
+      if (error) {
+        throw error;
+      }
+      // Si no, lanza una InternalServerErrorException
+      throw new InternalServerErrorException(
+        'Error al obtener los productos por categoría',
+      );
+    }
+  }
 }
