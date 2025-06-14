@@ -239,14 +239,38 @@ export class ComprasService {
       },
     });
 
-    // 3) Aplanamos y devolvemos
-    return detalles.map((dc) => ({
-      idCompra: dc.compra.idCompra,
-      FechaCompra: dc.compra.FechaCompra,
-      nombre: dc.producto.nombre,
-      cantidad: dc.cantidad,
-      cantidadMovimiendo:
-        dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0,
-    }));
+    // 2) Contruyo un objeto de agrupacion por idCompra
+    const agrupado: Record<
+      string,
+      {
+        idCompra: string;
+        FechaCompra: Date;
+        productos: Array<{
+          nombre: string;
+          cantidad: number;
+          cantidadMovimiendo: number;
+        }>;
+      }
+    > = {};
+
+    detalles.forEach((dc) => {
+      const key = dc.compra.idCompra;
+      if (!agrupado[key]) {
+        agrupado[key] = {
+          idCompra: key,
+          FechaCompra: dc.compra.FechaCompra,
+          productos: [],
+        };
+      }
+      agrupado[key].productos.push({
+        nombre: dc.producto.nombre,
+        cantidad: dc.cantidad,
+        cantidadMovimiendo:
+          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0
+      });
+    });
+
+    // 3) Devuelvo como array
+    return Object.values(agrupado);
   }
 }
