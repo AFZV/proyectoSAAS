@@ -27,13 +27,14 @@ import { FormCreateClienteProps } from "./FormCreateCliente.type";
 
 const formSchema = z.object({
   nit: z.string().min(2).max(10),
-  nombres: z.string().min(2).max(50),
+  rasonZocial: z.string().min(2).max(50).optional(),
+  nombre: z.string().min(2).max(50),
   apellidos: z.string().min(2).max(50),
   direccion: z.string().min(10).max(50),
   telefono: z.string().min(1).max(10),
   email: z.string().email("Correo inválido").max(50).optional(),
-  codigoDpto: z.string().min(1),
-  codigoCiud: z.string().min(1),
+  departamento: z.string().min(1),
+  ciudad: z.string().min(1),
 });
 
 interface Departamento {
@@ -55,13 +56,16 @@ interface UsuarioActual {
 export function FormCreateCliente(props: FormCreateClienteProps) {
   const { setOpenModalCreate } = props;
   const [isSubmiting, setIsSubmiting] = useState<boolean>(false);
-  const { userId } = useAuth();
+
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [ciudades, setCiudades] = useState<Ciudad[]>([]);
   const [usuarioActual, setUsuarioActual] = useState<UsuarioActual | null>(
     null
   );
+
+  const [token, setToken] = useState<string>();
   const [loadingUsuario, setLoadingUsuario] = useState(true);
+  const { getToken } = useAuth();
 
   const router = useRouter();
   const { toast } = useToast();
@@ -73,6 +77,15 @@ export function FormCreateCliente(props: FormCreateClienteProps) {
 
   const { isValid } = form.formState;
 
+  useEffect(() => {
+    const fetchToken = async () => {
+      const resToken = await getToken();
+      setToken(resToken as string);
+    };
+
+    fetchToken();
+  }, [getToken]);
+
   // Obtener usuario actual
   useEffect(() => {
     const fetchUsuario = async () => {
@@ -80,7 +93,7 @@ export function FormCreateCliente(props: FormCreateClienteProps) {
         const res = await axios.get(
           `${process.env.NEXT_PUBLIC_API_URL}/auth/usuario-actual`,
           {
-            headers: { Authorization: userId },
+            headers: { Authorization: `Bearer ${token}` },
           }
         );
         setUsuarioActual(res.data);
@@ -93,7 +106,7 @@ export function FormCreateCliente(props: FormCreateClienteProps) {
     };
 
     fetchUsuario();
-  }, [userId]);
+  }, [token]);
 
   // Cargar departamentos
   useEffect(() => {
@@ -108,7 +121,7 @@ export function FormCreateCliente(props: FormCreateClienteProps) {
 
   // Cargar ciudades por departamento
   useEffect(() => {
-    const selectedDptoId = form.watch("codigoDpto");
+    const selectedDptoId = form.watch("departamento");
 
     if (selectedDptoId) {
       const fetchCiudades = async () => {
@@ -119,7 +132,7 @@ export function FormCreateCliente(props: FormCreateClienteProps) {
     } else {
       setCiudades([]);
     }
-  }, [form.watch("codigoDpto")]);
+  }, [form.watch("departamento")]);
 
   // Envío del formulario
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -139,33 +152,32 @@ export function FormCreateCliente(props: FormCreateClienteProps) {
 
     try {
       const nombreDpto =
-        departamentos.find((d) => d.id.toString() === values.codigoDpto)
+        departamentos.find((d) => d.id.toString() === values.departamento)
           ?.name || "";
       const nombreCiud =
-        ciudades.find((c) => c.id.toString() === values.codigoCiud)?.name || "";
+        ciudades.find((c) => c.id.toString() === values.ciudad)?.name || "";
 
       const clientePayload = {
         nit: values.nit,
-        nombres: values.nombres,
+        rasonZocial: "CLIENTE PRUEBA ABZD",
+        nombre: values.nombre,
         apellidos: values.apellidos,
         direccion: values.direccion,
         telefono: values.telefono,
         email: values.email,
-        codigoDpto: nombreDpto,
-        codigoCiud: nombreCiud,
+        departamento: nombreDpto,
+        ciudad: nombreCiud,
       };
 
-      const clienteRes = await axios.post(
+      const clienteRes = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/clientes`,
-        clientePayload
+        {
+          method: "POST",
+          body: JSON.stringify(clientePayload),
+        }
       );
-      const clienteId = clienteRes.data.id;
-
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/cliente-empresa`, {
-        clienteId,
-        empresaId: usuarioActual.empresaId,
-        vendedorId: usuarioActual.usuarioId, // ✅ confirmado que es UUID de usuario
-      });
+      const cliente = await clienteRes.json();
+      console.log("nuevo cliente:", cliente);
 
       toast({ title: "Cliente registrado exitosamente" });
       router.refresh();
@@ -203,7 +215,7 @@ export function FormCreateCliente(props: FormCreateClienteProps) {
             {(
               [
                 "nit",
-                "nombres",
+                "nombre",
                 "apellidos",
                 "telefono",
                 "email",
@@ -230,7 +242,7 @@ export function FormCreateCliente(props: FormCreateClienteProps) {
 
             <FormField
               control={form.control}
-              name="codigoDpto"
+              name="departamento"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Departamento</FormLabel>
@@ -251,7 +263,7 @@ export function FormCreateCliente(props: FormCreateClienteProps) {
 
             <FormField
               control={form.control}
-              name="codigoCiud"
+              name="ciudad"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Ciudad</FormLabel>

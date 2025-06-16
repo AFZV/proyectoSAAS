@@ -7,18 +7,61 @@
       body {
         font-family: Arial, sans-serif;
         margin: 40px;
+        color: #333;
       }
       h1 {
-        color: #333;
+        color: #222;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      th, td {
+        padding: 10px;
+        border: 1px solid #ccc;
+        text-align: left;
+      }
+      .total {
+        font-weight: bold;
+        text-align: right;
+        margin-top: 20px;
       }
     </style>
   </head>
   <body>
     <h1>Recibo de Pago</h1>
+
     <p><strong>ID Recibo:</strong> <%= id %></p>
     <p><strong>Cliente:</strong> <%= cliente %></p>
-    <p><strong>Valor Total:</strong> $<%= valorTotal.toLocaleString() %></p>
+    <p><strong>Vendedor:</strong> <%= vendedor %></p>
+    <p><strong>Tipo:</strong> <%= tipo %></p>
     <p><strong>Concepto:</strong> <%= concepto %></p>
-    <p><strong>Fecha:</strong> <%= fecha %></p>
+    <p><strong>Fecha:</strong> <%= new Date(fecha).toLocaleString() %></p>
+
+    <h2>Pedidos Asociados</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID Pedido</th>
+          <th>Total Pedido</th>
+          <th>Valor Aplicado</th>
+          <th>Saldo Pendiente</th>
+        </tr>
+      </thead>
+      <tbody>
+  <% pedidos.forEach(p => { %>
+    <tr>
+      <td><%= p.id %></td>
+      <td>$<%= (p.total ?? 0).toLocaleString() %></td>
+      <td>$<%= (p.valorAplicado ?? 0).toLocaleString() %></td>
+      <td>$<%= (p.saldoPendiente ?? 0).toLocaleString() %></td>
+    </tr>
+  <% }) %>
+</tbody>
+
+    </table>
+
+    <p class="total">Total Pagado: $<%= totalPagado.toLocaleString() %></p>
   </body>
 </html>

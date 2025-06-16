@@ -30,6 +30,13 @@ export class CreatePedidoDto {
   //   @Type(() => Date)    LO GETIONA PRISMA
   //   @IsNotEmpty()
   //   fechaEnvio: Date;
+  @IsOptional()
+  @IsString()
+  guiaTransporte: string;
+
+  @IsOptional()
+  @IsString()
+  flete: number;
 
   @IsArray()
   @ArrayMinSize(1)

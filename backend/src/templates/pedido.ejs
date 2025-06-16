@@ -4,17 +4,32 @@
     <meta charset="utf-8" />
     <title>Pedido</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 40px; }
-      h1 { color: #2c3e50; }
-      table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-      th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 40px;
+      }
+      h1 {
+        color: #2c3e50;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin-top: 20px;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: left;
+      }
     </style>
   </head>
   <body>
     <h1>Resumen del Pedido</h1>
     <p><strong>ID Pedido:</strong> <%= id %></p>
     <p><strong>Cliente:</strong> <%= cliente %></p>
-    <p><strong>Fecha:</strong> <%= fecha %></p>
+    <p><strong>Fecha:</strong> <%= fecha.toLocaleDateString() %></p>
+    <p><strong>Vendedor:</strong> <%= vendedor %></p>
 
     <table>
       <thead>
@@ -30,13 +45,13 @@
           <tr>
             <td><%= producto.nombre %></td>
             <td><%= producto.cantidad %></td>
-            <td>$<%= producto.precio %></td>
-            <td>$<%= producto.subtotal %></td>
+            <td>$<%= producto.precio.toFixed(2) %></td>
+            <td>$<%= producto.subtotal.toFixed(2) %></td>
           </tr>
         <% }) %>
       </tbody>
     </table>
 
-    <p><strong>Total:</strong> $<%= total.toLocaleString() %></p>
+    <p><strong>Total:</strong> $<%= total.toFixed(2) %></p>
   </body>
 </html>

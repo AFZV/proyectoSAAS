@@ -1,12 +1,8 @@
-import axios from "axios";
 import { Cliente, columns } from "./columns";
 import { DataTable } from "./data-table";
-
-import { auth } from "@clerk/nextjs";
 import { getToken } from "@/lib/getToken";
 
 export async function getClientes(): Promise<any[]> {
-  //const { userId } = auth();
   const token = await getToken();
 
   if (token === null) {
@@ -26,7 +22,7 @@ export async function getClientes(): Promise<any[]> {
 
 export default async function ListClientsPage() {
   const data = await getClientes();
-
+  console.log("clientes que llegan al front:", data);
   return (
     <section className="min-h-screen bg-background text-foreground px-4 py-4">
       <div className="max-w-6xl mx-auto">

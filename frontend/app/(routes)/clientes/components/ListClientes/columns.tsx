@@ -9,9 +9,9 @@ export type Cliente = {
   nombres: string;
   apellidos: string;
   telefono: string;
-  codigoCiud: string;
+  ciudad: string;
   email: string;
-  vendedor: {
+  usuario: {
     nombre: string;
   };
 };
@@ -34,7 +34,7 @@ export const columns: ColumnDef<Cliente>[] = [
     header: "Telefono",
   },
   {
-    accessorKey: "codigoCiud",
+    accessorKey: "ciudad",
     header: ({ column }: { column: Column<Cliente, unknown> }) => {
       return (
         <Button
@@ -55,8 +55,8 @@ export const columns: ColumnDef<Cliente>[] = [
     accessorKey: "vendedor.nombre",
     header: "Vendedor",
     cell: ({ row }) => {
-      const vendedor = row.original.vendedor;
-      return vendedor.nombre;
+      const vendedor = row.original.usuario;
+      return vendedor;
     },
   },
 ];

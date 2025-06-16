@@ -40,7 +40,7 @@ export class BalanceService {
     // Ordenar por nombre A → Z
     return resultado.sort((a, b) => a.nombre.localeCompare(b.nombre));
   }
-
+  ///obtiene el saldo de cartera de un cliente el saldo total
   async saldoPorCliente(idCliente: string, usuario: UsuarioPayload) {
     if (!idCliente || !usuario)
       throw new BadRequestException(
@@ -75,5 +75,21 @@ export class BalanceService {
       cliente: cliente,
       saldo: saldo,
     };
+  }
+
+  async movimientosCarteraCliente(idCliente: string, usuario: UsuarioPayload) {
+    if (!usuario || !idCliente)
+      throw new BadRequestException(
+        `los datos del cliente y el usuario son requeridos`,
+      );
+    const { empresaId } = usuario;
+    const movimientos = await this.prisma.movimientosCartera.findMany({
+      where: { empresaId: empresaId, idCliente: idCliente },
+      include: {
+        pedido: true,
+        recibo: true,
+      },
+    });
+    return movimientos;
   }
 }

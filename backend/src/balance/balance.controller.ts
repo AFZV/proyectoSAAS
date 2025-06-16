@@ -21,4 +21,12 @@ export class BalanceController {
     const usuario = req.usuario;
     return this.balanceService.saldoPorCliente(id, usuario);
   }
+  @Get('movimientos/:idCliente')
+  obtenerMovimientos(
+    @Param('idCliente') idCliente: string,
+    @Req() req: UsuarioRequest,
+  ) {
+    const usuario = req.usuario;
+    return this.balanceService.movimientosCarteraCliente(idCliente, usuario);
+  }
 }

@@ -4,8 +4,7 @@ import {
   IsEmail,
   Matches,
   Length,
-  IsUUID,
-  IsBoolean,
+  IsOptional,
 } from 'class-validator';
 
 export class CreateClienteDto {
@@ -15,6 +14,10 @@ export class CreateClienteDto {
     message: 'El NIT debe tener solo números y entre 5 a 20 dígitos.',
   })
   nit: string;
+
+  @IsString()
+  @IsOptional()
+  rasonZocial: string;
 
   @IsString()
   @IsNotEmpty({ message: 'El nombre es obligatorio.' })
@@ -51,18 +54,18 @@ export class CreateClienteDto {
   @IsNotEmpty({ message: 'La ciudad es obligatoria.' })
   ciudad: string;
 
-  @IsBoolean()
-  @IsNotEmpty({
-    message: 'El estado del cliente es obligatorio (activo/inactivo).',
-  })
-  estado: boolean;
+  // @IsBoolean()
+  // @IsNotEmpty({
+  //   message: 'El estado del cliente es obligatorio (activo/inactivo).',
+  // })
+  // estado: boolean;
 
   // Relaciones (se usan luego para insertar en ClienteEmpresa)
-  @IsUUID()
-  @IsNotEmpty({ message: 'El ID de la empresa es obligatorio.' })
-  empresaId: string;
+  // @IsUUID()
+  // @IsNotEmpty({ message: 'El ID de la empresa es obligatorio.' })
+  // empresaId: string;
 
-  @IsUUID()
-  @IsNotEmpty({ message: 'El ID del vendedor (usuario) es obligatorio.' })
-  usuarioId: string;
+  // @IsUUID()
+  // @IsNotEmpty({ message: 'El ID del vendedor (usuario) es obligatorio.' })
+  // usuarioId: string;
 }

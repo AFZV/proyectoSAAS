@@ -2,8 +2,8 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   Param,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
@@ -15,36 +15,51 @@ import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { UpdateClienteDto } from './dto/update-cliente.dto';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('clientes')
 export class ClienteController {
   constructor(private readonly clienteService: ClienteService) {}
-
-  @Get()
-  async obtenerClientes(@Headers('authorization') authHeader: string) {
-    console.log('llego al backend y mando bearer:', authHeader);
-    if (!authHeader) {
-      throw new UnauthorizedException('userId no proporcionado');
-    }
-
-    const userId = authHeader;
-
-    return await this.clienteService.getClientesPorUsuario(userId);
-  }
-
-  @Post()
-  async crearCliente(@Body() body: CreateClienteDto) {
-    return await this.clienteService.crearCliente(body);
-  }
   @Roles('admin', 'vendedor')
-  @Get(':nit')
-  async getClientePorNit(
-    @Param('nit') nit: string,
+  @Post()
+  async crearCliente(
+    @Body() body: CreateClienteDto,
     @Req() req: UsuarioRequest,
   ) {
-    console.log('llega al backen:', req.usuario);
     const usuario = req.usuario;
-    if (!usuario) throw new UnauthorizedException('userId requerido');
-    return this.clienteService.getCliente(nit, usuario);
+    return await this.clienteService.crearCliente(body, usuario);
+  }
+  @Roles('admin', 'vendedor')
+  @Get()
+  async obtenerClientes(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+
+    return await this.clienteService.getClientesPorUsuario(usuario);
+  }
+  @Roles('admin', 'vendedor')
+  @Get('summary')
+  async resume(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return this.clienteService.getResumeCard(usuario);
+  }
+
+  @Roles('admin', 'vendedor')
+  @Get(':filtro')
+  async getClientePorNit(
+    @Param('filtro') filtro: string,
+    @Req() req: UsuarioRequest,
+  ) {
+    const usuario = req.usuario;
+    if (!usuario) throw new UnauthorizedException('Usuario requerido');
+    return this.clienteService.getClientesPorFiltro(filtro, usuario);
+  }
+
+  @Roles('admin')
+  @Patch(':idCliente')
+  async actualizarCliente(
+    @Param('idCliente') idCliente: string,
+    @Body() data: UpdateClienteDto,
+  ) {
+    return await this.clienteService.actualizarCliente(data, idCliente);
   }
 }

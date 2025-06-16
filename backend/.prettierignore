@@ -1,0 +1,8 @@
+# Ignorar plantillas EJS (para evitar errores de formato)
+src/templates/*.ejs
+src/template/*.ejs
+*.ejs
+
+# Opcional: otros archivos que Prettier no debe tocar
+dist/
+node_modules/
