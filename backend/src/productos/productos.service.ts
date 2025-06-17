@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/actualizar-producto.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
+import { CreateCategoriaProductoDto } from './dto/create-categoria-producto.dto';
 @Injectable()
 export class ProductosService {
   constructor(private prisma: PrismaService) {}
@@ -45,6 +46,7 @@ export class ProductosService {
           },
         },
       });
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       throw new InternalServerErrorException('Error al obtener los productos');
     }
@@ -71,6 +73,7 @@ export class ProductosService {
     } catch (error: any) {
       console.error('Error al Actualizar el estado  del producto:', error);
       // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       if (error.getStatus && typeof error.getStatus === 'function') {
         throw error;
       }
@@ -106,6 +109,74 @@ export class ProductosService {
       }
       // Si no, lanza una InternalServerErrorException
       throw new InternalServerErrorException('Error al actualizar el producto');
+    }
+  }
+
+  async createCategoria(
+    usuario: UsuarioPayload,
+    data: CreateCategoriaProductoDto,
+  ) {
+    try {
+      return await this.prisma.categoriasProducto.create({
+        data: {
+          ...data,
+          empresaId: usuario.empresaId,
+        },
+      });
+    } catch (error) {
+      console.error('Error al crear la categoría de producto:', error);
+      // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
+      if (error) {
+        throw error;
+      }
+      // Si no, lanza una InternalServerErrorException
+      throw new InternalServerErrorException(
+        'Error al crear la categoría de producto',
+      );
+    }
+  }
+
+  async findAllCategoriasforEmpresa(usuario: UsuarioPayload) {
+    try {
+      return await this.prisma.categoriasProducto.findMany({
+        where: { empresaId: usuario.empresaId },
+        select: {
+          idCategoria: true,
+          nombre: true,
+        },
+      });
+    } catch (error) {
+      console.error('Error al obtener las categorías de productos:', error);
+      // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
+      if (error) {
+        throw error;
+      }
+      // Si no, lanza una InternalServerErrorException
+      throw new InternalServerErrorException(
+        'Error al obtener las categorías de productos',
+      );
+    }
+  }
+
+  //filtrar productos por categoria
+  async findByCategoria(usuario: UsuarioPayload, categoriaId: string) {
+    try {
+      return await this.prisma.producto.findMany({
+        where: { categoriaId, empresaId: usuario.empresaId },
+        include: {
+          inventario: true, // Incluimos el inventario del producto
+        },
+      });
+    } catch (error) {
+      console.error('Error al obtener los productos por categoría:', error);
+      // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
+      if (error) {
+        throw error;
+      }
+      // Si no, lanza una InternalServerErrorException
+      throw new InternalServerErrorException(
+        'Error al obtener los productos por categoría',
+      );
     }
   }
 }

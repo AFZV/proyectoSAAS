@@ -16,6 +16,7 @@ import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
+import { CreateCategoriaProductoDto } from './dto/create-categoria-producto.dto';
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('productos')
@@ -81,5 +82,48 @@ export class ProductosController {
       message: `Se ha actualizado el producto ${producto.id}`,
       producto,
     };
+  }
+
+  //Crear una categoria de producto
+  @Roles('admin')
+  @Post('categoria/create')
+  async createCategoria(
+    @Body() data: CreateCategoriaProductoDto,
+    @Req() req: UsuarioRequest,
+  ) {
+    const usuario = req.usuario;
+    const categoria = await this.productosService.createCategoria(
+      usuario,
+      data,
+    );
+    return {
+      message: `Se ha creado la categoría ${categoria.nombre}`,
+      categoria,
+    };
+  }
+
+  //Obtener todas las categorías de productos de una empresa
+  @Roles('admin')
+  @Get('categoria/empresa')
+  async findAllCategorias(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    const categorias =
+      await this.productosService.findAllCategoriasforEmpresa(usuario);
+    return { categorias };
+  }
+
+  //Obtener productos por categoria
+  @Roles('admin', 'superadmin')
+  @Get('categoria/:categoriaId')
+  async findByCategoria(
+    @Param('categoriaId') categoriaId: string,
+    @Req() req: UsuarioRequest,
+  ) {
+    const usuario = req.usuario;
+    const productos = await this.productosService.findByCategoria(
+      usuario,
+      categoriaId,
+    );
+    return { productos };
   }
 }

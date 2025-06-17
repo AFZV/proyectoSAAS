@@ -14,6 +14,7 @@ import { RecibosModule } from './recibos/recibos.module';
 import { ProductosModule } from './productos/productos.module';
 import { EstadisticasModule } from './estadisticas/estadisticas.module';
 import { ProveedoresModule } from './proveedores/proveedores.module';
+import { InventarioModule } from './inventario/inventario.module';
 
 import { ComprasModule } from './compras/compras.module';
 import { ReportesModule } from './reportes/reportes.module';
@@ -38,10 +39,9 @@ import { ResendModule } from './resend/resend.module';
     EstadisticasModule,
     ProveedoresModule,
     ComprasModule,
+    InventarioModule,
     ReportesModule,
-
     PedidosModule,
-
     BalanceModule,
 
     PdfUploaderModule,
