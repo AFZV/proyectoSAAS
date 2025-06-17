@@ -16,6 +16,7 @@ import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { CrearEstadoPedidoDto } from './dto/create-estado-pedido.dto';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
+import { FilterPedidoDto } from './dto/filter-pedido.dto';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('pedidos')
 export class PedidosController {
@@ -31,9 +32,12 @@ export class PedidosController {
 
   @Roles('admin')
   @Post('/estado')
-  crearEstado(@Body() data: CrearEstadoPedidoDto) {
+  crearEstado(
+    @Body() data: CrearEstadoPedidoDto,
+    observaciones: UpdatePedidoDto,
+  ) {
     const { estado, pedidoId } = data;
-    return this.pedidosService.agregarEstado(pedidoId, estado);
+    return this.pedidosService.agregarEstado(pedidoId, estado, observaciones);
   }
 
   @Roles('admin', 'vendedor')
@@ -52,5 +56,12 @@ export class PedidosController {
   ) {
     const usuario = req.usuario;
     return this.pedidosService.actualizarPedido(idPedido, data, usuario);
+  }
+
+  @Roles('admin')
+  @Get('filtro')
+  filtrarPedidos(@Body() data: FilterPedidoDto, @Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return this.pedidosService.obtenerPedidosFiltro(data, usuario);
   }
 }

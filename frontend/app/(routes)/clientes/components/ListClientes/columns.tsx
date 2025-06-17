@@ -92,7 +92,9 @@ export const columns: ColumnDef<Cliente>[] = [
       const apellidos = row.original.apellidos;
       return (
         <div>
-          <div className="font-medium">{nombre} {apellidos}</div>
+          <div className="font-medium">
+            {nombre} {apellidos}
+          </div>
         </div>
       );
     },

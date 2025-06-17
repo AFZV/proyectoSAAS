@@ -33,6 +33,7 @@ model Empresa {
   productos        Producto[]
   inventario Inventario[]
   movimientoInventario MovimientoInventario[]
+  categorias CategoriasProducto[]
 
 }
 
@@ -129,7 +130,10 @@ model Producto {
 model CategoriasProducto {
   idCategoria String @id @default(uuid())
   nombre String 
-producto Producto[]
+  empresaId String?
+
+  empresa Empresa ?@relation(fields: [empresaId],references: [id])
+  producto Producto[]
   }
 
 
@@ -251,7 +255,10 @@ model Pedido {
   observaciones String?          @db.Text
   fechaEnvio    DateTime?  
   fechaActualizado   DateTime         @updatedAt
+  flete         Float?           @default(0) @db.DoublePrecision 
+  guiaTransporte String?         @db.Text                        
   empresaId String
+
 
 empresa Empresa @relation(fields: [empresaId],references: [id])
   cliente       Cliente          @relation(fields: [clienteId], references: [id])

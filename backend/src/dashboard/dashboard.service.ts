@@ -356,6 +356,56 @@ export class DashboardService {
         },
       },
     });
+    const [operacionesActual, operacionesAnterior] = await Promise.all([
+      this.prisma.recibo.aggregate({
+        _count: true,
+        where:
+          rol === 'admin'
+            ? {
+                empresaId: empresaId,
+                Fechacrecion: {
+                  gte: rangoActual.desde,
+                  lte: rangoActual.hasta,
+                },
+              }
+            : {
+                empresaId: empresaId,
+                usuarioId: usuario.id,
+                Fechacrecion: {
+                  gte: rangoActual.desde,
+                  lte: rangoActual.hasta,
+                },
+              },
+      }),
+      this.prisma.recibo.aggregate({
+        _count: true,
+        where:
+          rol === 'admin'
+            ? {
+                empresaId: empresaId,
+                Fechacrecion: {
+                  gte: rangoAnterior.desde,
+                  lte: rangoAnterior.hasta,
+                },
+              }
+            : {
+                empresaId: empresaId,
+                usuarioId: usuario.id,
+                Fechacrecion: {
+                  gte: rangoAnterior.desde,
+                  lte: rangoAnterior.hasta,
+                },
+              },
+      }),
+    ]);
+    const opeACtual = operacionesActual._count;
+    const apeAnterior = operacionesAnterior._count;
+    const variacionOp =
+      apeAnterior === 0
+        ? opeACtual === 0
+          ? 0 // sin cambio
+          : 100 // todo es crecimiento
+        : ((opeACtual - apeAnterior) / apeAnterior) * 100;
 
     return {
       empresa: {
@@ -374,6 +424,7 @@ export class DashboardService {
       variaciones: {
         variacionPorcentualVentas,
         variacionPorcentualCobros,
+        variacionOp,
       },
       ultimosPedidos,
     };

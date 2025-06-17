@@ -2,16 +2,29 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { UpdateEmpresaDto } from './dto/update-empresa.dto';
+import { GoogleDriveService } from 'src/google-drive/google-drive.service';
 
 @Injectable()
 export class EmpresaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly googleDriveService: GoogleDriveService,
+  ) {}
 
   // Crear una empresa
   async create(data: CreateEmpresaDto) {
-    return this.prisma.empresa.create({
+    const empresa = await this.prisma.empresa.create({
       data: { ...data, estado: 'activa' },
     });
+
+    const folderName = `${empresa.nit}-${empresa.nombreComercial}`;
+
+    const folderId = await this.googleDriveService.createFolder(folderName);
+
+    return {
+      empresa,
+      folderId,
+    };
   }
 
   // Obtener todas las empresas

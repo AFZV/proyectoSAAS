@@ -2,17 +2,18 @@ import { HeaderRecaudos } from "./(components)/HeaderRecaudos";
 import { ListRecaudos } from "./(components)/ListRecaudos";
 import { auth } from "@clerk/nextjs/server";
 import NoDisponible from "@/components/NoDisponible/NoDisponible";
+import { getToken } from "@/lib/getToken";
 
 export default async function RecaudosPage() {
-  const { userId } = auth();
+  const token = await getToken();
 
-  if (!userId) return <NoDisponible />;
+  if (!token) return <NoDisponible />;
 
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/usuario/con-empresa`,
+    `${process.env.NEXT_PUBLIC_API_URL}/auth/usuario-actual`,
     {
       headers: {
-        Authorization: userId,
+        Authorization: `Bearer ${token}`,
       },
       cache: "no-store",
     }
@@ -28,10 +29,6 @@ export default async function RecaudosPage() {
     usuario = await res.json();
   } catch (err) {
     console.error("❌ Error al parsear JSON:", err);
-    return <NoDisponible />;
-  }
-
-  if (!usuario || !usuario.empresaId) {
     return <NoDisponible />;
   }
 

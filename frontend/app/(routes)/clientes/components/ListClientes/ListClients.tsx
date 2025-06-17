@@ -34,18 +34,19 @@ export async function getClientes(): Promise<Cliente[]> {
 
 export default async function ListClientsPage() {
   const data = await getClientes();
-
+  console.log("clientes que llegan al front:", data);
   return (
     <section className="min-h-screen bg-background text-foreground px-4 py-6">
       <div className="max-w-6xl mx-auto">
         {/* Estadísticas rápidas - Siempre visible (Solo 3 tarjetas) */}
-    
 
         {/* Tabla de datos - SIEMPRE VISIBLE */}
         <div className="bg-card rounded-lg border">
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Lista de Clientes</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                Lista de Clientes
+              </h2>
               {data.length === 0 && (
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Users className="w-4 h-4 mr-2" />
@@ -67,10 +68,13 @@ export default async function ListClientsPage() {
               ¡Comienza a gestionar tus clientes!
             </h3>
             <p className="text-blue-700 dark:text-blue-300 mb-4">
-              Crea tu primer cliente usando el botón "Crear Cliente" en la parte superior.
+              Crea tu primer cliente usando el botón "Crear Cliente" en la parte
+              superior.
             </p>
             <div className="text-sm text-blue-600 dark:text-blue-400">
-              💡 <strong>Tip:</strong> También puedes usar "Actualizar Cliente" para probar la búsqueda (puedes buscar cualquier NIT para ver cómo funciona)
+              💡 <strong>Tip:</strong> También puedes usar "Actualizar Cliente"
+              para probar la búsqueda (puedes buscar cualquier NIT para ver cómo
+              funciona)
             </div>
           </div>
         )}

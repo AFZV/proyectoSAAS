@@ -3,11 +3,19 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
-//import { UpdatePedidoDto } from './dto/update-pedido.dto';
+import { FilterPedidoDto } from './dto/filter-pedido.dto';
+import { ResumenPedidoDto } from 'src/pdf-uploader/dto/resumen-pedido.dto';
+import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
+import * as fs from 'fs';
+import { unlink, writeFile } from 'fs/promises';
+import * as path from 'path';
 
 @Injectable()
 export class PedidosService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private pdfUploaderService: PdfUploaderService,
+  ) {}
 
   ///crea un pedido en la bdd y sus relaciones
   async crearPedido(data: CreatePedidoDto, usuario: UsuarioPayload) {
@@ -25,7 +33,7 @@ export class PedidosService {
     }, 0);
     const { empresaId, id } = usuario;
 
-    console.log('est es la empresa logueada :', empresaId);
+    //console.log('est es la empresa logueada :', empresaId);
     const pedido = await this.prisma.pedido.create({
       data: {
         ...data,
@@ -54,15 +62,16 @@ export class PedidosService {
   }
   ///// cambia el estado del pedido y verifica si esta facturado lo descuenta del stock
   ///// se le debe enviar el id del pedido
-  async agregarEstado(pedidoId: string, estado: string) {
+
+  async agregarEstado(
+    pedidoId: string,
+    estado: string,
+    guiaYflete: UpdatePedidoDto,
+  ) {
     const estadoNormalizado = estado.toUpperCase();
 
-    // 1. Verificar si ya tiene el estado
     const yaTieneEstado = await this.prisma.estadoPedido.findFirst({
-      where: {
-        pedidoId,
-        estado: estadoNormalizado,
-      },
+      where: { pedidoId, estado: estadoNormalizado },
     });
 
     if (yaTieneEstado) {
@@ -71,72 +80,70 @@ export class PedidosService {
       );
     }
 
-    // 2. Registrar el nuevo estado
-    const nuevoEstado = await this.prisma.estadoPedido.create({
-      data: {
-        pedidoId,
-        estado: estadoNormalizado,
-      },
-    });
+    if (['SEPARADO', 'ENTREGADO', 'CANCELADO'].includes(estadoNormalizado)) {
+      return this.prisma.estadoPedido.create({
+        data: { pedidoId, estado: estadoNormalizado },
+      });
+    }
 
-    // 3. Si es FACTURADO, realizar operaciones relacionadas
     if (estadoNormalizado === 'FACTURADO') {
-      const pedido = await this.prisma.pedido.findUnique({
-        where: { id: pedidoId },
-        include: {
-          productos: true,
-        },
-      });
-
-      if (!pedido) {
-        throw new BadRequestException('Pedido no encontrado');
-      }
-
-      // Validar stock de todos los productos
-      for (const item of pedido.productos) {
-        const inventario = await this.prisma.inventario.findFirst({
-          where: {
-            idProducto: item.productoId,
-            idEmpresa: pedido.empresaId,
-          },
-        });
-
-        if (!inventario) {
-          throw new BadRequestException(
-            `No hay inventario registrado para el producto con ID ${item.productoId}`,
-          );
-        }
-
-        if (inventario.stockActual < item.cantidad) {
-          throw new BadRequestException(
-            `Stock insuficiente para el producto ${item.productoId}. Disponible: ${inventario.stockActual}, requerido: ${item.cantidad}`,
-          );
-        }
-      }
-
-      // Obtener ID del tipo de movimiento SALIDA
-      const tipoSalida = await this.prisma.tipoMovimientos.findFirst({
-        where: { tipo: 'SALIDA' },
-      });
-
-      if (!tipoSalida) {
-        throw new BadRequestException(
-          'No se encontró el tipo de movimiento "SALIDA"',
-        );
-      }
-
-      // Construir arrays de actualizaciones y registros
-      const updatesInventario = pedido.productos.map((item) =>
-        this.prisma.inventario.updateMany({
-          where: {
-            idProducto: item.productoId,
-            idEmpresa: pedido.empresaId,
-          },
-          data: {
-            stockActual: {
-              decrement: item.cantidad,
+      const [pedido, tipoSalida] = await Promise.all([
+        this.prisma.pedido.findUnique({
+          where: { id: pedidoId },
+          include: {
+            productos: {
+              include: {
+                producto: { select: { nombre: true } },
+              },
+            },
+            cliente: {
+              select: {
+                nombre: true,
+                apellidos: true,
+                rasonZocial: true,
+                ciudad: true,
+              },
+            },
+            usuario: {
+              select: { nombre: true },
             },
           },
+        }),
+        this.prisma.tipoMovimientos.findFirst({
+          where: { tipo: 'SALIDA' },
+          select: { idTipoMovimiento: true },
+        }),
+      ]);
+
+      if (!pedido) throw new BadRequestException('Pedido no encontrado');
+      if (!tipoSalida)
+        throw new BadRequestException('No se encontró tipo "SALIDA"');
+
+      const productosIds = pedido.productos.map((p) => p.productoId);
+      const inventarios = await this.prisma.inventario.findMany({
+        where: {
+          idProducto: { in: productosIds },
+          idEmpresa: pedido.empresaId,
+        },
+        select: { idProducto: true, stockActual: true },
+      });
+
+      const inventarioMap = new Map(
+        inventarios.map((i) => [i.idProducto, i.stockActual]),
+      );
+      for (const item of pedido.productos) {
+        const stock = inventarioMap.get(item.productoId);
+        if (stock === undefined || stock < item.cantidad) {
+          throw new BadRequestException(
+            `Stock insuficiente para producto ${item.productoId}. Disponible: ${stock}, requerido: ${item.cantidad}`,
+          );
+        }
+      }
+
+      const updatesInventario = pedido.productos.map((item) =>
+        this.prisma.inventario.updateMany({
+          where: { idProducto: item.productoId, idEmpresa: pedido.empresaId },
+          data: { stockActual: { decrement: item.cantidad } },
         }),
       );
 
@@ -153,7 +160,6 @@ export class PedidosService {
         }),
       );
 
-      // Movimiento de cartera (aumenta deuda)
       const movimientoCartera = this.prisma.movimientosCartera.create({
         data: {
           idCliente: pedido.clienteId,
@@ -164,15 +170,92 @@ export class PedidosService {
         },
       });
 
-      // Ejecutar todo en transacción
-      await this.prisma.$transaction([
-        ...updatesInventario,
-        ...movimientosInventario,
-        movimientoCartera,
+      const nuevoEstado = this.prisma.estadoPedido.create({
+        data: { pedidoId, estado: estadoNormalizado },
+      });
+
+      const [estadoCreado] = await Promise.all([
+        this.prisma
+          .$transaction([
+            ...updatesInventario,
+            ...movimientosInventario,
+            movimientoCartera,
+            nuevoEstado,
+          ])
+          .then((res) => res[res.length - 1]),
       ]);
+
+      // Generar el PDF sin bloquear la respuesta
+      setImmediate(() => {
+        // Ejecutar la función async sin que `setImmediate` reciba directamente una promesa
+        void (async () => {
+          try {
+            const resumen: ResumenPedidoDto = {
+              id: pedido.id,
+              cliente:
+                pedido.cliente.rasonZocial ||
+                `${pedido.cliente.nombre}, ${pedido.cliente.apellidos}`,
+
+              fecha: new Date(),
+              vendedor: pedido.usuario.nombre,
+              productos: pedido.productos.map((item) => ({
+                nombre: item.producto.nombre,
+                cantidad: item.cantidad,
+                precio: item.precio,
+                subtotal: item.cantidad * item.precio,
+              })),
+              total: pedido.productos.reduce(
+                (sum, item) => sum + item.cantidad * item.precio,
+                0,
+              ),
+            };
+
+            const pdfBuffer =
+              await this.pdfUploaderService.generarPedidoPDF(resumen);
+
+            const outputPath = path.join(
+              'C:',
+              'Users',
+              'USUARIO',
+              'Desktop',
+              'pdfs',
+              `pedido_${resumen.id}.pdf`,
+            );
+
+            await writeFile(outputPath, pdfBuffer.buffer);
+
+            console.log(`✅ PDF generado en segundo plano: ${outputPath}`);
+          } catch (error) {
+            console.error('❌ Error al generar PDF en segundo plano:', error);
+          }
+        })();
+      });
+
+      return estadoCreado;
     }
 
-    return nuevoEstado;
+    if (estadoNormalizado === 'ENVIADO') {
+      const fechaEnviado = new Date();
+      const [, estadoNuevo] = await this.prisma.$transaction([
+        this.prisma.pedido.update({
+          where: { id: pedidoId },
+          data: {
+            fechaEnvio: fechaEnviado,
+            guiaTransporte: guiaYflete.guiaTransporte,
+            flete: guiaYflete.flete,
+          },
+        }),
+        this.prisma.estadoPedido.create({
+          data: { pedidoId, estado: estadoNormalizado },
+        }),
+      ]);
+
+      return estadoNuevo;
+    }
+
+    return this.prisma.estadoPedido.create({
+      data: { pedidoId, estado: estadoNormalizado },
+    });
   }
 
   ///////////////////////////////
@@ -200,13 +283,12 @@ export class PedidosService {
     data: UpdatePedidoDto,
     usuario: UsuarioPayload,
   ) {
-    //busca el pedido que coincida con el id
     const pedidoExistente = await this.prisma.pedido.findUnique({
       where: { id: pedidoId },
       include: {
         productos: true,
         estados: {
-          orderBy: { fechaEstado: 'desc' }, // Para tomar el último estado
+          orderBy: { fechaEstado: 'desc' },
           take: 1,
         },
       },
@@ -215,13 +297,11 @@ export class PedidosService {
     if (!pedidoExistente) {
       throw new BadRequestException('Pedido no encontrado');
     }
-    //se captura el ultimo estado del pedido
-    const ultimoEstado = pedidoExistente.estados[0]?.estado;
 
+    const ultimoEstado = pedidoExistente.estados[0]?.estado;
     const accionesReversibles: any[] = [];
-    //se verifica si esta facturado ya que si lo esta deben revertirse las relaciones anteriores
+
     if (ultimoEstado === 'FACTURADO') {
-      // Revertir movimientos de inventario
       for (const item of pedidoExistente.productos) {
         accionesReversibles.push(
           this.prisma.inventario.updateMany({
@@ -230,40 +310,31 @@ export class PedidosService {
               idEmpresa: pedidoExistente.empresaId,
             },
             data: {
-              stockActual: {
-                increment: item.cantidad,
-              },
+              stockActual: { increment: item.cantidad },
             },
           }),
         );
 
         accionesReversibles.push(
           this.prisma.movimientoInventario.deleteMany({
-            where: {
-              IdPedido: pedidoExistente.id,
-            },
+            where: { IdPedido: pedidoExistente.id },
           }),
         );
       }
 
-      // Revertir movimiento de cartera
       accionesReversibles.push(
         this.prisma.movimientosCartera.deleteMany({
-          where: {
-            idPedido: pedidoExistente.id,
-          },
+          where: { idPedido: pedidoExistente.id },
         }),
       );
 
       await this.prisma.$transaction(accionesReversibles);
     }
 
-    // Eliminar relaciones anteriores (detalle productos)
     await this.prisma.detallePedido.deleteMany({
-      where: { pedidoId }, ///////asi deben quedar las eliminaciones de relaciones
+      where: { pedidoId },
     });
 
-    // Actualizar el pedido principal con los nuevos productos si cambiaron o con los mismos sino
     const pedidoActualizado = await this.prisma.pedido.update({
       where: { id: pedidoId },
       data: {
@@ -277,15 +348,20 @@ export class PedidosService {
         },
       },
       include: {
-        productos: true,
+        productos: {
+          include: { producto: true },
+        },
+        cliente: true,
+        usuario: {
+          select: { nombre: true },
+        },
       },
     });
-    //se recalcula el nuevo total de pedido
-    const totalCalculado = pedidoActualizado.productos.reduce((sum, p) => {
-      return sum + p.cantidad * p.precio;
-    }, 0);
 
-    // despues de eliminadas las relaciones anteriores se crean las nuevas relaciones
+    const totalCalculado = pedidoActualizado.productos.reduce(
+      (sum, p) => sum + p.cantidad * p.precio,
+      0,
+    );
 
     const tipoSalida = await this.prisma.tipoMovimientos.findFirst({
       where: { tipo: 'SALIDA' },
@@ -304,9 +380,7 @@ export class PedidosService {
           idEmpresa: pedidoActualizado.empresaId,
         },
         data: {
-          stockActual: {
-            decrement: item.cantidad,
-          },
+          stockActual: { decrement: item.cantidad },
         },
       }),
     );
@@ -340,6 +414,86 @@ export class PedidosService {
       movimientoCartera,
     ]);
 
+    // ✅ Generar PDF en segundo plano
+    setImmediate(() => {
+      void (async () => {
+        try {
+          const clienteNombres = `${pedidoActualizado.cliente.nombre}, ${pedidoActualizado.cliente.apellidos}`;
+          const razonSocial = pedidoActualizado.cliente.rasonZocial;
+
+          const resumenPedidoDto: ResumenPedidoDto = {
+            id: pedidoActualizado.id,
+            cliente: clienteNombres || razonSocial,
+            fecha: new Date(),
+            vendedor: pedidoActualizado.usuario.nombre,
+            productos: pedidoActualizado.productos.map((item) => ({
+              nombre: item.producto.nombre,
+              cantidad: item.cantidad,
+              precio: item.precio,
+              subtotal: item.cantidad * item.precio,
+            })),
+            total: totalCalculado,
+          };
+
+          const pdfBuffer =
+            await this.pdfUploaderService.generarPedidoPDF(resumenPedidoDto);
+
+          const outputPath = path.join(
+            'C:',
+            'Users',
+            'USUARIO',
+            'Desktop',
+            'pdfs',
+            `pedido_${resumenPedidoDto.id}.pdf`,
+          );
+
+          if (fs.existsSync(outputPath)) {
+            await unlink(outputPath);
+          }
+
+          await writeFile(outputPath, pdfBuffer.buffer);
+          console.log(`✅ PDF generado: ${outputPath}`);
+        } catch (error) {
+          console.error('❌ Error al generar PDF:', error);
+        }
+      })();
+    });
+    console.log('📤 Enviando respuesta al cliente');
     return pedidoActualizado;
+  }
+
+  /////////////////////////////////////////////////////////////////////
+  async obtenerPedidosFiltro(data: FilterPedidoDto, usuario: UsuarioPayload) {
+    const { filtro, tipoFiltro } = data;
+    if (!usuario) throw new BadRequestException('El usuario es requerido');
+
+    // Validar que solo se acepten filtros válidos
+    const filtrosValidos = [
+      'id',
+      'clienteId',
+      'usuarioId',
+      'total',
+      'empresaId',
+      'fechaPedido',
+    ];
+    if (!filtrosValidos.includes(tipoFiltro)) {
+      throw new BadRequestException(`Filtro no válido: ${tipoFiltro}`);
+    }
+
+    // Construir cláusula where dinámica
+    const whereClausula: Record<string, unknown> = {
+      [tipoFiltro]: tipoFiltro === 'total' ? parseFloat(filtro) : filtro,
+      empresaId: usuario.empresaId,
+    };
+
+    const pedidos = await this.prisma.pedido.findMany({
+      where: whereClausula,
+      include: {
+        cliente: true,
+        productos: true,
+      },
+    });
+
+    return pedidos;
   }
 }
