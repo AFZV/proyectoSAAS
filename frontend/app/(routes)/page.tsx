@@ -1,5 +1,13 @@
 import { CardSummary } from "./components/CardSummary";
-import { DollarSign, UserRound, BookCheck, TrendingUp, Calendar, Activity, Target } from "lucide-react";
+import {
+  DollarSign,
+  UserRound,
+  BookCheck,
+  TrendingUp,
+  Calendar,
+  Activity,
+  Target,
+} from "lucide-react";
 import { SalesDistribution } from "./components/SalesDistribution";
 import { LastOrders } from "./components/LastOrders";
 import { formatValue } from "@/utils/FormartValue";
@@ -27,17 +35,36 @@ export default async function Home() {
   const data = await res.json();
 
   if (!data) {
-    return <Loading title="Cargando datos..." />
-      ;
+    return <Loading title="Cargando datos..." />;
   }
   console.log("Datos del dashboard:", data);
 
+  // Formatear los valores numéricos para mostrar en las tarjetas
   const totalCobrosFormat = formatValue(data.totalValorRecibos);
   const totalVentasFormat = formatValue(data.totalVentas);
 
+  //Funcion para formatear porcentajes
+  const formatTrend = (percentaje: number) => {
+    const num = Number(percentaje) || 0;
+    const rounded = Math.round(num * 10) / 10;
+    const sign = rounded >= 0 ? "+" : "-";
+
+    // Usamos Math.abs para no duplicar el signo
+    const formatted = Math.abs(rounded).toLocaleString("es-CO", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+
+    return `${sign}${formatted}%`;
+  };
+
+  const gretTrendColor = (percentaje: number) => {
+    return percentaje >= 0 ? "green" : "red";
+  };
+
   return (
     <div className="space-y-6">
-      {/* 🎯 Header Compacto y Elegante */}
+      {/* 🎯 Header - EXACTAMENTE como lo tenías */}
       <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 rounded-2xl p-6 text-white">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
@@ -45,57 +72,70 @@ export default async function Home() {
               ¡Bienvenido, {data.usuario.nombre}! 👋
             </h1>
             <p className="text-blue-100 text-sm lg:text-base">
-              {data.empresa.nombreComercial} • NIT: {data.empresa.nit} • {data.usuario.rol}
+              {data.empresa.nombreComercial} • NIT: {data.empresa.nit} •{" "}
+              {data.usuario.rol}
             </p>
           </div>
           <div className="mt-3 lg:mt-0 flex items-center space-x-2 text-blue-100 bg-white/10 px-3 py-2 rounded-lg backdrop-blur-sm">
             <Calendar className="h-4 w-4" />
-            <span className="text-sm font-medium">{new Date().toLocaleDateString('es-ES', {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long'
-            })}</span>
+            <span className="text-sm font-medium">
+              {new Date().toLocaleDateString("es-ES", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              })}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Métricas Principales - Grid Responsivo */}
+      {/* ✅ Métricas - TU CardSummary ORIGINAL con SOLO datos del backend */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <CardSummary
           icon={UserRound}
           total={String(data.totalClientes)}
           title="Total Clientes"
-          subtitle="Activos en la plataforma"
-          //trend="+5%"
-          trendColor="green"
+          subtitle="Activos en la Plataforma"
         />
         <CardSummary
           icon={DollarSign}
           total={String(totalCobrosFormat)}
           title="Cobros Hoy"
-          subtitle="Recaudado en el día"
-          trend="+12%"
-          trendColor="green"
+          subtitle="Recaudados en el Día"
+          trend={formatTrend(
+            data.variaciones?.variacionPorcentualCobros || "0"
+          )}
+          trendColor={gretTrendColor(
+            data.variaciones?.variacionPorcentualCobros || 0
+          )}
         />
         <CardSummary
           icon={BookCheck}
           total={String(totalVentasFormat)}
           title="Ventas Hoy"
-          subtitle="Facturado en el día"
-          trend="+8%"
-          trendColor="green"
+          subtitle="Facturado en el Día"
+          trend={formatTrend(
+            data.variaciones?.variacionPorcentualVentas || "0"
+          )}
+          trendColor={gretTrendColor(
+            data.variaciones?.variacionPorcentualVentas || 0
+          )}
         />
         <CardSummary
           icon={TrendingUp}
-          total="24" //Traer los datos del Backend de las transacciones total
+          total={String(data.ultimosPedidos?.length || 0)}
           title="Transacciones"
           subtitle="Operaciones completadas"
-          trend="+3%"
-          trendColor="green"
+          trend={formatTrend(
+            data.variaciones?.variacionPorcentualPedidos || "0"
+          )}
+          trendColor={gretTrendColor(
+            data.variaciones?.variacionPorcentualPedidos || 0
+          )}
         />
       </div>
 
-      {/* Layout Principal: Gráficas + Panel Lateral */}
+      {/* Layout Principal - EXACTAMENTE como lo tenías */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Gráficas - 3 columnas en desktop */}
         <div className="lg:col-span-3">
@@ -104,10 +144,10 @@ export default async function Home() {
 
         {/* Panel Lateral - 1 columna en desktop */}
         <div className="lg:col-span-1 space-y-4">
-          {/* Últimos Pedidos */}
-          <LastOrders />
+          {/* ✅ Últimos Pedidos - SOLO agregar datos del backend */}
+          <LastOrders pedidos={data.ultimosPedidos || []} />
 
-          {/* Widget de Rendimiento */}
+          {/* Widget de Rendimiento - EXACTAMENTE como lo tenías */}
           <div className="bg-card border rounded-xl p-4">
             <div className="flex items-center space-x-2 mb-3">
               <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
@@ -121,7 +161,10 @@ export default async function Home() {
                 <span className="text-sm font-medium text-green-600">68%</span>
               </div>
               <div className="w-full bg-muted rounded-full h-2">
-                <div className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full" style={{ width: '68%' }}></div>
+                <div
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full"
+                  style={{ width: "68%" }}
+                ></div>
               </div>
               <div className="text-xs text-muted-foreground">
                 $1.8M de $2.6M objetivo
@@ -129,7 +172,7 @@ export default async function Home() {
             </div>
           </div>
 
-          {/* Widget de Actividad */}
+          {/* Widget de Actividad - EXACTAMENTE como lo tenías */}
           <div className="bg-card border rounded-xl p-4">
             <div className="flex items-center space-x-2 mb-3">
               <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -141,7 +184,9 @@ export default async function Home() {
               <div className="flex items-center space-x-3">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-foreground">Nuevo cliente registrado</p>
+                  <p className="text-xs text-foreground">
+                    Nuevo cliente registrado
+                  </p>
                   <p className="text-xs text-muted-foreground">Hace 2 min</p>
                 </div>
               </div>
@@ -162,7 +207,7 @@ export default async function Home() {
             </div>
           </div>
 
-          {/* Acciones Rápidas Compactas */}
+          {/* Acciones Rápidas - EXACTAMENTE como las tenías */}
           <div className="bg-card border rounded-xl p-4">
             <h3 className="font-semibold text-sm mb-3">Acciones Rápidas</h3>
             <div className="space-y-2">

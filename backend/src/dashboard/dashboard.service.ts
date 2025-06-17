@@ -327,8 +327,7 @@ export class DashboardService {
         ? totalActualCobros > 0
           ? 100
           : 0
-        : ((totalActualCobros - totalAnteriorCobros) / totalAnteriorCobros) *
-          100;
+        : Math.round(((totalActualCobros - totalAnteriorCobros) / totalAnteriorCobros) * 100 * 100) / 100;
 
     // console.log(`🟢 cobros actuales: ${totalActualCobros}`);
     // console.log(`🔵 cobros anteriores: ${totalAnteriorCobros}`);
