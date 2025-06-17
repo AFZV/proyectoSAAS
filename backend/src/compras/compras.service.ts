@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCompraDto } from './dto/create-compra.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
@@ -111,17 +111,44 @@ export class ComprasService {
     }
 
     try {
-      //Borrar detalles y movimientos de inventario asociados a la compra por una transacción
       return await this.prisma.$transaction(async (tx) => {
-        //1 Borrar los detalles de la compra
+        // 1. PRIMERO obtenemos los productos antes de borrar los detalles
+        const productosEliminados = await tx.detalleCompra.findMany({
+          where: { idCompra: compraId },
+          select: { idProducto: true, cantidad: true },
+        });
+
+        // 2. Borrar los detalles de la compra
         await tx.detalleCompra.deleteMany({
           where: { idCompra: compraId },
         });
-        //2 Borrar los movimientos de inventario asociados a la compra
+
+        // 3. Borrar los movimientos de inventario asociados a la compra
         await tx.movimientoInventario.deleteMany({
           where: { idCompra: compraId },
         });
-        //Crear nuevamente cada linea en detalleCompra y los movimientos de inventario
+
+        // 4. Reducir el inventario de los productos eliminados
+        if (productosEliminados.length > 0) {
+          for (const producto of productosEliminados) {
+            await tx.inventario.updateMany({
+              where: {
+                idProducto: producto.idProducto,
+                idEmpresa: usuario.empresaId,
+              },
+              data: {
+                stockActual: {
+                  decrement: producto.cantidad,
+                },
+                stockReferenciaOinicial: {
+                  decrement: producto.cantidad,
+                },
+              },
+            });
+          }
+        }
+
+        // 5. Obtener el tipo de movimiento
         const tipoMov = await tx.tipoMovimientos.findFirst({
           where: { tipo: 'ENTRADA' },
         });
@@ -129,9 +156,9 @@ export class ComprasService {
           throw new Error('Tipo de movimiento no encontrado');
         }
 
-        //3 Iterar sobre los productos de la compra
+        // 6. Crear nuevamente cada línea en detalleCompra y los movimientos de inventario
         for (const item of data.ProductosCompras || []) {
-          //Creamos el detalle de la compra
+          // Crear el detalle de la compra
           await tx.detalleCompra.create({
             data: {
               idCompra: compraId,
@@ -139,19 +166,23 @@ export class ComprasService {
               cantidad: item.cantidad,
             },
           });
-          //4 Actualizar o crear el inventario del producto
+
+          // Actualizar o crear el inventario del producto
           const inv = await tx.inventario.findFirst({
             where: {
               idProducto: item.idProducto,
               idEmpresa: usuario.empresaId,
             },
           });
+
           if (inv) {
             await tx.inventario.update({
               where: { idInventario: inv.idInventario },
               data: {
-                stockReferenciaOinicial: inv.stockActual + item.cantidad,
                 stockActual: {
+                  increment: item.cantidad,
+                },
+                stockReferenciaOinicial: {
                   increment: item.cantidad,
                 },
               },
@@ -166,7 +197,8 @@ export class ComprasService {
               },
             });
           }
-          //5 Crear el movimiento de inventario de tipo ENTRADA
+
+          // Crear el movimiento de inventario de tipo ENTRADA
           await tx.movimientoInventario.create({
             data: {
               IdUsuario: usuario.id,
@@ -179,7 +211,8 @@ export class ComprasService {
             },
           });
         }
-        //6 Retornamos la compra actualizada
+
+        // 7. Retornar la compra actualizada
         return tx.compras.findUnique({
           where: { idCompra: compraId },
           include: { detalleCompra: true },
@@ -187,7 +220,7 @@ export class ComprasService {
       });
     } catch (error: any) {
       console.error('Error en transacción de compra:', error);
-      throw new Error('Error al crear la compra');
+      throw new Error('Error al actualizar la compra');
     }
   }
 
@@ -239,7 +272,7 @@ export class ComprasService {
       },
     });
 
-    // 2) Contruyo un objeto de agrupacion por idCompra
+    //2) Contruyo un objeto de agrupacion por idCompra
     const agrupado: Record<
       string,
       {
