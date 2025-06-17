@@ -193,7 +193,7 @@ export class DashboardService {
     const totalValorRecibos = recibos.reduce((total, recibo) => {
       const sumaDetalles = recibo.detalleRecibo.reduce(
         (suma, detalle) => suma + detalle.valorTotal,
-        0,
+        0
       );
       return total + sumaDetalles;
     }, 0);
