@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCompraDto } from './dto/create-compra.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
@@ -99,7 +99,7 @@ export class ComprasService {
   async updateCompra(
     compraId: string,
     usuario: UsuarioPayload,
-    data: UpdateCompraDto,
+    data: UpdateCompraDto
   ) {
     // Verificamos que la compra exista
     const compraExistente = await this.prisma.compras.findUnique({
@@ -254,14 +254,14 @@ export class ComprasService {
                   // o lo omites si no te importa traer también SALIDA
                   equals:
                     (
-                      (await this.prisma.tipoMovimientos.findFirst({
+                      await this.prisma.tipoMovimientos.findFirst({
                         where: { tipo: 'ENTRADA' },
-                      }))?.idTipoMovimiento ?? undefined
-                    ),
-                  },
-                  // igualamos idProducto a este detalleCompra
+                      })
+                    )?.idTipoMovimiento ?? undefined,
+                },
+                // igualamos idProducto a este detalleCompra
                 // Prisma infiere que `this` es el campo `producto`,
-                  // pero lo más explícito es:
+                // pero lo más explícito es:
                 // idProducto: { equals: /* mismo idProducto */ }
               },
               select: { cantidadMovimiendo: true },
@@ -299,7 +299,7 @@ export class ComprasService {
         nombre: dc.producto.nombre,
         cantidad: dc.cantidad,
         cantidadMovimiendo:
-          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0
+          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0,
       });
     });
 

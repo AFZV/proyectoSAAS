@@ -68,11 +68,11 @@ export default async function ListClientsPage() {
               ¡Comienza a gestionar tus clientes!
             </h3>
             <p className="text-blue-700 dark:text-blue-300 mb-4">
-              Crea tu primer cliente usando el botón "Crear Cliente" en la parte
+              Crea tu primer cliente usando el botón Crear Cliente en la parte
               superior.
             </p>
             <div className="text-sm text-blue-600 dark:text-blue-400">
-              💡 <strong>Tip:</strong> También puedes usar "Actualizar Cliente"
+              💡 <strong>Tip:</strong> También puedes usar Actualizar Cliente
               para probar la búsqueda (puedes buscar cualquier NIT para ver cómo
               funciona)
             </div>

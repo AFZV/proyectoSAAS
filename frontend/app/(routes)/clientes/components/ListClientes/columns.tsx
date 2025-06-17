@@ -148,7 +148,7 @@ export const columns: ColumnDef<Cliente>[] = [
         <div className="flex items-center">
           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
             <span className="text-xs font-medium text-blue-600">
-              {vendedor.nombre.charAt(0).toUpperCase()}
+              {/* {vendedor.nombre.charAt(0).toUpperCase()} */}
             </span>
           </div>
           <span className="font-medium">{vendedor.nombre}</span>
