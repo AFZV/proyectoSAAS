@@ -152,4 +152,26 @@ export class GoogleDriveService {
     const folder = res.data.files?.[0];
     return folder?.id || null;
   }
+
+  // Buscar carpeta anidada según un path: ['EmpresaXYS', 'UsuarioXYS', 'Recibos']
+  async findFolderByPath(
+    path: string[],
+    rootId: string,
+  ): Promise<string | null> {
+    let currentFolderId = rootId;
+
+    for (const segment of path) {
+      const nextFolderId = await this.findFolderIdByName(
+        segment,
+        currentFolderId,
+      );
+      if (!nextFolderId) {
+        this.logger.warn(`❗ Carpeta no encontrada en ruta: ${segment}`);
+        return null;
+      }
+      currentFolderId = nextFolderId;
+    }
+
+    return currentFolderId;
+  }
 }
