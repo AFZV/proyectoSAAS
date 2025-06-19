@@ -1,6 +1,4 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,89 +7,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FormCreateCliente } from "../FormCreateCliente";
-import { FormUpdateCliente } from "../FormUpdateCliente";
-import { Plus, Edit3, Users, TrendingUp, UserCheck, UserX } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
+import { Edit3, Plus, UserCheck, Users, UserX } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { FormCrearEmpresa } from "../FormCrearEmpresa";
+import { FormUpdateEmpresa } from "../FormUpdateEmpresa/FormUpdateEmpresa";
 
-interface DashboardData {
-  totalClientes: number;
-  // otros campos del dashboard...
-}
-
-export default function HeaderCliente() {
+export function HeaderEmpresa() {
   const [openCreateModal, setOpenCreateModal] = useState(false);
   const [openUpdateModal, setOpenUpdateModal] = useState(false);
-  const [totalClientes, setTotalClientes] = useState(0);
-  const [clientesActivos, setClientesActivos] = useState(0);
-  const [clientesInactivos, setClientesInactivos] = useState(0);
+  const [totalEmpresas, setTotalEmpresas] = useState(0);
+  const [empresasActivas, setEmpresasActivas] = useState(0);
+  const [EmpresasInactivas, setEmpresasInactivas] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const { getToken } = useAuth();
 
   // Cargar datos del dashboard (solo lo que necesitas)
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = await getToken();
-
-        // 1. Traer totalClientes del dashboard
-        const dashboardRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/dashboard/summary`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            cache: "no-store",
-          }
-        );
-
-        if (dashboardRes.ok) {
-          const dashboardData = await dashboardRes.json();
-          setTotalClientes(dashboardData.totalClientes);
-        }
-
-        // 2. Traer lista de clientes para calcular activos/inactivos
-        const clientesRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/clientes`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            cache: "no-store",
-          }
-        );
-
-        if (clientesRes.ok) {
-          const clientes = await clientesRes.json();
-          const activos = clientes.filter(
-            (cliente: any) => cliente.estado === true
-          ).length;
-          const inactivos = clientes.filter(
-            (cliente: any) => cliente.estado === false
-          ).length;
-
-          setClientesActivos(activos);
-          setClientesInactivos(inactivos);
-        }
-      } catch (error) {
-        console.error("Error al cargar datos:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [getToken]);
-
-  // Función para refrescar datos
-  const refreshStats = async () => {
+  const fetchData = async () => {
     try {
       const token = await getToken();
-
-      // Refrescar datos del dashboard
       const dashboardRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/dashboard/summary`,
+        `${process.env.NEXT_PUBLIC_API_URL}/empresa/summary`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -102,37 +39,21 @@ export default function HeaderCliente() {
 
       if (dashboardRes.ok) {
         const dashboardData = await dashboardRes.json();
-        setTotalClientes(dashboardData.totalClientes);
-      }
-
-      // Refrescar lista de clientes
-      const clientesRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/clientes`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          cache: "no-store",
-        }
-      );
-
-      if (clientesRes.ok) {
-        const clientes = await clientesRes.json();
-        const activos = clientes.filter(
-          (cliente: any) => cliente.estado === true
-        ).length;
-        const inactivos = clientes.filter(
-          (cliente: any) => cliente.estado === false
-        ).length;
-
-        setClientesActivos(activos);
-        setClientesInactivos(inactivos);
+        setTotalEmpresas(dashboardData.totalEmpresas);
+        setEmpresasActivas(dashboardData.totalActivas);
+        setEmpresasInactivas(dashboardData.totalInactivas);
       }
     } catch (error) {
-      console.error("Error al actualizar datos:", error);
+      console.error("Error al cargar datos:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchData();
+  }, []);
+  console.log("lo que llega a empresas:", empresasActivas);
   return (
     <div className="border-b bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20">
       <div className="max-w-6xl mx-auto px-4 py-6">
@@ -144,10 +65,10 @@ export default function HeaderCliente() {
             </div>
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
-                CLIENTES
+                EMPRESAS
               </h1>
               <p className="text-sm text-muted-foreground">
-                Gestiona tu base de clientes de forma profesional
+                Gestiona Las Empresas Creadas
               </p>
             </div>
           </div>
@@ -160,7 +81,7 @@ export default function HeaderCliente() {
               className="flex items-center space-x-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-800"
             >
               <Edit3 className="w-4 h-4" />
-              <span>Actualizar Cliente</span>
+              <span>Actualizar Empresa</span>
             </Button>
 
             <Button
@@ -168,7 +89,7 @@ export default function HeaderCliente() {
               className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md"
             >
               <Plus className="w-4 h-4" />
-              <span>Crear Cliente</span>
+              <span>Crear Empresa</span>
             </Button>
           </div>
         </div>
@@ -180,13 +101,13 @@ export default function HeaderCliente() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Total Clientes
+                  Total Empresas
                 </p>
                 <p className="text-2xl font-bold text-blue-600">
-                  {loading ? "..." : String(totalClientes)}
+                  {loading ? "..." : String(totalEmpresas)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Activos en la Plataforma
+                  Activas en la Plataforma
                 </p>
               </div>
               <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
@@ -200,13 +121,13 @@ export default function HeaderCliente() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Clientes Activos
+                  Empresas Activas
                 </p>
                 <p className="text-2xl font-bold text-green-600">
-                  {loading ? "..." : String(clientesActivos)}
+                  {loading ? "..." : String(empresasActivas)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Estado: Activo
+                  Estado: Activa
                 </p>
               </div>
               <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center">
@@ -220,13 +141,13 @@ export default function HeaderCliente() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Clientes Inactivos
+                  Empresas Inactivas
                 </p>
                 <p className="text-2xl font-bold text-red-600">
-                  {loading ? "..." : String(clientesInactivos)}
+                  {loading ? "..." : String(EmpresasInactivas)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Estado: Inactivo
+                  Estado: Inactiva
                 </p>
               </div>
               <div className="w-8 h-8 bg-gradient-to-r from-red-500 to-red-600 rounded-full flex items-center justify-center">
@@ -251,9 +172,9 @@ export default function HeaderCliente() {
               Registra un nuevo cliente en el sistema
             </DialogDescription>
           </DialogHeader>
-          <FormCreateCliente
+          <FormCrearEmpresa
             setOpenModalCreate={setOpenCreateModal}
-            onSuccess={refreshStats}
+            onSuccess={fetchData}
           />
         </DialogContent>
       </Dialog>
@@ -277,10 +198,7 @@ export default function HeaderCliente() {
               </span>
             </DialogDescription>
           </DialogHeader>
-          <FormUpdateCliente
-            setOpenModalUpdate={setOpenUpdateModal}
-            onSuccess={refreshStats}
-          />
+          <FormUpdateEmpresa setOpenModalUpdate={setOpenUpdateModal} />
         </DialogContent>
       </Dialog>
     </div>

@@ -78,10 +78,14 @@ export function DataTable<TData, TValue>({
             <Input
               placeholder="Buscar por nombre..."
               value={
-                (table.getColumn("nombre")?.getFilterValue() as string) ?? ""
+                (table
+                  .getColumn("nombreComercial")
+                  ?.getFilterValue() as string) ?? ""
               }
               onChange={(event) =>
-                table.getColumn("nombre")?.setFilterValue(event.target.value)
+                table
+                  .getColumn("nombreComercial")
+                  ?.setFilterValue(event.target.value)
               }
               className="pl-10 w-[260px] sm:w-[280px] md:w-[320px] lg:w-[360px]"
             />

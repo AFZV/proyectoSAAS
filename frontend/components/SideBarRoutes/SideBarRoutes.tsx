@@ -15,7 +15,6 @@ export function SideBarRoutes({ rol }: { rol: string }) {
     <div className="flex flex-col h-full">
       {/* Navegación Principal */}
       <div className="flex-1 px-4 py-6 space-y-8">
-        
         {/* General */}
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
@@ -43,7 +42,7 @@ export function SideBarRoutes({ rol }: { rol: string }) {
         {/* Cuentas por Cobrar */}
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
-            Recaudos
+            Cuentas Por Cobrar
           </h3>
           <nav className="space-y-1">
             {dataCuentasPorCobrarSideBar.map((item) => (
@@ -107,7 +106,9 @@ export function SideBarRoutes({ rol }: { rol: string }) {
       <div className="px-4 py-4 border-t bg-muted/30">
         <div className="text-center space-y-1">
           <p className="text-xs font-semibold text-foreground">Softverse</p>
-          <p className="text-xs text-muted-foreground">© 2025 • Software registrado</p>
+          <p className="text-xs text-muted-foreground">
+            © 2025 • Software registrado
+          </p>
         </div>
       </div>
     </div>

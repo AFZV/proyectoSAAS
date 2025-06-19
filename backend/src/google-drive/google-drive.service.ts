@@ -98,7 +98,7 @@ export class GoogleDriveService {
       const fileId = response.data.id;
       if (!fileId)
         throw new Error(
-          'No se pudo obtener el ID del archivo de imagen subido.',
+          'No se pudo obtener el ID del archivo de imagen subido.'
         );
 
       await this.driveClient.permissions.create({
@@ -141,7 +141,7 @@ export class GoogleDriveService {
   // Buscar carpeta por nombre en un padre dado
   async findFolderIdByName(
     name: string,
-    parentId: string,
+    parentId: string
   ): Promise<string | null> {
     const res = await this.driveClient.files.list({
       q: `'${parentId}' in parents and name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
@@ -156,14 +156,14 @@ export class GoogleDriveService {
   // Buscar carpeta anidada según un path: ['EmpresaXYS', 'UsuarioXYS', 'Recibos']
   async findFolderByPath(
     path: string[],
-    rootId: string,
+    rootId: string
   ): Promise<string | null> {
     let currentFolderId = rootId;
 
     for (const segment of path) {
       const nextFolderId = await this.findFolderIdByName(
         segment,
-        currentFolderId,
+        currentFolderId
       );
       if (!nextFolderId) {
         this.logger.warn(`❗ Carpeta no encontrada en ruta: ${segment}`);

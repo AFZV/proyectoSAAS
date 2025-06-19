@@ -1,6 +1,4 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,89 +7,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FormCreateCliente } from "../FormCreateCliente";
-import { FormUpdateCliente } from "../FormUpdateCliente";
-import { Plus, Edit3, Users, TrendingUp, UserCheck, UserX } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
+import { Edit3, Plus, UserCheck, Users, UserX } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { FormCrearUsuario } from "../FormCrearUsuario/FormCrearUsuario";
+import { FormUpdateEmpresa } from "../../../empresa/components/FormUpdateEmpresa/FormUpdateEmpresa";
+import { FormUpdateUsuario } from "../FormUpdateUsuario";
 
-interface DashboardData {
-  totalClientes: number;
-  // otros campos del dashboard...
-}
-
-export default function HeaderCliente() {
-  const [openCreateModal, setOpenCreateModal] = useState(false);
-  const [openUpdateModal, setOpenUpdateModal] = useState(false);
-  const [totalClientes, setTotalClientes] = useState(0);
-  const [clientesActivos, setClientesActivos] = useState(0);
-  const [clientesInactivos, setClientesInactivos] = useState(0);
-  const [loading, setLoading] = useState(true);
+export function HeaderUsuario() {
+  const [openCreateModal, setOpenCreateModal] = useState<boolean>(false);
+  const [openUpdateModal, setOpenUpdateModal] = useState<boolean>(false);
+  const [totalUsuarios, setTotalUsuarios] = useState<number>(0);
+  const [UsuariosActivos, setUsuariosActivos] = useState<number>(0);
+  const [UsuariosInactivos, setUsuariosInactivos] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const { getToken } = useAuth();
 
   // Cargar datos del dashboard (solo lo que necesitas)
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = await getToken();
-
-        // 1. Traer totalClientes del dashboard
-        const dashboardRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/dashboard/summary`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            cache: "no-store",
-          }
-        );
-
-        if (dashboardRes.ok) {
-          const dashboardData = await dashboardRes.json();
-          setTotalClientes(dashboardData.totalClientes);
-        }
-
-        // 2. Traer lista de clientes para calcular activos/inactivos
-        const clientesRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/clientes`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            cache: "no-store",
-          }
-        );
-
-        if (clientesRes.ok) {
-          const clientes = await clientesRes.json();
-          const activos = clientes.filter(
-            (cliente: any) => cliente.estado === true
-          ).length;
-          const inactivos = clientes.filter(
-            (cliente: any) => cliente.estado === false
-          ).length;
-
-          setClientesActivos(activos);
-          setClientesInactivos(inactivos);
-        }
-      } catch (error) {
-        console.error("Error al cargar datos:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [getToken]);
-
-  // Función para refrescar datos
-  const refreshStats = async () => {
+  const fetchData = async () => {
     try {
       const token = await getToken();
-
-      // Refrescar datos del dashboard
       const dashboardRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/dashboard/summary`,
+        `${process.env.NEXT_PUBLIC_API_URL}/usuario/resumen`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -102,37 +40,21 @@ export default function HeaderCliente() {
 
       if (dashboardRes.ok) {
         const dashboardData = await dashboardRes.json();
-        setTotalClientes(dashboardData.totalClientes);
-      }
-
-      // Refrescar lista de clientes
-      const clientesRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/clientes`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          cache: "no-store",
-        }
-      );
-
-      if (clientesRes.ok) {
-        const clientes = await clientesRes.json();
-        const activos = clientes.filter(
-          (cliente: any) => cliente.estado === true
-        ).length;
-        const inactivos = clientes.filter(
-          (cliente: any) => cliente.estado === false
-        ).length;
-
-        setClientesActivos(activos);
-        setClientesInactivos(inactivos);
+        setTotalUsuarios(dashboardData.total);
+        setUsuariosActivos(dashboardData.activos);
+        setUsuariosInactivos(dashboardData.inactivos);
       }
     } catch (error) {
-      console.error("Error al actualizar datos:", error);
+      console.error("Error al cargar datos:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchData();
+  }, []);
+  console.log("lo que llega a empresas:", UsuariosActivos);
   return (
     <div className="border-b bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20">
       <div className="max-w-6xl mx-auto px-4 py-6">
@@ -144,10 +66,10 @@ export default function HeaderCliente() {
             </div>
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
-                CLIENTES
+                USUARIOS
               </h1>
               <p className="text-sm text-muted-foreground">
-                Gestiona tu base de clientes de forma profesional
+                Gestiona Los Usuarios Registrados
               </p>
             </div>
           </div>
@@ -160,7 +82,7 @@ export default function HeaderCliente() {
               className="flex items-center space-x-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-800"
             >
               <Edit3 className="w-4 h-4" />
-              <span>Actualizar Cliente</span>
+              <span>Actualizar Usuario</span>
             </Button>
 
             <Button
@@ -168,22 +90,22 @@ export default function HeaderCliente() {
               className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md"
             >
               <Plus className="w-4 h-4" />
-              <span>Crear Cliente</span>
+              <span>Crear Usuario</span>
             </Button>
           </div>
         </div>
 
         {/* Stats rápidas - 3 tarjetas */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Tarjeta 1: Total Clientes (del dashboard) */}
+          {/* Tarjeta 1: Total Usuarios (del dashboard) */}
           <div className="bg-white dark:bg-gray-800/50 rounded-lg p-4 border border-blue-100 dark:border-blue-800 shadow-sm hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Total Clientes
+                  Total Usuarios
                 </p>
                 <p className="text-2xl font-bold text-blue-600">
-                  {loading ? "..." : String(totalClientes)}
+                  {loading ? "..." : String(totalUsuarios)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Activos en la Plataforma
@@ -200,10 +122,10 @@ export default function HeaderCliente() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Clientes Activos
+                  Usuarios Activos
                 </p>
                 <p className="text-2xl font-bold text-green-600">
-                  {loading ? "..." : String(clientesActivos)}
+                  {loading ? "..." : String(UsuariosActivos)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Estado: Activo
@@ -215,15 +137,15 @@ export default function HeaderCliente() {
             </div>
           </div>
 
-          {/* Tarjeta 3: Clientes Inactivos */}
+          {/* Tarjeta 3: Usuarios Inactivos */}
           <div className="bg-white dark:bg-gray-800/50 rounded-lg p-4 border border-red-100 dark:border-red-800 shadow-sm hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Clientes Inactivos
+                  Usuarios Inactivos
                 </p>
                 <p className="text-2xl font-bold text-red-600">
-                  {loading ? "..." : String(clientesInactivos)}
+                  {loading ? "..." : String(UsuariosInactivos)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Estado: Inactivo
@@ -237,7 +159,7 @@ export default function HeaderCliente() {
         </div>
       </div>
 
-      {/* Modal para crear cliente */}
+      {/* Modal para crear usuario */}
       <Dialog open={openCreateModal} onOpenChange={setOpenCreateModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -245,20 +167,18 @@ export default function HeaderCliente() {
               <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-blue-700 rounded-full flex items-center justify-center">
                 <Plus className="w-3 h-3 text-white" />
               </div>
-              <span>Crear Cliente</span>
+              <span>Crear Usuario</span>
             </DialogTitle>
-            <DialogDescription>
-              Registra un nuevo cliente en el sistema
-            </DialogDescription>
+            <DialogDescription>Registra un nuevo usuario</DialogDescription>
           </DialogHeader>
-          <FormCreateCliente
-            setOpenModalCreate={setOpenCreateModal}
-            onSuccess={refreshStats}
+          <FormCrearUsuario
+            setOpenModalUsuarioCreate={setOpenCreateModal}
+            refetchUsuarios={fetchData}
           />
         </DialogContent>
       </Dialog>
 
-      {/* Modal para actualizar cliente */}
+      {/* Modal para actualizar usuario */}
       <Dialog open={openUpdateModal} onOpenChange={setOpenUpdateModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -266,21 +186,18 @@ export default function HeaderCliente() {
               <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-blue-700 rounded-full flex items-center justify-center">
                 <Edit3 className="w-3 h-3 text-white" />
               </div>
-              <span>Actualizar Cliente</span>
+              <span>Actualizar Usuario</span>
             </DialogTitle>
             <DialogDescription>
-              Busca y actualiza la información de un cliente existente
+              Busca y actualiza la información de un Usuario existente
               <br />
               <span className="text-xs text-blue-600 mt-1 block">
-                💡 Puedes probar buscando cualquier NIT para ver cómo funciona
-                la búsqueda
+                💡 Puedes probar buscando cualquier correo para ver cómo
+                funciona la búsqueda
               </span>
             </DialogDescription>
           </DialogHeader>
-          <FormUpdateCliente
-            setOpenModalUpdate={setOpenUpdateModal}
-            onSuccess={refreshStats}
-          />
+          <FormUpdateUsuario setOpenModalUpdate={setOpenUpdateModal} />
         </DialogContent>
       </Dialog>
     </div>

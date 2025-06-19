@@ -65,13 +65,13 @@ interface Cliente {
 
 export function FormUpdateCliente(props: FormUpdateClienteProps) {
   const { setOpenModalUpdate } = props;
-  
+
   // Estados principales
-  const [step, setStep] = useState<'search' | 'edit' | 'demo'>('search');
+  const [step, setStep] = useState<"search" | "edit" | "demo">("search");
   const [isSearching, setIsSearching] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [clienteActual, setClienteActual] = useState<Cliente | null>(null);
-  
+
   // Estados para ubicación
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [ciudades, setCiudades] = useState<Ciudad[]>([]);
@@ -106,7 +106,7 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
     const selectedDpto = editForm.watch("departamento");
     if (selectedDpto) {
       const fetchCiudades = async () => {
-        const dptoObj = departamentos.find(d => d.name === selectedDpto);
+        const dptoObj = departamentos.find((d) => d.name === selectedDpto);
         if (dptoObj) {
           const data = await getCiudades(String(dptoObj.id));
           setCiudades(data);
@@ -129,7 +129,7 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
       email: "juan.perez@email.com",
       departamento: "Valle del Cauca",
       ciudad: "Cali",
-      estado: true
+      estado: true,
     };
 
     setClienteActual(clienteDemo);
@@ -144,17 +144,17 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
       ciudad: clienteDemo.ciudad,
     });
 
-    setStep('demo');
-    toast({ 
-      title: "Modo Demo Activado", 
-      description: "Este es un ejemplo de cómo se ve el formulario de edición"
+    setStep("demo");
+    toast({
+      title: "Modo Demo Activado",
+      description: "Este es un ejemplo de cómo se ve el formulario de edición",
     });
   };
 
   // Buscar cliente
   const onSearch = async (values: z.infer<typeof searchSchema>) => {
     setIsSearching(true);
-    
+
     try {
       const token = await getToken();
       const res = await axios.get(
@@ -166,7 +166,7 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
 
       const cliente = res.data;
       setClienteActual(cliente);
-      
+
       // Llenar el formulario de edición
       editForm.reset({
         nit: cliente.nit,
@@ -179,21 +179,21 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
         ciudad: cliente.ciudad,
       });
 
-      setStep('edit');
+      setStep("edit");
       toast({ title: "Cliente encontrado" });
-      
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         toast({
           title: "Cliente no encontrado",
-          description: "¿Quieres ver un ejemplo de cómo funciona el formulario?",
+          description:
+            "¿Quieres ver un ejemplo de cómo funciona el formulario?",
           variant: "destructive",
         });
         // Ofrecer mostrar demo después de un segundo
         setTimeout(() => {
-          if (step === 'search') {
+          if (step === "search") {
             showDemo();
-            }
+          }
         }, 2000);
       } else {
         toast({
@@ -209,19 +209,19 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
   // Actualizar cliente
   const onUpdate = async (values: z.infer<typeof formSchema>) => {
     if (!clienteActual) return;
-    
+
     // Si estamos en modo demo, no hacer llamada real
-    if (step === 'demo') {
-      toast({ 
-        title: "Demo: Cliente actualizado", 
-        description: "En modo real esto actualizaría la base de datos"
+    if (step === "demo") {
+      toast({
+        title: "Demo: Cliente actualizado",
+        description: "En modo real esto actualizaría la base de datos",
       });
       setOpenModalUpdate(false);
       return;
     }
-    
+
     setIsUpdating(true);
-    
+
     try {
       const token = await getToken();
       await axios.patch(
@@ -235,7 +235,6 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
       toast({ title: "Cliente actualizado exitosamente" });
       router.refresh();
       setOpenModalUpdate(false);
-      
     } catch (error) {
       toast({
         title: "Error al actualizar cliente",
@@ -248,7 +247,7 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
 
   // Volver a búsqueda
   const handleBack = () => {
-    setStep('search');
+    setStep("search");
     setClienteActual(null);
     searchForm.reset();
     editForm.reset();
@@ -258,7 +257,7 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
 
   return (
     <div className="space-y-6">
-      {step === 'search' ? (
+      {step === "search" ? (
         // Pantalla de búsqueda
         <div className="space-y-6">
           <div className="text-center space-y-2">
@@ -272,7 +271,10 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
           </div>
 
           <Form {...searchForm}>
-            <form onSubmit={searchForm.handleSubmit(onSearch)} className="space-y-4">
+            <form
+              onSubmit={searchForm.handleSubmit(onSearch)}
+              className="space-y-4"
+            >
               <FormField
                 control={searchForm.control}
                 name="searchTerm"
@@ -295,9 +297,9 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
               />
 
               <div className="space-y-3">
-                <Button 
-                  type="submit" 
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white" 
+                <Button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
                   disabled={isSearching}
                 >
                   {isSearching ? (
@@ -314,7 +316,7 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                 </Button>
 
                 {/* Botón para mostrar demo */}
-                <Button 
+                <Button
                   type="button"
                   variant="outline"
                   onClick={showDemo}
@@ -336,8 +338,9 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                   ¿No tienes clientes registrados?
                 </p>
                 <p className="text-blue-700 dark:text-blue-300">
-                  Puedes usar el botón "Ver Demo" para probar cómo funciona el formulario de actualización, 
-                  o crear tu primer cliente usando el botón "Crear Cliente".
+                  Puedes usar el botón Ver Demo para probar cómo funciona el
+                  formulario de actualización, o crear tu primer cliente usando
+                  el botón Crear Cliente.
                 </p>
               </div>
             </div>
@@ -353,8 +356,8 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
               </div>
               <div>
                 <h3 className="text-lg font-semibold flex items-center">
-                  {step === 'demo' ? 'Demo: ' : ''}Editar Cliente
-                  {step === 'demo' && (
+                  {step === "demo" ? "Demo: " : ""}Editar Cliente
+                  {step === "demo" && (
                     <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
                       DEMO
                     </span>
@@ -365,7 +368,12 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                 </p>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={handleBack} className="border-blue-200 text-blue-600 hover:bg-blue-50">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBack}
+              className="border-blue-200 text-blue-600 hover:bg-blue-50"
+            >
               Buscar Otro
             </Button>
           </div>
@@ -375,30 +383,41 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
             <h4 className="font-medium flex items-center text-blue-800 dark:text-blue-200">
               <Edit3 className="w-4 h-4 mr-2" />
               Información Actual
-              {step === 'demo' && (
-                <span className="ml-2 text-xs text-blue-600">(Datos de ejemplo)</span>
+              {step === "demo" && (
+                <span className="ml-2 text-xs text-blue-600">
+                  (Datos de ejemplo)
+                </span>
               )}
             </h4>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="font-medium text-gray-600 dark:text-gray-300">NIT:</span> 
+                <span className="font-medium text-gray-600 dark:text-gray-300">
+                  NIT:
+                </span>
                 <span className="ml-1 font-mono">{clienteActual?.nit}</span>
               </div>
               <div>
-                <span className="font-medium text-gray-600 dark:text-gray-300">Estado:</span> 
-                <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
-                  clienteActual?.estado 
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
-                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                }`}>
-                  {clienteActual?.estado ? 'Activo' : 'Inactivo'}
+                <span className="font-medium text-gray-600 dark:text-gray-300">
+                  Estado:
+                </span>
+                <span
+                  className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                    clienteActual?.estado
+                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                      : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+                  }`}
+                >
+                  {clienteActual?.estado ? "Activo" : "Inactivo"}
                 </span>
               </div>
             </div>
           </div>
 
           <Form {...editForm}>
-            <form onSubmit={editForm.handleSubmit(onUpdate)} className="space-y-4">
+            <form
+              onSubmit={editForm.handleSubmit(onUpdate)}
+              className="space-y-4"
+            >
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={editForm.control}
@@ -407,7 +426,11 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                     <FormItem>
                       <FormLabel>NIT</FormLabel>
                       <FormControl>
-                        <Input {...field} disabled className="bg-muted cursor-not-allowed" />
+                        <Input
+                          {...field}
+                          disabled
+                          className="bg-muted cursor-not-allowed"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -421,7 +444,10 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                     <FormItem>
                       <FormLabel>Teléfono</FormLabel>
                       <FormControl>
-                        <Input {...field} className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                        <Input
+                          {...field}
+                          className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -435,7 +461,10 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                     <FormItem>
                       <FormLabel>Nombres</FormLabel>
                       <FormControl>
-                        <Input {...field} className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                        <Input
+                          {...field}
+                          className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -449,7 +478,10 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                     <FormItem>
                       <FormLabel>Apellidos</FormLabel>
                       <FormControl>
-                        <Input {...field} className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                        <Input
+                          {...field}
+                          className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -463,7 +495,11 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input type="email" {...field} className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                        <Input
+                          type="email"
+                          {...field}
+                          className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -477,7 +513,10 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                     <FormItem>
                       <FormLabel>Dirección</FormLabel>
                       <FormControl>
-                        <Input {...field} className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                        <Input
+                          {...field}
+                          className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -491,7 +530,10 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                     <FormItem>
                       <FormLabel>Departamento</FormLabel>
                       <FormControl>
-                        <select {...field} className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-background">
+                        <select
+                          {...field}
+                          className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-background"
+                        >
                           <option value="">Seleccione un departamento</option>
                           {departamentos.map((dep) => (
                             <option key={dep.id} value={dep.name}>
@@ -512,7 +554,10 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                     <FormItem>
                       <FormLabel>Ciudad</FormLabel>
                       <FormControl>
-                        <select {...field} className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-background">
+                        <select
+                          {...field}
+                          className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-background"
+                        >
                           <option value="">Seleccione una ciudad</option>
                           {ciudades.map((ciudad) => (
                             <option key={ciudad.id} value={ciudad.name}>
@@ -528,9 +573,14 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
               </div>
 
               <div className="flex justify-center pt-4">
-                <Button type="submit" className="px-8 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white">
+                <Button
+                  type="submit"
+                  className="px-8 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+                >
                   <Edit3 className="w-4 h-4 mr-2" />
-                  {step === 'demo' ? 'Simular Actualización' : 'Actualizar Cliente'}
+                  {step === "demo"
+                    ? "Simular Actualización"
+                    : "Actualizar Cliente"}
                 </Button>
               </div>
             </form>

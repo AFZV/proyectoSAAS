@@ -10,6 +10,7 @@ import {
   Settings,
   TrendingUp,
   Wallet,
+  BanknoteIcon,
 } from "lucide-react";
 
 export const dataGeneralSideBar = [
@@ -39,13 +40,18 @@ export const dataCuentasPorCobrarSideBar = [
     label: "Recaudos",
     href: "/recaudos",
   },
+  {
+    icon: BanknoteIcon,
+    label: "Cartera",
+    href: "/cartera",
+  },
 ];
 
 export const dataInventarioSideBar = [
-  { 
-    icon: Package, 
-    label: "Inventario", 
-    href: "/inventario" 
+  {
+    icon: Package,
+    label: "Inventario",
+    href: "/inventario",
   },
 ];
 

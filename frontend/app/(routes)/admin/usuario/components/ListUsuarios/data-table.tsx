@@ -87,12 +87,14 @@ export function DataTable<TData, TValue>({
             />
           </div>
 
-          {/* Filtro por NIT */}
+          {/* Filtro por Empresa */}
           <Input
-            placeholder="Buscar por NIT..."
-            value={(table.getColumn("nit")?.getFilterValue() as string) ?? ""}
+            placeholder="Buscar por Empresa..."
+            value={
+              (table.getColumn("empresa")?.getFilterValue() as string) ?? ""
+            }
             onChange={(event) =>
-              table.getColumn("nit")?.setFilterValue(event.target.value)
+              table.getColumn("empresa")?.setFilterValue(event.target.value)
             }
             className="max-w-sm"
           />

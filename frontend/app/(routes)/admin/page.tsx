@@ -1,6 +1,6 @@
 import React from "react";
-import { EmpresaModulo } from "./components/EmpresaModulo";
-import { UsuarioModulo } from "./components/UsuarioModulo";
+import { EmpresaModulo } from "./empresa/components/EmpresaModulo";
+import { UsuarioModulo } from "./usuario/components/UsuarioModulo";
 
 export default function AdminPage() {
   return (

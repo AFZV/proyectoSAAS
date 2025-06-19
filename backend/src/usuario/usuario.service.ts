@@ -1,16 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { CreateSuperadminDto } from './dto/create-superadmin.dto';
 import { UpdateUsuarioAdminDto } from './dto/update-usuarioadmin.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { GoogleDriveService } from 'src/google-drive/google-drive.service';
+import { UsuarioPayload } from 'src/types/usuario-payload';
 
 @Injectable()
 export class UsuarioService {
   constructor(
     private prisma: PrismaService,
-    private readonly googleDriveService: GoogleDriveService,
+    private readonly googleDriveService: GoogleDriveService
   ) {}
 
   async createSuperAdmin(data: CreateSuperadminDto, empresaId: string) {
@@ -82,12 +87,12 @@ export class UsuarioService {
     // Buscar ID de carpeta de la empresa
     const empresaFolderId = await this.googleDriveService.findFolderIdByName(
       empresaFolderName,
-      rootEmpresasFolderId,
+      rootEmpresasFolderId
     );
 
     if (!empresaFolderId) {
       throw new Error(
-        `No se encontró la carpeta de la empresa: ${empresaFolderName}`,
+        `No se encontró la carpeta de la empresa: ${empresaFolderName}`
       );
     }
 
@@ -96,7 +101,7 @@ export class UsuarioService {
     try {
       usuarioFolderId = await this.googleDriveService.createFolder(
         data.nombre,
-        empresaFolderId,
+        empresaFolderId
       );
 
       await this.googleDriveService.createFolder('recibos', usuarioFolderId);
@@ -128,8 +133,29 @@ export class UsuarioService {
     return actualizado;
   }
 
-  async obtenerTodosUsuarios() {
-    return this.prisma.usuario.findMany({});
+  async obtenerTodosUsuarios(usuario: UsuarioPayload) {
+    if (!usuario) throw new BadRequestException('el usuario no tiene acceso');
+    const { rol } = usuario;
+    if (rol === 'superadmin') {
+      const usuarios = this.prisma.usuario.findMany({
+        include: {
+          empresa: true,
+        },
+        orderBy: [
+          {
+            empresa: {
+              nombreComercial: 'asc',
+            },
+          },
+          {
+            nombre: 'asc',
+          },
+        ],
+      });
+      return usuarios;
+    } else {
+      throw new BadRequestException('el usuario no tiene acceso');
+    }
   }
 
   async obtenerUsuarioPorId(userId: string) {
@@ -138,11 +164,54 @@ export class UsuarioService {
     });
   }
 
+  async getByEmail(email: string) {
+    if (!email) throw new BadRequestException('el email es requeridos');
+    const usuario = await this.prisma.usuario.findFirst({
+      where: {
+        correo: email,
+      },
+      include: {
+        empresa: {
+          select: {
+            nombreComercial: true,
+          },
+        },
+      },
+    });
+    if (usuario) return usuario;
+    return {
+      messagge: 'no existe usuario con ese correo',
+    };
+  }
+
   //obtiene los usuarios por empresa
 
   async getUsuariosPorEmpresa(empresaId: string) {
     return this.prisma.usuario.findMany({
       where: { empresaId },
     });
+  }
+
+  async getResumen(usuario: UsuarioPayload) {
+    if (!usuario) throw new BadRequestException('el usuario es requerido');
+    const { rol } = usuario;
+    if (rol === 'superadmin') {
+      const activos = await this.prisma.usuario.count({
+        where: {
+          estado: 'activo',
+        },
+      });
+      const total = await this.prisma.usuario.count();
+      const inactivos = total - activos;
+
+      return {
+        activos,
+        inactivos,
+        total,
+      };
+    }
+    return {
+      messagge: 'no tiene acceso a estos datos',
+    };
   }
 }
