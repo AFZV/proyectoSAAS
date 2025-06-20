@@ -83,7 +83,7 @@ export const columns: ColumnDef<Compra>[] = [
     },
   },
   {
-    accessorKey: "fechaCompra",
+    accessorKey: "FechaCompra",
     header: ({ column }: { column: Column<Compra, unknown> }) => {
       return (
         <Button
@@ -97,7 +97,7 @@ export const columns: ColumnDef<Compra>[] = [
       );
     },
     cell: ({ row }) => {
-      const fecha = row.getValue("fechaCompra") as string;
+      const fecha = row.getValue("FechaCompra") as string;
       if (!fecha) return <div className="text-muted-foreground">Sin fecha</div>;
       
       const fechaObj = new Date(fecha);
@@ -136,14 +136,19 @@ export const columns: ColumnDef<Compra>[] = [
       const primerProducto = productos[0]?.nombre || 'Producto sin nombre';
       
       return (
-        <div>
-          <div className="font-medium">{primerProducto}</div>
-          {totalProductos > 1 && (
+      <div className="space-y-2">
+        {productos.map((producto, index) => (
+          <div
+            key={index}
+            className="pb-1 border-b border-muted-foreground/20 last:border-b-0"
+          >
+            <div className="font-medium text-sm">{producto.nombre}</div>
             <div className="text-xs text-muted-foreground">
-              +{totalProductos - 1} producto{totalProductos > 2 ? 's' : ''} más
+              Cantidad: {producto.cantidad.toLocaleString()} | Movimiento: {producto.cantidadMovimiendo.toLocaleString()}
             </div>
-          )}
-        </div>
+          </div>
+        ))}
+      </div>
       );
     },
   },
@@ -179,7 +184,7 @@ export const columns: ColumnDef<Compra>[] = [
         return <div className="text-right font-mono text-muted-foreground">0</div>;
       }
       
-      const totalMovimiento = productos.reduce((sum, producto) => sum + (producto.cantidadMovimiento || 0), 0);
+      const totalMovimiento = productos.reduce((sum, producto) => sum + (producto.cantidadMovimiendo || 0), 0);
       return <div className="text-right font-mono">{totalMovimiento.toLocaleString()}</div>;
     },
   },
