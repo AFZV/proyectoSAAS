@@ -57,4 +57,16 @@ export class ComprasController {
     const compras = await this.comprasService.findAll(usuario);
     return { compras };
   }
+
+  //Obtener una compra por su ID
+  @Roles('admin')
+  @Get('find/:idCompra')
+  async findById(
+    @Param('idCompra') idCompra: string,
+    @Req() req: UsuarioRequest
+  ) {
+    const usuario = req.usuario;
+    const compra = await this.comprasService.findById(idCompra, usuario);
+    return { compra };
+  }
 }

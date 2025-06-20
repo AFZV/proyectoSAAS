@@ -299,11 +299,65 @@ export class ComprasService {
         nombre: dc.producto.nombre,
         cantidad: dc.cantidad,
         cantidadMovimiendo:
-          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0
+          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0,
       });
     });
 
     // 3) Devuelvo como array
     return Object.values(agrupado);
+  }
+
+  // Obtener una compra por su ID
+  async findById(idCompra: string, usuario: UsuarioPayload) {
+    const TipoEntrada = await this.prisma.tipoMovimientos.findFirst({
+      where: { tipo: 'ENTRADA' },
+    });
+    const detalle = await this.prisma.detalleCompra.findMany({
+      where: {
+        idCompra: idCompra,
+        compra: {
+          idEmpresa: usuario.empresaId,
+        },
+      },
+      select: {
+        cantidad: true,
+        producto: {
+          select: { nombre: true },
+        },
+        compra: {
+          // Traemos la compra completa para obtener idCompra y FechaCompra
+          // y los movimientos de inventario asociados a esta compra
+          select: {
+            idCompra: true,
+            FechaCompra: true,
+            movimientosInventario: {
+              where: {
+                idTipoMovimiento: TipoEntrada?.idTipoMovimiento,
+              },
+              select: { cantidadMovimiendo: true },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (!detalle || detalle.length === 0) {
+      throw new BadRequestException(`Compra ${idCompra} no encontrada.`);
+    }
+
+    // Agrupamos por idCompra
+    const first = detalle[0].compra;
+    const resultado = {
+      idCompra: first.idCompra,
+      FechaCompra: first.FechaCompra,
+      productos: detalle.map((dc) => ({
+        nombre: dc.producto.nombre,
+        cantidad: dc.cantidad,
+        cantidadMovimiendo:
+          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0,
+      })),
+    };
+    return resultado;
   }
 }
