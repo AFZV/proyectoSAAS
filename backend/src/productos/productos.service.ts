@@ -51,6 +51,37 @@ export class ProductosService {
       throw new InternalServerErrorException('Error al obtener los productos');
     }
   }
+  //Obtener los productos con stock de una empresa y activos
+  async findAllforEmpresaActiva(usuario: UsuarioPayload) {
+    try {
+      return await this.prisma.producto.findMany({
+        where: {
+          empresaId: usuario.empresaId,
+          estado: 'activo', // Solo productos activos
+          inventario: {
+            some: {
+              stockActual: {
+                gt: 0, // Solo productos con stock actual mayor a 0
+              },
+            },
+          },
+        },
+        include: {
+          //Incluimos el inventario del producto
+          inventario: {
+            where: { idEmpresa: usuario.empresaId },
+            select: {
+              stockActual: true,
+              stockReferenciaOinicial: true, // Incluimos el stock inicial
+            },
+          },
+        },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      throw new InternalServerErrorException('Error al obtener los productos');
+    }
+  }
 
   async UpdateEstadoProduct(productoId: string) {
     const producto = await this.prisma.producto.findUnique({
