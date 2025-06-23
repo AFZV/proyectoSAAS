@@ -16,12 +16,12 @@ export class DashboardService {
     const inicioMesAnterior = new Date(
       hoy.getFullYear(),
       hoy.getMonth() - 1,
-      1,
+      1
     );
     let finMesAnterior = new Date(
       hoy.getFullYear(),
       hoy.getMonth() - 1,
-      diaActual,
+      diaActual
     );
 
     // ⚠️ Ajustar si el mes anterior no tiene ese día (p.ej., 31 de mayo → 30 abril)
@@ -85,7 +85,7 @@ export class DashboardService {
       const mesIndex = new Date(recaudo.Fechacrecion).getMonth();
       const totalRecibo = recaudo.detalleRecibo.reduce(
         (sum, detalle) => sum + detalle.valorTotal,
-        0,
+        0
       );
       cobrosPorMes[mesIndex].cobros += totalRecibo;
     });
@@ -140,7 +140,7 @@ export class DashboardService {
     const inicioDia = new Date(
       hoy.getFullYear(),
       hoy.getMonth(),
-      hoy.getDate(),
+      hoy.getDate()
     );
     const rangos = this.obtenerRangosComparativos(hoy);
     const { rangoActual, rangoAnterior } = rangos;
@@ -152,7 +152,7 @@ export class DashboardService {
       hoy.getDate(),
       23,
       59,
-      59,
+      59
     );
 
     if (!usuario) throw new Error('Usuario no encontrado');
@@ -327,7 +327,7 @@ export class DashboardService {
         ? totalActualCobros > 0
           ? 100
           : 0
-        : Math.round(((totalActualCobros - totalAnteriorCobros) / totalAnteriorCobros) * 100 * 100) / 100;
+        : Math.round(((totalActualCobros - totalAnteriorCobros) / totalAnteriorCobros) * 100 * 100) / 100;  
 
     // console.log(`🟢 cobros actuales: ${totalActualCobros}`);
     // console.log(`🔵 cobros anteriores: ${totalAnteriorCobros}`);

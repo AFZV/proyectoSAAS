@@ -1,205 +1,380 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import axios from "axios";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { FormCreateProductProps } from "./FormCreateProduct.types";
-import { useState, useEffect } from "react";
-import { UploadButton } from "@/utils/UploadThing";
-import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@clerk/nextjs";
+import { useToast } from "@/hooks/use-toast";
+import { UploadButton } from "@/utils/UploadThing";
+import type { Categoria } from "../../types/catalog.types";
 
 const formSchema = z.object({
-  nombre: z.string().min(2).max(50),
-  precio: z.coerce.number().min(1),
-  categoria: z.string().min(2).max(50),
-  imagenUrl: z.string().url(),
-  empresaId: z.string().uuid(), // ✅ Campo nuevo requerido
+  nombre: z
+    .string()
+    .min(2, "El nombre debe tener al menos 2 caracteres")
+    .max(50),
+  precioCompra: z.number().min(0, "El precio de compra debe ser mayor a 0"),
+  precioVenta: z.number().min(0, "El precio de venta debe ser mayor a 0"),
+  imagenUrl: z.string().url("URL de imagen inválida"),
+  categoriaId: z.string().min(1, "Debe seleccionar una categoría"),
 });
 
-export function FormCreateProduct({
-  setOpenModalCreate,
-}: FormCreateProductProps) {
-  const router = useRouter();
-  const { toast } = useToast();
+interface FormCreateProductProps {
+  onSuccess: () => void;
+}
+
+export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [photoUploaded, setPhotoUploaded] = useState(false);
-  const [empresaId, setEmpresaId] = useState<string | null>(null);
-  const { userId } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ✅ Simulación: obtener empresaId del usuario actual desde el backend
-  useEffect(() => {
-    const fetchEmpresaId = async () => {
-      try {
-        const res = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/usuario-actual`,
-          {
-            headers: {
-              Authorization: userId,
-            },
-          }
-        );
-        setEmpresaId(res.data.empresaId);
-      } catch (error) {
-        toast({
-          title: "No se pudo obtener la empresa",
-          variant: "destructive",
-        });
-      }
-    };
-
-    fetchEmpresaId();
-  }, [toast]);
+  const { getToken } = useAuth();
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       nombre: "",
-      precio: 0,
-      categoria: "",
+      precioCompra: 0,
+      precioVenta: 0,
       imagenUrl: "",
-      empresaId: "", // ✅ requerido por el modelo
+      categoriaId: "",
     },
   });
 
-  const { isValid } = form.formState;
+  // Cargar categorías al montar el componente
+  useEffect(() => {
+    fetchCategorias();
+  }, []);
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  const fetchCategorias = async () => {
     try {
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/productos`, values);
-      toast({ title: "Producto Creado" });
-      //router.refresh();
-      setOpenModalCreate(false);
+      const token = await getToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/productos/categoria/empresa`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setCategorias(data.categorias);
+      }
     } catch (error) {
-      toast({ title: "Algo salió mal", variant: "destructive" });
+      console.error("Error al cargar categorías:", error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las categorías",
+        variant: "destructive",
+      });
     }
   };
 
-  // Actualiza empresaId apenas se obtiene
-  useEffect(() => {
-    if (empresaId) form.setValue("empresaId", empresaId);
-  }, [empresaId, form]);
+  // Función para formatear números mientras el usuario escribe
+  const formatearNumero = (value: string): number => {
+    // Remover todo lo que no sea dígito o punto decimal
+    const cleaned = value.replace(/[^\d.]/g, '');
+    return cleaned === '' ? 0 : parseFloat(cleaned) || 0;
+  };
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    try {
+      setIsSubmitting(true);
+      const token = await getToken();
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/productos/create`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(values),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Error al crear producto");
+      }
+
+      const data = await response.json();
+
+      toast({
+        title: "Producto creado exitosamente",
+        description: `${data.producto.nombre} ha sido agregado al catálogo`,
+      });
+
+      onSuccess();
+    } catch (error: any) {
+      console.error("Error:", error);
+      toast({
+        title: "Error al crear producto",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <div>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <div className="grid grid-cols-3 gap-3">
-            <FormField
-              control={form.control}
-              name="nombre"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre</FormLabel>
-                  <FormControl>
-                    <Input type="text" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="precio"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Precio</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="Precio de venta"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Precio unitario o por docena
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="categoria"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Categoría</FormLabel>
-                  <FormControl>
-                    <select
-                      {...field}
-                      className="w-full border rounded-md p-2 outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Selecciona una categoría</option>
-                      <option value="hogar">HOGAR</option>
-                      <option value="papeleria">PAPELERIA</option>
-                      <option value="ferreteria">FERRETERIA</option>
-                      <option value="cacharro">CACHARRO</option>
-                      <option value="otros">Otros</option>
-                    </select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Nombre del producto */}
+          <FormField
+            control={form.control}
+            name="nombre"
+            render={({ field }) => (
+              <FormItem className="col-span-full">
+                <FormLabel>Nombre del Producto</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder="Ej: Cuaderno Norma 100 hojas"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-            <div className="col-span-2">
-              <FormField
-                control={form.control}
-                name="imagenUrl"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Foto</FormLabel>
-                    <FormControl>
-                      {photoUploaded ? (
-                        <p className="text-sm">Imagen cargada</p>
-                      ) : (
-                        <UploadButton
-                          {...field}
-                          endpoint="productImage"
-                          className="bg-slate-600/20 text-slate-800 rounded-lg outline-dotted outline-3"
-                          onClientUploadComplete={(res) => {
-                            if (res && res.length > 0) {
-                              form.setValue("imagenUrl", res[0].ufsUrl);
+          {/* Precio de compra */}
+          <FormField
+            control={form.control}
+            name="precioCompra"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Precio de Compra *</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+                      $
+                    </span>
+                    <Input
+                      type="text"
+                      placeholder="0"
+                      className="pl-8"
+                      value={field.value === 0 ? '' : field.value.toString()}
+                      onChange={(e) => {
+                        const value = formatearNumero(e.target.value);
+                        field.onChange(value);
+                      }}
+                      onBlur={() => {
+                        // Si está vacío al perder el foco, establecer en 0
+                        if (field.value === 0) {
+                          field.onChange(0);
+                        }
+                      }}
+                    />
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  Precio al que compras el producto
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Precio de venta */}
+          <FormField
+            control={form.control}
+            name="precioVenta"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Precio de Venta *</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+                      $
+                    </span>
+                    <Input
+                      type="text"
+                      placeholder="0"
+                      className="pl-8"
+                      value={field.value === 0 ? '' : field.value.toString()}
+                      onChange={(e) => {
+                        const value = formatearNumero(e.target.value);
+                        field.onChange(value);
+                      }}
+                      onBlur={() => {
+                        // Si está vacío al perder el foco, establecer en 0
+                        if (field.value === 0) {
+                          field.onChange(0);
+                        }
+                      }}
+                    />
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  Precio al que vendes el producto
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Categoría */}
+          <FormField
+            control={form.control}
+            name="categoriaId"
+            render={({ field }) => (
+              <FormItem className="col-span-full">
+                <FormLabel>Categoría</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona una categoría" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {categorias.map((categoria) => (
+                      <SelectItem
+                        key={categoria.idCategoria}
+                        value={categoria.idCategoria}
+                      >
+                        {categoria.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  {categorias.length === 0 && "No hay categorías disponibles"}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Imagen */}
+          <FormField
+            control={form.control}
+            name="imagenUrl"
+            render={({ field }) => (
+              <FormItem className="col-span-full">
+                <FormLabel>Imagen del Producto</FormLabel>
+                <FormControl>
+                  <div className="space-y-4">
+                    {photoUploaded ? (
+                      <div className="flex items-center space-x-4">
+                        <div className="w-20 h-20 border rounded-lg overflow-hidden">
+                          <img
+                            src={field.value}
+                            alt="Producto"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-green-600">
+                            ✅ Imagen cargada correctamente
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setPhotoUploaded(false);
+                              field.onChange("");
+                            }}
+                          >
+                            Cambiar imagen
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <UploadButton
+                        endpoint="productImage"
+                        className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg hover:border-slate-400 transition-colors"
+                        onClientUploadComplete={(res) => {
+                          if (res && res.length > 0) {
+                            const url = res[0].url || res[0].ufsUrl;
+                            if (typeof url === "string") {
+                              field.onChange(url);
                               setPhotoUploaded(true);
-                              toast({ title: "Foto cargada" });
+                              toast({
+                                title: "Imagen cargada",
+                                description: "La imagen se subió correctamente",
+                              });
                             }
-                          }}
-                          onUploadError={(error: Error) => {
-                            toast({
-                              title: "Error cargando foto",
-                              content: String(error),
-                            });
-                          }}
-                        />
-                      )}
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                          }
+                        }}
+                        onUploadError={(error: Error) => {
+                          toast({
+                            title: "Error al subir imagen",
+                            description: error.message,
+                            variant: "destructive",
+                          });
+                        }}
+                      />
+                    )}
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Resumen de ganancias */}
+        {form.watch("precioCompra") > 0 && form.watch("precioVenta") > 0 && (
+          <div className="bg-muted/50 p-4 rounded-lg">
+            <h4 className="font-medium mb-2">Resumen financiero</h4>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Ganancia unitaria:</span>
+                <p className="font-semibold text-green-600">
+                  ${(form.watch("precioVenta") - form.watch("precioCompra")).toLocaleString('es-CO')}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Margen de ganancia:</span>
+                <p className="font-semibold">
+                  {(((form.watch("precioVenta") - form.watch("precioCompra")) / form.watch("precioVenta")) * 100).toFixed(1)}%
+                </p>
+              </div>
             </div>
           </div>
+        )}
 
-          {/* Campo oculto para empresaId */}
-          <input type="hidden" {...form.register("empresaId")} />
-
-          <Button type="submit" disabled={!empresaId}>
-            Crear
+        {/* Botones */}
+        <div className="flex justify-end space-x-4">
+          <Button
+            type="submit"
+            disabled={isSubmitting || !photoUploaded}
+            className="min-w-[120px] bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-blue-500/25"
+          >
+            {isSubmitting ? "Creando..." : "Crear Producto"}
           </Button>
-        </form>
-      </Form>
-    </div>
+        </div>
+      </form>
+    </Form>
   );
 }
