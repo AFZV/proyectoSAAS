@@ -1,12 +1,7 @@
-// lib/getClerkToken.ts
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
-let _cachedToken: string | null = null;
-
 export async function getToken() {
-  if (_cachedToken) return _cachedToken;
-
   const { sessionId, userId } = auth();
 
   if (!sessionId || !userId) {
@@ -21,6 +16,5 @@ export async function getToken() {
     redirect("/noAutorizado");
   }
 
-  _cachedToken = token;
   return token;
 }

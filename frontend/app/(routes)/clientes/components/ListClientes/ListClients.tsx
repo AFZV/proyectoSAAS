@@ -34,7 +34,6 @@ export async function getClientes(): Promise<Cliente[]> {
 
 export default async function ListClientsPage() {
   const data = await getClientes();
-  console.log("clientes que llegan al front:", data);
   return (
     <section className="min-h-screen bg-background text-foreground px-4 py-6">
       <div className="max-w-6xl mx-auto">

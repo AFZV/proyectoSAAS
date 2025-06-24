@@ -59,7 +59,7 @@ export const dataToolsSideBar = [
   {
     icon: TrendingUp,
     label: "Estadísticas",
-    href: "/analitycs",
+    href: "/estadisticas",
   },
 ];
 

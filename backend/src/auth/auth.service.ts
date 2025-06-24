@@ -1,9 +1,6 @@
-import {
-  ForbiddenException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsuarioPayload } from 'src/types/usuario-payload';
 
 @Injectable()
 export class AuthService {
@@ -41,14 +38,22 @@ export class AuthService {
       nombreEmpresa: usuario.empresa.nombreComercial,
     };
   }
-  async verificarSuperAdmin(userId: string) {
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { codigo: userId },
+  async verificarSuperAdmin(usuario: UsuarioPayload) {
+    if (!usuario || usuario.rol !== 'superadmin') {
+      return null;
+    }
+
+    const existe = await this.prisma.usuario.findUnique({
+      where: { id: usuario.id },
+      select: {
+        id: true,
+        nombre: true,
+        rol: true,
+        correo: true,
+        // otros campos que quieras retornar
+      },
     });
 
-    if (!usuario || usuario.rol !== 'admin') {
-      throw new ForbiddenException('Acceso denegado: no es admin');
-    }
-    return usuario;
+    return existe?.rol === 'superadmin' ? existe : null;
   }
 }

@@ -13,7 +13,7 @@ export class InventarioService {
   async create(
     usuario: UsuarioPayload,
     productoId: string,
-    stockReferenciaOinicial: number,
+    stockReferenciaOinicial: number
   ) {
     //Validacion de existencias
     const empresa = await this.prisma.empresa.findUnique({
@@ -78,17 +78,17 @@ export class InventarioService {
             empresa: { connect: { id: producto.empresaId } },
           },
         });
+      }
+    } catch (error) {
+      console.error('Error al obtener las categorías de productos:', error);
+      // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
+      if (error) {
+        throw error;
+      }
+      // Si no, lanza una InternalServerErrorException
+      throw new InternalServerErrorException(
+        'Error al obtener las categorías de productos'
+      );
     }
-  } catch (error) {
-    console.error('Error al obtener las categorías de productos:', error);
-    // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
-    if (error) {
-      throw error;
-    }
-    // Si no, lanza una InternalServerErrorException
-    throw new InternalServerErrorException(
-      'Error al obtener las categorías de productos',
-    );
   }
-}
 }
