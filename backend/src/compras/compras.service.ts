@@ -239,7 +239,7 @@ export class ComprasService {
       select: {
         cantidad: true,
         producto: {
-          select: { nombre: true },
+          select: { nombre: true, id: true },
         },
         compra: {
           select: {
@@ -279,6 +279,7 @@ export class ComprasService {
         idCompra: string;
         FechaCompra: Date;
         productos: Array<{
+          id: string;
           nombre: string;
           cantidad: number;
           cantidadMovimiendo: number;
@@ -296,6 +297,7 @@ export class ComprasService {
         };
       }
       agrupado[key].productos.push({
+        id: dc.producto.id,
         nombre: dc.producto.nombre,
         cantidad: dc.cantidad,
         cantidadMovimiendo:
@@ -322,7 +324,7 @@ export class ComprasService {
       select: {
         cantidad: true,
         producto: {
-          select: { nombre: true },
+          select: { nombre: true, id: true },
         },
         compra: {
           // Traemos la compra completa para obtener idCompra y FechaCompra
@@ -352,6 +354,7 @@ export class ComprasService {
       idCompra: first.idCompra,
       FechaCompra: first.FechaCompra,
       productos: detalle.map((dc) => ({
+        id: dc.producto.id,
         nombre: dc.producto.nombre,
         cantidad: dc.cantidad,
         cantidadMovimiendo:
