@@ -1,7 +1,10 @@
 "use client";
-
+import dynamic from "next/dynamic";
 import { ArrowUpDown, Edit3, Eye, MoreHorizontal, Package, Calendar } from "lucide-react";
 import { ColumnDef, type Column } from "@tanstack/react-table";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,54 +14,80 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Separator } from "@/components/ui/separator";
 
-// Tipo basado en lo que devuelve tu API de compras
+
+// Import dinámico, SSR desactivado:
+const CompraDetalleModal = dynamic(
+  () => import("./ComprasDetalleModal").then((mod) => mod.CompraDetalleModal),
+  { ssr: false }
+);
+
+// Tipo actualizado basado en los datos reales que recibes de tu API
 export type Compra = {
   idCompra: string;
-  fechaCompra: string;
+  FechaCompra: string; // Cambié de fechaCompra a FechaCompra para coincidir con la API
   productos: {
     nombre: string;
     cantidad: number;
-    cantidadMovimiento: number;
+    cantidadMovimiento: number; // Corregí el typo
   }[];
 };
 
-// Componente de acciones para cada fila (igual que ClienteActions)
+// Componente de acciones para cada fila
 function CompraActions({ compra }: { compra: Compra }) {
+  const [openModal, setOpenModal] = useState(false);
+  const router = useRouter();
+  
   const handleView = () => {
-    console.log("Ver compra:", compra.idCompra);
+    console.log("Abriendo modal para compra:", compra.idCompra);
+    setOpenModal(true);
   };
 
   const handleEdit = () => {
     console.log("Editar compra:", compra.idCompra);
   };
 
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0">
-          <span className="sr-only">Abrir menú</span>
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-        <DropdownMenuItem onClick={handleView}>
-          <Eye className="mr-2 h-4 w-4" />
-          Ver detalles
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleEdit}>
-          <Edit3 className="mr-2 h-4 w-4" />
-          Editar
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => navigator.clipboard.writeText(compra.idCompra)}
-        >
-          Copiar ID
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+  const handleCloseModal = () => {
+    console.log("Cerrando modal");
+    setOpenModal(false);
+  };
+
+return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0">
+            <span className="sr-only">Abrir menú</span>
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+          <DropdownMenuItem onClick={handleView}>
+            <Eye className="mr-2 h-4 w-4" />
+            Ver detalles
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleEdit}>
+            <Edit3 className="mr-2 h-4 w-4" />
+            Editar
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => navigator.clipboard.writeText(compra.idCompra)}
+          >
+            Copiar ID
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      
+      {/* Modal fuera del DropdownMenu */}
+      <CompraDetalleModal 
+        open={openModal} 
+        onClose={handleCloseModal} 
+        idCompra={compra.idCompra} 
+      />
+    </>
   );
 }
 
@@ -132,22 +161,17 @@ export const columns: ColumnDef<Compra>[] = [
         );
       }
       
-      const totalProductos = productos.length;
-      const primerProducto = productos[0]?.nombre || 'Producto sin nombre';
+    const primerProducto = productos[0];
+    const productosRestantes = productos.length - 1;
       
       return (
-      <div className="space-y-2">
-        {productos.map((producto, index) => (
-          <div
-            key={index}
-            className="pb-1 border-b border-muted-foreground/20 last:border-b-0"
-          >
-            <div className="font-medium text-sm">{producto.nombre}</div>
-            <div className="text-xs text-muted-foreground">
-              Cantidad: {producto.cantidad.toLocaleString()} | Movimiento: {producto.cantidadMovimiendo.toLocaleString()}
-            </div>
-          </div>
-        ))}
+      <div className="flex flex-col">
+        <span className="font-medium">{primerProducto.nombre}</span>
+        {productosRestantes > 0 && (
+          <span className="text-xs text-muted-foreground">
+            +{productosRestantes} producto{productosRestantes > 1 ? 's' : ''} más
+          </span>
+        )}
       </div>
       );
     },
