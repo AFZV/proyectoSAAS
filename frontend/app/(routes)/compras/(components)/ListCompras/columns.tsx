@@ -111,6 +111,22 @@ export const columns: ColumnDef<Compra>[] = [
       return <div className="font-medium font-mono">{id ? `...${id.slice(-8)}` : 'N/A'}</div>;
     },
   },
+   {
+    accessorKey: "proveedor",    // <–– aquí
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Proveedor
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => {
+      const prov = row.getValue("proveedor") as string;
+      return <div className="font-medium">{prov}</div>;
+    },
+  },
   {
     accessorKey: "FechaCompra",
     header: ({ column }: { column: Column<Compra, unknown> }) => {
@@ -176,40 +192,22 @@ export const columns: ColumnDef<Compra>[] = [
       );
     },
   },
-  {
-    id: "cantidadTotal",
-    header: ({ column }: { column: Column<Compra, unknown> }) => {
+{
+    id: "totalCompra",
+    header: " Valor Total",
+    accessorFn: (row: Compra) => row.totalCompra,  // le decimos a la tabla de dónde saca el dato
+    cell: ({ getValue }) => {
+      const total = getValue() as number
+      // lo formateamos a pesos colombianos, por ejemplo:
       return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Cantidad
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      );
-    },
-    cell: ({ row }) => {
-      const productos = row.original.productos;
-      if (!productos || productos.length === 0) {
-        return <div className="text-right font-mono text-muted-foreground">0</div>;
-      }
-      
-      const cantidadTotal = productos.reduce((sum, producto) => sum + (producto.cantidad || 0), 0);
-      return <div className="text-right font-mono">{cantidadTotal.toLocaleString()}</div>;
-    },
-  },
-  {
-    id: "movimientoTotal",
-    header: "Movimiento",
-    cell: ({ row }) => {
-      const productos = row.original.productos;
-      if (!productos || productos.length === 0) {
-        return <div className="text-right font-mono text-muted-foreground">0</div>;
-      }
-      
-      const totalMovimiento = productos.reduce((sum, producto) => sum + (producto.cantidadMovimiendo || 0), 0);
-      return <div className="text-right font-mono">{totalMovimiento.toLocaleString()}</div>;
+        <div className="text-left font-mono">
+          {total.toLocaleString("es-CO", {
+            style: "currency",
+            currency: "COP",
+            minimumFractionDigits: 0,
+          })}
+        </div>
+      )
     },
   },
   {

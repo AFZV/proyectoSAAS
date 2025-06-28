@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class InventarioService {
@@ -42,53 +43,86 @@ export class InventarioService {
     });
   }
 
-  async updateInventario(productoId: string, stockReferenciaOinicial: number) {
+  //Obtener los productos y su inventario
+  async getProductos(usuario: UsuarioPayload) {
     try {
-      const inventario = await this.prisma.inventario.findFirst({
-        where: { idProducto: productoId },
+      return await this.prisma.producto.findMany({
+        where: { empresaId: usuario.empresaId },
+        select: {
+          nombre: true,
+          precioCompra: true,
+          fechaCreado: true,
+          inventario: {
+            where: { idEmpresa: usuario.empresaId },
+            select: { stockReferenciaOinicial: true },
+          },
+        },
       });
-
-      if (inventario) {
-        //Si existe lo actualizamos
-        return await this.prisma.inventario.update({
-          where: { idInventario: inventario.idInventario },
-          data: {
-            stockReferenciaOinicial,
-            stockActual: stockReferenciaOinicial,
-          },
-        });
-      } else {
-        // 2b) Si no existe, necesitamos empresaId para crear
-        const producto = await this.prisma.producto.findUnique({
-          where: { id: productoId },
-          select: { empresaId: true },
-        });
-        if (!producto) {
-          throw new NotFoundException(
-            `Producto ${productoId} no encontrado para crear inventario`
-          );
-        }
-
-        // Creamos el inventario nuevo
-        return await this.prisma.inventario.create({
-          data: {
-            stockReferenciaOinicial,
-            stockActual: stockReferenciaOinicial,
-            producto: { connect: { id: productoId } },
-            empresa: { connect: { id: producto.empresaId } },
-          },
-        });
+    } catch (error) {
+      throw new InternalServerErrorException('Error al obtener los productos');
     }
-  } catch (error) {
-    console.error('Error al obtener las categorías de productos:', error);
-    // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
-    if (error) {
-      throw error;
-    }
-    // Si no, lanza una InternalServerErrorException
-    throw new InternalServerErrorException(
-      'Error al obtener las categorías de productos',
-    );
   }
-}
+
+  async updateInventario(
+    productoId: string,
+    tipomovid: string,
+    cantidad: number
+  ) {
+    const invt = await this.prisma.inventario.findFirst({
+       where: { idProducto: productoId },
+    });
+
+    if (!invt) {
+      throw new NotFoundException(
+        `Inventario para producto ${productoId} no encontrado`
+      );
+    }
+    //cargar el tipo de movimiento (Entrada o Salida)
+
+    const tipoMov = await this.prisma.tipoMovimientos.findUnique({
+      where: { idTipoMovimiento: tipomovid },
+    });
+    if (!tipoMov) {
+      throw new NotFoundException(
+        `Tipo de movimiento ${tipomovid} no encontrado`
+      );
+    }
+    try {
+      let data: Prisma.InventarioUpdateInput | undefined = undefined;
+
+      if (tipoMov.tipo === 'ENTRADA') {
+        data = {
+          stockActual: {
+            increment: cantidad,
+          },
+        };
+      } else if (tipoMov.tipo === 'SALIDA') {
+        data = {
+          stockActual: {
+            decrement: cantidad,
+          },
+        };
+      } else {
+        throw new NotFoundException(
+          `Tipo de movimiento ${tipomovid} no válido`
+        );
+      }
+
+      //Actualizar el inventario:
+      return this.prisma.inventario.update({
+        where: { idInventario: invt.idInventario },
+        data,
+      });
+    } catch (error) {
+      console.error('Error al actualizar el inventario:', error);
+      // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
+      if (error) {
+        throw error;
+      }
+      // Si no, lanza una InternalServerErrorException
+      throw new InternalServerErrorException(
+        'Error al obtener las categorías de productos'
+      );
+    }
+  }
 }

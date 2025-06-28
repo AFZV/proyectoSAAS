@@ -239,11 +239,12 @@ export class ComprasService {
       select: {
         cantidad: true,
         producto: {
-          select: { nombre: true, id: true },
+          select: { nombre: true, id: true, precioCompra: true },
         },
         compra: {
           select: {
             idCompra: true,
+            proveedor: { select: { razonsocial: true } },
             FechaCompra: true,
             movimientosInventario: {
               // 2) preguntamos sólo los movimientos de tipo ENTRADA
@@ -264,34 +265,33 @@ export class ComprasService {
                   // pero lo más explícito es:
                 // idProducto: { equals: /* mismo idProducto */ }
               },
-              select: { cantidadMovimiendo: true },
-              take: 1,
             },
           },
         },
       },
     });
 
-    //2) Contruyo un objeto de agrupacion por idCompra
-    const agrupado: Record<
-      string,
-      {
-        idCompra: string;
-        FechaCompra: Date;
-        productos: Array<{
-          id: string;
-          nombre: string;
-          cantidad: number;
-          cantidadMovimiendo: number;
-        }>;
-      }
-    > = {};
+    // 2) Agrupamos por idCompra
+    interface Group {
+      idCompra: string;
+      proveedor: string;
+      FechaCompra: Date;
+      productos: Array<{
+        id: string;
+        nombre: string;
+        cantidad: number;
+        precioCompra: number;
+      }>;
+    }
+
+    const agrupado: Record<string, Group> = {};
 
     detalles.forEach((dc) => {
       const key = dc.compra.idCompra;
       if (!agrupado[key]) {
         agrupado[key] = {
           idCompra: key,
+          proveedor: dc.compra.proveedor.razonsocial,
           FechaCompra: dc.compra.FechaCompra,
           productos: [],
         };
@@ -300,13 +300,23 @@ export class ComprasService {
         id: dc.producto.id,
         nombre: dc.producto.nombre,
         cantidad: dc.cantidad,
-        cantidadMovimiendo:
-          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0,
+        precioCompra: dc.producto.precioCompra,
       });
     });
 
-    // 3) Devuelvo como array
-    return Object.values(agrupado);
+    // 3) Transformamos a array, calculando totalCompra
+    return Object.values(agrupado).map(compra => {
+      const totalCompra = compra.productos
+        .reduce((sum, p) => sum + p.cantidad * p.precioCompra, 0);
+
+      return {
+        idCompra: compra.idCompra,
+        proveedor: compra.proveedor,
+        FechaCompra: compra.FechaCompra,
+        totalCompra,
+        productos: compra.productos,
+      };
+    });
   }
 
   // Obtener una compra por su ID

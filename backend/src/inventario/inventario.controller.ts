@@ -3,6 +3,7 @@ import {
   Post,
   Param,
   Body,
+  Get,
   HttpCode,
   HttpStatus,
   UseGuards,
@@ -11,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { InventarioService } from './inventario.service';
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
+import { ActInventarioDto } from './dto/act-inventario-dto';
 import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -42,18 +44,28 @@ export class InventarioController {
   }
 
   @Roles('admin')
-  @Patch('update/:productoId')
+  @Patch('update/:productoId/:tipomovid')
   async updateinventario(
     @Param('productoId') productoId: string,
-    @Body() dto: CrearInventarioDto,
+    @Param('tipomovid') tipomovid: string,
+    @Body() dto: ActInventarioDto
   ) {
     const actinvt = await this.inventarioService.updateInventario(
       productoId,
-      dto.stockReferenciaOinicial,
+      tipomovid,
+      dto.stockActual
     );
     return {
       message: `Inventario actualizado para el producto ${productoId}`,
       actinvt,
     };
+  }
+  //Obtener los productos y su inventario
+  @Roles('admin')
+  @Get('productosall')
+  async getProductos(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    const productos = await this.inventarioService.getProductos(usuario);
+    return { productos };
   }
 }
