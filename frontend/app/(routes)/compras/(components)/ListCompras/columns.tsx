@@ -1,12 +1,9 @@
 "use client";
 import dynamic from "next/dynamic";
-import { ArrowUpDown, Edit3, Eye, Package, Calendar } from "lucide-react";
+import { ArrowUpDown, Eye, Package, Calendar } from "lucide-react";
 import { ColumnDef, type Column } from "@tanstack/react-table";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 
 // Import dinámico, SSR desactivado:
 const CompraDetalleModal = dynamic(
@@ -18,8 +15,8 @@ const CompraDetalleModal = dynamic(
 export type Compra = {
   idCompra: string;
   FechaCompra: string;
-  proveedor: string;  // Agregué este campo
-  totalCompra: number; // Agregué este campo
+  proveedor: string;
+  totalCompra: number;
   productos: {
     nombre: string;
     cantidad: number;
@@ -27,20 +24,13 @@ export type Compra = {
   }[];
 };
 
-// Componente de acciones para cada fila - SOLO BOTONES
+// Componente de acciones para cada fila - SOLO BOTÓN VER
 function CompraActions({ compra }: { compra: Compra }) {
   const [openModal, setOpenModal] = useState(false);
-  const router = useRouter();
   
   const handleView = () => {
     console.log("Abriendo modal para compra:", compra.idCompra);
     setOpenModal(true);
-  };
-
-  const handleEdit = () => {
-    console.log("Editar compra:", compra.idCompra);
-    // Aquí puedes redirigir a una página de edición o abrir un modal de edición
-    // router.push(`/compras/edit/${compra.idCompra}`);
   };
 
   const handleCloseModal = () => {
@@ -50,24 +40,15 @@ function CompraActions({ compra }: { compra: Compra }) {
 
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-center">
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={handleView}
-          className="h-8"
+          className="h-8 w-8 p-0 hover:bg-blue-100 hover:text-blue-700"
+          title="Ver detalles de la compra"
         >
-          <Eye className="h-4 w-4 mr-1" />
-          Ver
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleEdit}
-          className="h-8"
-        >
-          <Edit3 className="h-4 w-4 mr-1" />
-          Editar
+          <Eye className="h-4 w-4" />
         </Button>
       </div>
       
@@ -201,7 +182,7 @@ export const columns: ColumnDef<Compra>[] = [
   },
   {
     id: "actions",
-    header: "Acciones",
+    header: () => <div className="text-center">Acciones</div>,
     cell: ({ row }) => {
       const compra = row.original;
       return <CompraActions compra={compra} />;
