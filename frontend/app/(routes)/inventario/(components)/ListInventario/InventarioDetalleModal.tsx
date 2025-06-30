@@ -125,6 +125,12 @@ export function InventarioDetalleModal({
             </p>
           </div>
           <div>
+            <p className="text-sm text-muted-foreground">Stock Actual</p>
+            <p className="text-lg">
+              {producto.inventario?.[0]?.stockActual.toLocaleString("es-CO") || "0"}
+            </p>
+          </div>
+          <div>
             <p className="text-sm text-muted-foreground">Fecha Creación</p>
             <p className="text-lg">{fmt(producto.fechaCreado)}</p>
           </div>
@@ -159,9 +165,10 @@ export function InventarioDetalleModal({
                     <tr className="border-b">
                       {[
                         "Fecha",
-                        "Tipo",
-                        "Producto",
+                        "Tipo",                        
                         "Precio",
+                        "Stock Inicial",
+                        "Stock Actual",                        
                         "Usuario",
                         "Cantidad",
                         "Observación",
@@ -188,11 +195,17 @@ export function InventarioDetalleModal({
                           >
                             {m.tipoMovimiento}
                           </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm">{m.nombreProducto}</td>
+                        </td>                        
                         <td className="px-4 py-3 text-right text-sm">
                           $ {m.precioCompra.toLocaleString("es-CO")}
                         </td>
+                        <td className="px-4 py-3 text-center text-sm">
+                          {producto.inventario?.[0]?.stockReferenciaOinicial.toLocaleString("es-CO") || "0"}
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm">
+                          {m.stockActual.toLocaleString("es-CO") || "0"}
+                        </td>
+                    
                         <td className="px-4 py-3 text-sm">{m.usuario}</td>
                         <td className="px-4 py-3 text-right text-sm font-medium">
                           {m.cantidadMovimiendo > 0 ? "+" : ""}

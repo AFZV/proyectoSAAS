@@ -76,7 +76,7 @@ export class InventarioService {
           fechaCreado: true,
           inventario: {
             where: { idEmpresa: usuario.empresaId },
-            select: { stockReferenciaOinicial: true },
+            select: { stockReferenciaOinicial: true, stockActual: true },
           },
         },
       });
@@ -86,6 +86,9 @@ export class InventarioService {
   }
 
   //Obtener  todos los movimientos de inventario de un producto
+
+  // src/inventario/inventario.service.ts
+
   async getMovimientosproduc(productoId: string, usuario: UsuarioPayload) {
     try {
       const movimientos = await this.prisma.movimientoInventario.findMany({
@@ -93,38 +96,62 @@ export class InventarioService {
           idProducto: productoId,
           idEmpresa: usuario.empresaId,
         },
-        include: {
+        select: {
+          // Campos propios del movimiento
+          cantidadMovimiendo: true,
+          fechaMovimiento: true,
+          observacion: true,
+
+          // Relación con tipoMovimiento
           tipoMovimiento: {
             select: { tipo: true },
           },
-          producto: {
-            select: { nombre: true, precioCompra: true },
-          },
+
+          // Relación con usuario
           usuario: {
             select: { nombre: true, apellidos: true },
           },
+
+          // Relación con producto, anidando luego el inventario
+          producto: {
+            select: {
+              nombre: true,
+              precioCompra: true,
+              inventario: {
+                select: {
+                  stockReferenciaOinicial: true,
+                  stockActual: true,
+                },
+              },
+            },
+          },
         },
-        orderBy: { fechaMovimiento: 'desc' },
+        orderBy: {
+          fechaMovimiento: 'desc',
+        },
       });
 
-      //mapear los datos para que coincidan con el DTO
-      return movimientos.map(
-        (m): MovimientoInventarioDto => ({
+      return movimientos.map( (m): MovimientoInventarioDto => ({
           tipoMovimiento: m.tipoMovimiento.tipo,
           nombreProducto: m.producto.nombre,
           precioCompra: m.producto.precioCompra,
           usuario: `${m.usuario.nombre} ${m.usuario.apellidos}`,
           cantidadMovimiendo: m.cantidadMovimiendo,
+          stockInicial:
+            m.producto.inventario?.[0]?.stockReferenciaOinicial ?? 0,
+          stockActual: m.producto.inventario?.[0]?.stockActual ?? 0,
           fecha: m.fechaMovimiento,
-          observacion: m.observacion || null, // Aseguramos que sea null si no hay observación
+          observacion: m.observacion || null,
         })
       );
     } catch (error) {
+      console.error('Error interno al obtener movimientos:', error);
       throw new InternalServerErrorException(
         'Error al obtener los movimientos de inventario'
       );
     }
   }
+
 
   async updateInventario(
     productoId: string,

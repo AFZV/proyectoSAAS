@@ -15,7 +15,7 @@ export type ProductoInventario = {
   nombre: string;
   precioCompra: number;
   fechaCreado: string;
-  inventario: { stockReferenciaOinicial: number }[];
+  inventario: { stockReferenciaOinicial: number, stockActual: number }[];
 };
 
 // Modal client-only
@@ -104,7 +104,7 @@ function InventarioActions({ producto }: { producto: ProductoInventario }) {
               className="flex items-center px-2 py-1.5 text-sm hover:bg-gray-100"
             >
               <Edit3 className="mr-2 h-4 w-4" />
-              Editar producto
+              Ajuste Manual
             </DropdownMenu.Item>
             <DropdownMenu.Separator className="my-1 h-px bg-gray-200" />
             <DropdownMenu.Item
@@ -175,6 +175,17 @@ export const columns: ColumnDef<ProductoInventario>[] = [
       const inv = row.original.inventario;
       return (
         inv?.[0]?.stockReferenciaOinicial
+          .toLocaleString("es-CO") || "0"
+      );
+    },
+  },
+    {
+    id: "stockActual",
+    header: "Stock Actual",
+    cell: ({ row }) => {
+      const inv = row.original.inventario;
+      return (
+        inv?.[0]?.stockActual
           .toLocaleString("es-CO") || "0"
       );
     },
