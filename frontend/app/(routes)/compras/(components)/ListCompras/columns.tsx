@@ -1,21 +1,12 @@
 "use client";
 import dynamic from "next/dynamic";
-import { ArrowUpDown, Edit3, Eye, MoreHorizontal, Package, Calendar } from "lucide-react";
+import { ArrowUpDown, Edit3, Eye, Package, Calendar } from "lucide-react";
 import { ColumnDef, type Column } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
-
 
 // Import dinámico, SSR desactivado:
 const CompraDetalleModal = dynamic(
@@ -26,15 +17,17 @@ const CompraDetalleModal = dynamic(
 // Tipo actualizado basado en los datos reales que recibes de tu API
 export type Compra = {
   idCompra: string;
-  FechaCompra: string; // Cambié de fechaCompra a FechaCompra para coincidir con la API
+  FechaCompra: string;
+  proveedor: string;  // Agregué este campo
+  totalCompra: number; // Agregué este campo
   productos: {
     nombre: string;
     cantidad: number;
-    cantidadMovimiento: number; // Corregí el typo
+    cantidadMovimiento: number;
   }[];
 };
 
-// Componente de acciones para cada fila
+// Componente de acciones para cada fila - SOLO BOTONES
 function CompraActions({ compra }: { compra: Compra }) {
   const [openModal, setOpenModal] = useState(false);
   const router = useRouter();
@@ -46,6 +39,8 @@ function CompraActions({ compra }: { compra: Compra }) {
 
   const handleEdit = () => {
     console.log("Editar compra:", compra.idCompra);
+    // Aquí puedes redirigir a una página de edición o abrir un modal de edición
+    // router.push(`/compras/edit/${compra.idCompra}`);
   };
 
   const handleCloseModal = () => {
@@ -53,35 +48,30 @@ function CompraActions({ compra }: { compra: Compra }) {
     setOpenModal(false);
   };
 
-return (
+  return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="h-8 w-8 p-0">
-            <span className="sr-only">Abrir menú</span>
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-          <DropdownMenuItem onClick={handleView}>
-            <Eye className="mr-2 h-4 w-4" />
-            Ver detalles
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleEdit}>
-            <Edit3 className="mr-2 h-4 w-4" />
-            Editar
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => navigator.clipboard.writeText(compra.idCompra)}
-          >
-            Copiar ID
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleView}
+          className="h-8"
+        >
+          <Eye className="h-4 w-4 mr-1" />
+          Ver
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleEdit}
+          className="h-8"
+        >
+          <Edit3 className="h-4 w-4 mr-1" />
+          Editar
+        </Button>
+      </div>
       
-      {/* Modal fuera del DropdownMenu */}
+      {/* Modal fuera de los botones */}
       <CompraDetalleModal 
         open={openModal} 
         onClose={handleCloseModal} 
@@ -91,7 +81,7 @@ return (
   );
 }
 
-// Columnas de la tabla (similar a las de clientes)
+// Columnas de la tabla
 export const columns: ColumnDef<Compra>[] = [
   {
     accessorKey: "idCompra",
@@ -111,8 +101,8 @@ export const columns: ColumnDef<Compra>[] = [
       return <div className="font-medium font-mono">{id ? `...${id.slice(-8)}` : 'N/A'}</div>;
     },
   },
-   {
-    accessorKey: "proveedor",    // <–– aquí
+  {
+    accessorKey: "proveedor",
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -177,28 +167,27 @@ export const columns: ColumnDef<Compra>[] = [
         );
       }
       
-    const primerProducto = productos[0];
-    const productosRestantes = productos.length - 1;
+      const primerProducto = productos[0];
+      const productosRestantes = productos.length - 1;
       
       return (
-      <div className="flex flex-col">
-        <span className="font-medium">{primerProducto.nombre}</span>
-        {productosRestantes > 0 && (
-          <span className="text-xs text-muted-foreground">
-            +{productosRestantes} producto{productosRestantes > 1 ? 's' : ''} más
-          </span>
-        )}
-      </div>
+        <div className="flex flex-col">
+          <span className="font-medium">{primerProducto.nombre}</span>
+          {productosRestantes > 0 && (
+            <span className="text-xs text-muted-foreground">
+              +{productosRestantes} producto{productosRestantes > 1 ? 's' : ''} más
+            </span>
+          )}
+        </div>
       );
     },
   },
-{
+  {
     id: "totalCompra",
-    header: " Valor Total",
-    accessorFn: (row: Compra) => row.totalCompra,  // le decimos a la tabla de dónde saca el dato
+    header: "Valor Total",
+    accessorFn: (row: Compra) => row.totalCompra,
     cell: ({ getValue }) => {
-      const total = getValue() as number
-      // lo formateamos a pesos colombianos, por ejemplo:
+      const total = getValue() as number;
       return (
         <div className="text-left font-mono">
           {total.toLocaleString("es-CO", {
@@ -207,7 +196,7 @@ export const columns: ColumnDef<Compra>[] = [
             minimumFractionDigits: 0,
           })}
         </div>
-      )
+      );
     },
   },
   {
