@@ -1,4 +1,4 @@
-// components/Inventario/ListInventario/InventarioDetalleModal.tsx
+// app/(routes)/inventario/(components)/ListInventario/InventarioDetalleModal.tsx
 "use client";
 
 import {
@@ -6,11 +6,14 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, X, Download, Filter, FileSpreadsheet } from "lucide-react";
+import * as XLSX from 'xlsx';
 
 interface Movimiento {
   tipoMovimiento: string;
@@ -20,6 +23,7 @@ interface Movimiento {
   cantidadMovimiendo: number;
   fecha: string;
   observacion: string;
+  stockActual?: number;
 }
 
 interface InventarioDetalleModalProps {
@@ -30,7 +34,7 @@ interface InventarioDetalleModalProps {
     nombre: string;
     precioCompra: number;
     fechaCreado: string;
-    inventario: { stockReferenciaOinicial: number }[];
+    inventario: { stockReferenciaOinicial: number; stockActual?: number }[];
   };
 }
 
@@ -40,14 +44,18 @@ export function InventarioDetalleModal({
   producto,
 }: InventarioDetalleModalProps) {
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
+  const [filteredMovimientos, setFilteredMovimientos] = useState<Movimiento[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filtroTipo, setFiltroTipo] = useState<string>("todos");
   const { getToken } = useAuth();
 
   useEffect(() => {
     if (!open) {
       setMovimientos([]);
+      setFilteredMovimientos([]);
       setError(null);
+      setFiltroTipo("todos");
       return;
     }
 
@@ -67,7 +75,9 @@ export function InventarioDetalleModal({
         if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`);
 
         const { movimientos } = await res.json();
-        setMovimientos(movimientos || []);
+        const movimientosData = movimientos || [];
+        setMovimientos(movimientosData);
+        setFilteredMovimientos(movimientosData);
       } catch (e: any) {
         setError(e.message);
       } finally {
@@ -75,6 +85,18 @@ export function InventarioDetalleModal({
       }
     })();
   }, [open, producto.id, getToken]);
+
+  // Filtrar movimientos
+  useEffect(() => {
+    if (filtroTipo === "todos") {
+      setFilteredMovimientos(movimientos);
+    } else {
+      const filtered = movimientos.filter(m => 
+        m.tipoMovimiento.toLowerCase().includes(filtroTipo.toLowerCase())
+      );
+      setFilteredMovimientos(filtered);
+    }
+  }, [filtroTipo, movimientos]);
 
   const fmt = (s: string) =>
     new Date(s).toLocaleDateString("es-CO", {
@@ -87,140 +109,297 @@ export function InventarioDetalleModal({
 
   const getMovimientoColor = (tipo: string) => {
     const t = tipo.toLowerCase();
-    if (t.includes("entrada")) return "bg-green-500";
-    if (t.includes("salida")) return "bg-red-500";
-    if (t.includes("ajuste")) return "bg-blue-500";
-    if (t.includes("compra")) return "bg-purple-500";
-    return "bg-gray-500";
+    if (t.includes("entrada")) return "bg-green-100 text-green-800 border-green-200";
+    if (t.includes("salida")) return "bg-red-100 text-red-800 border-red-200";
+    if (t.includes("ajuste")) return "bg-blue-100 text-blue-800 border-blue-200";
+    if (t.includes("compra")) return "bg-purple-100 text-purple-800 border-purple-200";
+    return "bg-gray-100 text-gray-800 border-gray-200";
+  };
+
+  const tiposUnicos = ["todos", ...Array.from(new Set(movimientos.map(m => m.tipoMovimiento)))];
+
+  const exportarExcel = () => {
+    // Crear datos para el Excel con información del producto
+    const datosProducto = [
+      ['CARDEX DE INVENTARIO'],
+      [''],
+      ['Producto:', producto.nombre],
+      ['Precio de Compra:', `$ ${producto.precioCompra.toLocaleString("es-CO")}`],
+      ['Stock Inicial:', (producto.inventario?.[0]?.stockReferenciaOinicial || 0).toLocaleString("es-CO")],
+      ['Stock Actual:', (producto.inventario?.[0]?.stockActual || 0).toLocaleString("es-CO")],
+      ['Fecha de Creación:', fmt(producto.fechaCreado)],
+      ['Total de Movimientos:', filteredMovimientos.length.toString()],
+      ['Fecha de Reporte:', new Date().toLocaleDateString("es-CO")],
+      [''],
+      ['MOVIMIENTOS DE INVENTARIO']
+    ];
+
+    // Headers de la tabla
+    const headers = [
+      'Fecha',
+      'Tipo de Movimiento', 
+      'Precio Unitario',
+      'Cantidad',
+      'Stock Resultante',
+      'Usuario',
+      'Observación'
+    ];
+
+    // Datos de movimientos
+    const datosMovimientos = filteredMovimientos.map(m => [
+      fmt(m.fecha),
+      m.tipoMovimiento,
+      m.precioCompra,
+      m.cantidadMovimiendo,
+      m.stockActual || 0,
+      m.usuario,
+      m.observacion || ''
+    ]);
+
+    // Combinar todos los datos
+    const datosCompletos = [
+      ...datosProducto,
+      [''], // Fila vacía
+      headers,
+      ...datosMovimientos
+    ];
+
+    // Crear workbook y worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(datosCompletos);
+
+    // Configurar anchos de columnas
+    const colWidths = [
+      { wch: 20 }, // Fecha
+      { wch: 25 }, // Tipo de Movimiento
+      { wch: 15 }, // Precio
+      { wch: 12 }, // Cantidad
+      { wch: 15 }, // Stock Resultante
+      { wch: 20 }, // Usuario
+      { wch: 30 }  // Observación
+    ];
+    ws['!cols'] = colWidths;
+
+    // Estilos para el header del producto
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    
+    // Aplicar formato a la primera fila (título)
+    if (ws['A1']) {
+      ws['A1'].s = {
+        font: { bold: true, sz: 14 },
+        alignment: { horizontal: 'center' }
+      };
+    }
+
+    // Aplicar formato a los headers de la tabla (fila donde están los headers)
+    const headerRow = datosProducto.length + 2; // +2 por la fila vacía y el índice base 1
+    for (let col = 0; col < headers.length; col++) {
+      const cellRef = XLSX.utils.encode_cell({ r: headerRow, c: col });
+      if (ws[cellRef]) {
+        ws[cellRef].s = {
+          font: { bold: true },
+          fill: { fgColor: { rgb: "F3F4F6" } },
+          alignment: { horizontal: 'center' }
+        };
+      }
+    }
+
+    // Agregar la hoja al workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Cardex');
+
+    // Generar y descargar el archivo
+    const fecha = new Date().toISOString().split('T')[0];
+    const nombreArchivo = `Cardex_${producto.nombre.replace(/[^a-zA-Z0-9]/g, '_')}_${fecha}.xlsx`;
+    
+    XLSX.writeFile(wb, nombreArchivo);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent
-        className="
-          bg-card text-foreground 
-          dark:bg-gray-800 dark:text-gray-100
-          rounded-lg border 
-          p-6 max-w-6xl w-full mx-auto
-          shadow-lg
-        "
-      >
-        <DialogHeader className="p-0">
-          <DialogTitle className="text-2xl font-bold">
-            Cardex de: {producto.nombre}
-          </DialogTitle>
-        </DialogHeader>
+    <Dialog open={open} onOpenChange={(newOpen) => !newOpen && onClose()}>
+      <DialogContent className="max-w-7xl max-h-[90vh] w-[95vw] p-0 gap-0">
+        {/* Header fijo */}
+        <div className="sticky top-0 bg-white border-b p-6 z-10">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <DialogTitle className="text-xl font-bold text-gray-900">
+                Cardex de Inventario
+              </DialogTitle>
+              <DialogDescription className="text-sm text-gray-600 mt-1">
+                {producto.nombre}
+              </DialogDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="absolute top-4 right-4 z-20"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
 
-        <Separator className="my-4" />
+          {/* Información del producto - Layout compacto */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 p-4 bg-gray-50 rounded-lg">
+            <div className="text-center">
+              <p className="text-xs text-gray-500">Precio Compra</p>
+              <p className="font-semibold text-sm">$ {producto.precioCompra.toLocaleString("es-CO")}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-500">Stock Inicial</p>
+              <p className="font-semibold text-sm">
+                {(producto.inventario?.[0]?.stockReferenciaOinicial || 0).toLocaleString("es-CO")}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-500">Stock Actual</p>
+              <p className="font-semibold text-sm">
+                {(producto.inventario?.[0]?.stockActual || 0).toLocaleString("es-CO")}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-500">Fecha Creación</p>
+              <p className="font-semibold text-sm">{fmt(producto.fechaCreado)}</p>
+            </div>
+          </div>
 
-        <div className="grid grid-cols-3 gap-6 mb-6">
-          <div>
-            <p className="text-sm text-muted-foreground">Precio Compra</p>
-            <p className="text-lg">$ {producto.precioCompra.toLocaleString("es-CO")}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Stock Inicial</p>
-            <p className="text-lg">
-              {producto.inventario?.[0]?.stockReferenciaOinicial.toLocaleString("es-CO") || "0"}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Stock Actual</p>
-            <p className="text-lg">
-              {producto.inventario?.[0]?.stockActual.toLocaleString("es-CO") || "0"}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Fecha Creación</p>
-            <p className="text-lg">{fmt(producto.fechaCreado)}</p>
+          {/* Controles */}
+          <div className="flex items-center justify-between mt-4">
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
+                <Filter className="h-4 w-4 text-gray-500" />
+                <select
+                  value={filtroTipo}
+                  onChange={(e) => setFiltroTipo(e.target.value)}
+                  className="text-sm border border-gray-300 rounded-md px-2 py-1"
+                >
+                  {tiposUnicos.map(tipo => (
+                    <option key={tipo} value={tipo}>
+                      {tipo === "todos" ? "Todos los tipos" : tipo}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <span className="text-sm text-gray-600">
+                {filteredMovimientos.length} de {movimientos.length} movimientos
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportarExcel}
+              disabled={filteredMovimientos.length === 0}
+              className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Exportar Excel
+            </Button>
           </div>
         </div>
 
-        {loading && (
-          <div className="flex justify-center py-8">
-            <Loader2 className="animate-spin mr-2" /> Cargando movimientos...
-          </div>
-        )}
+        {/* Contenido scrolleable */}
+        <div className="flex-1 overflow-hidden">
+          {loading && (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="animate-spin mr-2 h-5 w-5" />
+              <span>Cargando movimientos...</span>
+            </div>
+          )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
-            <p className="text-red-800">Error: {error}</p>
-          </div>
-        )}
+          {error && (
+            <div className="mx-6 my-4 bg-red-50 border border-red-200 rounded-md p-4">
+              <p className="text-red-800 text-sm">Error: {error}</p>
+            </div>
+          )}
 
-        {!loading && !error && (
-          <>
-            <h4 className="text-lg font-semibold mb-4">
-              Movimientos ({movimientos.length})
-            </h4>
-
-            {movimientos.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">
-                No hay movimientos registrados para este producto
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      {[
-                        "Fecha",
-                        "Tipo",                        
-                        "Precio",
-                        "Stock Inicial",
-                        "Stock Actual",                        
-                        "Usuario",
-                        "Cantidad",
-                        "Observación",
-                      ].map((h) => (
-                        <th
-                          key={h}
-                          className="px-4 py-2 text-left text-sm font-medium"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {movimientos.map((m, i) => (
-                      <tr key={i} className="border-b last:border-b-0">
-                        <td className="px-4 py-3 text-sm">{fmt(m.fecha)}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`
-                              px-2 py-1 rounded text-xs font-medium text-white
-                              ${getMovimientoColor(m.tipoMovimiento)}
-                            `}
+          {!loading && !error && (
+            <>
+              {filteredMovimientos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                  <p className="text-lg">No hay movimientos registrados</p>
+                  <p className="text-sm">Para este producto o filtro seleccionado</p>
+                </div>
+              ) : (
+                <div className="overflow-auto max-h-[50vh]">
+                  <table className="w-full">
+                    <thead className="sticky top-0 bg-gray-50 border-b">
+                      <tr>
+                        {[
+                          "Fecha",
+                          "Tipo",
+                          "Precio Unitario",
+                          "Cantidad",
+                          "Stock",
+                          "Usuario",
+                          "Observación",
+                        ].map((h) => (
+                          <th
+                            key={h}
+                            className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"
                           >
-                            {m.tipoMovimiento}
-                          </span>
-                        </td>                        
-                        <td className="px-4 py-3 text-right text-sm">
-                          $ {m.precioCompra.toLocaleString("es-CO")}
-                        </td>
-                        <td className="px-4 py-3 text-center text-sm">
-                          {producto.inventario?.[0]?.stockReferenciaOinicial.toLocaleString("es-CO") || "0"}
-                        </td>
-                        <td className="px-4 py-3 text-center text-sm">
-                          {m.stockActual.toLocaleString("es-CO") || "0"}
-                        </td>
-                    
-                        <td className="px-4 py-3 text-sm">{m.usuario}</td>
-                        <td className="px-4 py-3 text-right text-sm font-medium">
-                          {m.cantidadMovimiendo > 0 ? "+" : ""}
-                          {m.cantidadMovimiendo.toLocaleString("es-CO")}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          {m.observacion || "-"}
-                        </td>
+                            {h}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
+                    </thead>
+                    <tbody className="bg-white">
+                      {filteredMovimientos.map((m, i) => (
+                        <tr 
+                          key={i} 
+                          className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                        >
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {fmt(m.fecha)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`
+                                px-2 py-1 rounded-full text-xs font-medium border
+                                ${getMovimientoColor(m.tipoMovimiento)}
+                              `}
+                            >
+                              {m.tipoMovimiento}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                            $ {m.precioCompra.toLocaleString("es-CO")}
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-center">
+                            <span className={m.cantidadMovimiendo > 0 ? "text-green-600" : "text-red-600"}>
+                              {m.cantidadMovimiendo > 0 ? "+" : ""}
+                              {m.cantidadMovimiendo.toLocaleString("es-CO")}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 text-left">
+                            {(m.stockActual || 0).toLocaleString("es-CO")}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {m.usuario}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
+                            {m.observacion || "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer opcional con estadísticas */}
+        {!loading && !error && filteredMovimientos.length > 0 && (
+          <div className="border-t bg-gray-50 px-6 py-3">
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <span>
+                Total de movimientos: {filteredMovimientos.length}
+              </span>
+              <span>
+                Última actualización: {filteredMovimientos.length > 0 ? fmt(filteredMovimientos[0].fecha) : "N/A"}
+              </span>
+            </div>
+          </div>
         )}
       </DialogContent>
     </Dialog>

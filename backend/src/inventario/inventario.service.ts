@@ -87,8 +87,6 @@ export class InventarioService {
 
   //Obtener  todos los movimientos de inventario de un producto
 
-  // src/inventario/inventario.service.ts
-
   async getMovimientosproduc(productoId: string, usuario: UsuarioPayload) {
     try {
       const movimientos = await this.prisma.movimientoInventario.findMany({
