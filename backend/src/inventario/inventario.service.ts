@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MovimientoInventarioDto } from './dto/movimientos-inventario.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { Prisma } from '@prisma/client';
 
@@ -14,7 +15,7 @@ export class InventarioService {
   async create(
     usuario: UsuarioPayload,
     productoId: string,
-    stockReferenciaOinicial: number,
+    stockReferenciaOinicial: number
   ) {
     //Validacion de existencias
     const empresa = await this.prisma.empresa.findUnique({
@@ -42,6 +43,26 @@ export class InventarioService {
       },
     });
   }
+  //Obtener los tipos de movimiento de inventario
+  async getTiposMov() {
+    try {
+      return await this.prisma.tipoMovimientos.findMany({
+        select: {
+          idTipoMovimiento: true,
+          tipo: true,
+        },
+        where: {
+          tipo: {
+            not: 'AJUSTE',
+          },
+        },
+      });
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Error al obtener los tipos de movimiento'
+      );
+    }
+  }
 
   //Obtener los productos y su inventario
   async getProductos(usuario: UsuarioPayload) {
@@ -49,6 +70,7 @@ export class InventarioService {
       return await this.prisma.producto.findMany({
         where: { empresaId: usuario.empresaId },
         select: {
+          id: true,
           nombre: true,
           precioCompra: true,
           fechaCreado: true,
@@ -63,13 +85,54 @@ export class InventarioService {
     }
   }
 
+  //Obtener  todos los movimientos de inventario de un producto
+  async getMovimientosproduc(productoId: string, usuario: UsuarioPayload) {
+    try {
+      const movimientos = await this.prisma.movimientoInventario.findMany({
+        where: {
+          idProducto: productoId,
+          idEmpresa: usuario.empresaId,
+        },
+        include: {
+          tipoMovimiento: {
+            select: { tipo: true },
+          },
+          producto: {
+            select: { nombre: true, precioCompra: true },
+          },
+          usuario: {
+            select: { nombre: true, apellidos: true },
+          },
+        },
+        orderBy: { fechaMovimiento: 'desc' },
+      });
+
+      //mapear los datos para que coincidan con el DTO
+      return movimientos.map(
+        (m): MovimientoInventarioDto => ({
+          tipoMovimiento: m.tipoMovimiento.tipo,
+          nombreProducto: m.producto.nombre,
+          precioCompra: m.producto.precioCompra,
+          usuario: `${m.usuario.nombre} ${m.usuario.apellidos}`,
+          cantidadMovimiendo: m.cantidadMovimiendo,
+          fecha: m.fechaMovimiento,
+          observacion: m.observacion || null, // Aseguramos que sea null si no hay observación
+        })
+      );
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Error al obtener los movimientos de inventario'
+      );
+    }
+  }
+
   async updateInventario(
     productoId: string,
     tipomovid: string,
     cantidad: number
   ) {
     const invt = await this.prisma.inventario.findFirst({
-       where: { idProducto: productoId },
+      where: { idProducto: productoId },
     });
 
     if (!invt) {

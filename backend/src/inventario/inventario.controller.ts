@@ -68,4 +68,27 @@ export class InventarioController {
     const productos = await this.inventarioService.getProductos(usuario);
     return { productos };
   }
+
+  //Obtener los tipos de movimiento de inventario
+  @Roles('admin')
+  @Get('tiposmov')
+  async getTiposMov() {
+    const tiposmov = await this.inventarioService.getTiposMov();
+    return { tiposmov };
+  }
+
+  //Obtener los movimientos de inventario de un producto
+  @Roles('admin')
+  @Get('movimientos/:productoId')
+  async getMovimientos(
+    @Param('productoId') productoId: string,
+    @Req() req: UsuarioRequest
+  ) {
+    const usuario = req.usuario;
+    const movimientos = await this.inventarioService.getMovimientosproduc(
+      productoId,
+      usuario
+    );
+    return { movimientos };
+  }
 }
