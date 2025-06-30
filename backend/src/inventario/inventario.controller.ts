@@ -46,6 +46,7 @@ export class InventarioController {
   @Roles('admin')
   @Patch('update/:productoId/:tipomovid')
   async updateinventario(
+    @Req() req: UsuarioRequest,
     @Param('productoId') productoId: string,
     @Param('tipomovid') tipomovid: string,
     @Body() dto: ActInventarioDto
@@ -53,7 +54,8 @@ export class InventarioController {
     const actinvt = await this.inventarioService.updateInventario(
       productoId,
       tipomovid,
-      dto.stockActual
+      dto.stockActual,
+      req.usuario
     );
     return {
       message: `Inventario actualizado para el producto ${productoId}`,
