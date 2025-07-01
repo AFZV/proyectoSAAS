@@ -259,23 +259,41 @@ export class PedidosService {
   }
 
   ///////////////////////////////
-  async obtenerPedidos(usuario: UsuarioPayload) {
-    if (!usuario) throw new BadRequestException('El usuario es requerido');
-    const { empresaId, id: usuarioId, rol } = usuario;
+async obtenerPedidos(usuario: UsuarioPayload) {
+  if (!usuario) throw new BadRequestException('El usuario es requerido');
+  const { empresaId, id: usuarioId, rol } = usuario;
 
-    const pedidos = await this.prisma.pedido.findMany({
-      where:
-        rol === 'admin'
-          ? {
-              empresaId: empresaId,
-            }
-          : {
-              empresaId,
-              usuarioId,
-            },
-    });
-    return pedidos;
-  }
+  const pedidos = await this.prisma.pedido.findMany({
+    where:
+      rol === 'admin'
+        ? {
+            empresaId: empresaId,
+          }
+        : {
+            empresaId,
+            usuarioId,
+          },
+    include: {
+      cliente: true,
+      usuario: true,
+      productos: {
+        include: {
+          producto: true, // ✅ Incluir información del producto
+        },
+      },
+      estados: {
+        orderBy: {
+          fechaEstado: 'desc', // ✅ Ordenar estados por fecha
+        },
+      },
+    },
+    orderBy: {
+      fechaPedido: 'desc', // ✅ Ordenar pedidos por fecha más reciente
+    },
+  });
+  
+  return pedidos;
+}
   ////////////////////////////////////////////////////////////////
   //actualizar un pedido con el update
   async actualizarPedido(
