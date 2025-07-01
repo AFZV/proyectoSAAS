@@ -34,17 +34,19 @@ export interface CarritoItem extends Producto {
   cantidad: number;
 }
 
-// Cliente para pedidos
+// 🔧 Cliente actualizado según tu backend
 export interface Cliente {
   id: string;
-  nit?: string;
-  nombres: string;
-  apellidos: string;
-  rasonZocial?: string;
-  telefono: string;
-  ciudad: string;
-  correo: string;
-  direccion?: string;
+  nit: string;              // Obligatorio según tu DTO
+  rasonZocial?: string;     // Opcional
+  nombre: string;           // Obligatorio
+  apellidos: string;        // Obligatorio  
+  telefono: string;         // Obligatorio
+  email: string;            // Tu backend usa 'email', no 'correo'
+  direccion: string;        // Obligatorio
+  departamento: string;     // Obligatorio
+  ciudad: string;           // Obligatorio
+  estado?: boolean;         // Estado del cliente
 }
 
 // DTO para crear pedido
