@@ -16,9 +16,3 @@ export class createProveedorDto {
   @IsNotEmpty()
   direccion: string;
 }
-
-//   identificacion String @unique
-//   razonsocial String @db.Text
-//   telefono String @db.Text
-//   direccion String @db.Text
-//empresaId: string; este lo extraemos del request

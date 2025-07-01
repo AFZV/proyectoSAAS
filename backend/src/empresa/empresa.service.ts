@@ -6,15 +6,11 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { UpdateEmpresaDto } from './dto/update-empresa.dto';
-import { GoogleDriveService } from 'src/google-drive/google-drive.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 
 @Injectable()
 export class EmpresaService {
-  constructor(
-    private prisma: PrismaService,
-    private readonly googleDriveService: GoogleDriveService
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   // Crear una empresa
   async create(data: CreateEmpresaDto) {
@@ -22,18 +18,18 @@ export class EmpresaService {
       data: { ...data, estado: 'activa' },
     });
 
-    const folderName = `${empresa.nit}-${empresa.nombreComercial}`;
-    const parentFolder = this.googleDriveService.EMPRESAS_FOLDER_ID;
-    if (!parentFolder) throw new Error('el folder padre es requerido');
+    // const folderName = `${empresa.nit}-${empresa.nombreComercial}`;
+    //  // const parentFolder = this.googleDriveService.EMPRESAS_FOLDER_ID;
+    //   if (!parentFolder) throw new Error('el folder padre es requerido');
 
-    const folderId = await this.googleDriveService.createFolder(
-      folderName,
-      parentFolder
-    );
+    //   const folderId = await this.googleDriveService.createFolder(
+    //     folderName,
+    //     parentFolder
+    //   );
 
     return {
       empresa,
-      folderId,
+      //folderId,
     };
   }
 

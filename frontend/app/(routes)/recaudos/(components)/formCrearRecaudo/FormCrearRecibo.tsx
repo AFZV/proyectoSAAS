@@ -1,324 +1,354 @@
 "use client";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import axios from "axios";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
+import { useEffect, useState } from "react";
+import { useForm, useFieldArray } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loading } from "@/components/Loading";
 import {
   Form,
+  FormControl,
   FormField,
   FormItem,
   FormLabel,
-  FormControl,
   FormMessage,
-  FormDescription,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@clerk/nextjs";
 import { FormCrearReciboProps } from "./FormCrearRecibo.types";
-import { useAuth, useUser } from "@clerk/nextjs";
-import { Token } from "@clerk/nextjs/server";
+import { Loading } from "@/components/Loading";
 
 const formSchema = z.object({
-  codigoCliente: z.string().min(5).max(11),
-  valor: z.number().min(1),
-  customer: z.string(),
-  ciudad: z.string(),
-  email: z.string(),
-  tipo: z.string(),
-  concepto: z.string(),
+  nit: z.string().min(5),
+  tipo: z.enum(["efectivo", "consignacion"]),
+  id: z.string().optional(),
+  concepto: z.string().min(3),
+  pedidos: z
+    .array(
+      z.object({
+        pedidoId: z.string(),
+        valorAplicado: z.number().positive(),
+      })
+    )
+    .optional(),
 });
+
+type PedidoConSaldo = {
+  id: string;
+  fecha: string;
+  saldoPendiente: number;
+};
 
 export function FormCrearRecibo({
   setOpenModalCreate,
   onSuccess,
 }: FormCrearReciboProps) {
-  const [clienteEncontrado, setClienteEncontrado] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [token, setToken] = useState<string>("");
-  const router = useRouter();
   const { toast } = useToast();
   const { getToken } = useAuth();
-
-  useEffect(() => {
-    const fetchToken = async () => {
-      const resToken = await getToken();
-      setToken(resToken as string);
-    };
-
-    fetchToken();
-  }, [getToken]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pedidosDisponibles, setPedidosDisponibles] = useState<
+    PedidoConSaldo[]
+  >([]);
+  const [token, setToken] = useState("");
+  const [clienteInfo, setClienteInfo] = useState<{
+    id: string;
+    nombre: string;
+    email: string;
+    ciudad: string;
+    telefono: string;
+  } | null>(null);
+  const [loadingCliente, setLoadingCliente] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      codigoCliente: "",
-      valor: 1,
-      tipo: "",
+      nit: "",
+      id: "",
+      tipo: "efectivo",
       concepto: "",
-      ciudad: "",
-      customer: "",
-      email: "",
+      pedidos: [],
     },
   });
 
-  const buscarCliente = async () => {
-    const nit = form.getValues("codigoCliente");
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "pedidos",
+  });
+
+  useEffect(() => {
+    const fetchToken = async () => {
+      const t = await getToken();
+      if (t) setToken(t);
+    };
+    fetchToken();
+  }, [getToken]);
+
+  const buscarClientePorNIT = async () => {
+    const nit = form.getValues("nit");
     if (!nit || !token) return;
 
+    setLoadingCliente(true);
+
+    // Limpiar estado anterior
+    setClienteInfo(null);
+    setPedidosDisponibles([]);
+    remove(); // limpia pedidos seleccionados
+
+    // Aseguramos reset del clienteId antes de nueva búsqueda
+    form.setValue("id", "");
+    console.log("nit enviado al backend:", nit);
     try {
-      setIsLoading(true);
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/clientes/${nit}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/clientes/getByNit/${nit}`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
-      const data = response.data;
-      console.log("cliente que llega del backend:", data);
+      if (!res.ok) throw new Error("Cliente no encontrado");
 
-      if (!data) {
-        toast({
-          variant: "destructive",
-          title: `El cliente con NIT ${nit} no fue encontrado`,
-        });
-        return;
-      }
-
-      form.setValue(
-        "customer",
-        `${data.nombre} ${data.apellidos}` || `${data.razonSocial}`
-      );
-      form.setValue("ciudad", data.codigoCiud || "");
-      form.setValue("email", data.email || "");
-
-      setClienteEncontrado(true);
-
-      toast({
-        title: `Cliente encontrado: ${data.nombre}`,
+      const data = await res.json();
+      form.setValue("id", data.cliente.id);
+      const cliente = data.cliente;
+      setClienteInfo({
+        id: cliente.id,
+        nombre: cliente.rasonZocial || `${cliente.nombre} ${cliente.apellidos}`,
+        email: cliente.email,
+        ciudad: cliente.ciudad,
+        telefono: cliente.telefono,
       });
-    } catch (error) {
-      console.error("Error buscando cliente:", error);
-      toast({
-        variant: "destructive",
-        title: "Error al buscar el cliente",
-      });
+
+      toast({ title: `Cliente encontrado` });
+    } catch (err) {
+      toast({ title: "Cliente no encontrado", variant: "destructive" });
     } finally {
-      setIsLoading(false);
+      setLoadingCliente(false);
     }
   };
 
+  useEffect(() => {
+    if (!clienteInfo?.id) return;
+    const clienteId = clienteInfo.id;
+    console.log("cliente id enviado al backend:", clienteId);
+    if (!clienteId || !token) return;
+
+    const fetchPedidos = async () => {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/recibos/PedidosSaldoPendiente/${clienteId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        const data = await res.json();
+        setPedidosDisponibles(data);
+      } catch (error) {
+        console.error("Error cargando pedidos:", error);
+        setPedidosDisponibles([]);
+      }
+    };
+
+    fetchPedidos();
+  }, [token, clienteInfo?.id]);
+
+  const handleAgregarPedido = (pedido: PedidoConSaldo) => {
+    const yaExiste = form
+      .getValues("pedidos")
+      ?.some((p) => p.pedidoId === pedido.id);
+    if (yaExiste) return;
+
+    append({ pedidoId: pedido.id, valorAplicado: pedido.saldoPendiente });
+  };
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setIsSubmitting(true);
     try {
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/recibos`,
-        {
-          nit: values.codigoCliente,
-          valor: values.valor,
+      setIsSubmitting(true);
+      const token = await getToken();
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/recibos`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          clienteId: values.id,
           tipo: values.tipo,
           concepto: values.concepto,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const uuid = res.data.id;
-
-      await axios.post("/api/send", {
-        numeroRecibo: uuid,
-        customer: values.customer,
-        ciudad: values.ciudad,
-        valor: values.valor,
-        tipo: values.tipo,
-        concepto: values.concepto,
-        email: values.email,
+          pedidos: values.pedidos,
+        }),
       });
 
-      toast({ title: "Recibo creado y enviado correctamente" });
+      if (!res.ok) throw new Error("Error al crear recibo");
+
+      toast({ title: "Recibo creado con éxito" });
       onSuccess?.();
-      router.push("/recaudos");
       setOpenModalCreate(false);
     } catch (error) {
       console.error("Error al crear recibo:", error);
-      toast({ title: "Error al crear el recibo", variant: "destructive" });
+      toast({
+        title: `Error al crear recibo. Verifica los datos`,
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div>
-      {isSubmitting && <Loading title="Enviando recibo..." />}
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid grid-cols-3 gap-4">
-            {/* Buscar cliente por NIT */}
-            <div className="col-span-1 flex items-end gap-2">
-              <FormField
-                control={form.control}
-                name="codigoCliente"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>NIT del cliente</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        disabled={isLoading || clienteEncontrado}
-                        placeholder="Ej: 123456789"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            buscarCliente();
-                          }
-                        }}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Digita el NIT del cliente y haz clic en buscar.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <button type="button" onClick={buscarCliente}>
-                {isLoading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500" />
-                ) : (
-                  <Search strokeWidth={3} />
-                )}
-              </button>
-            </div>
-
-            {clienteEncontrado && (
-              <>
-                <div className="col-span-2">
-                  <FormField
-                    control={form.control}
-                    name="customer"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Cliente</FormLabel>
-                        <FormControl>
-                          <Input {...field} disabled />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <FormField
+          control={form.control}
+          name="nit"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>NIT del Cliente</FormLabel>
+              <FormControl>
+                <div className="flex gap-2">
+                  <Input {...field} placeholder="NIT o cédula del cliente" />
+                  <Button type="button" onClick={buscarClientePorNIT}>
+                    Buscar
+                  </Button>
                 </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
+        {loadingCliente && <Loading title="Cargando cliente..." />}
+
+        {clienteInfo && (
+          <div className="border p-4 rounded-md bg-muted">
+            <p className="text-sm font-semibold">{clienteInfo.nombre}</p>
+            <p className="text-sm">📧 {clienteInfo.email}</p>
+            <p className="text-sm">📍 {clienteInfo.ciudad}</p>
+            <p className="text-sm">📞 {clienteInfo.telefono}</p>
+          </div>
+        )}
+
+        <FormField
+          control={form.control}
+          name="tipo"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tipo de pago</FormLabel>
+              <FormControl>
+                <select {...field} className="w-full border p-2 rounded-md">
+                  <option value="efectivo">Efectivo</option>
+                  <option value="consignacion">Consignación</option>
+                </select>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="concepto"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Concepto</FormLabel>
+              <FormControl>
+                <Input {...field} placeholder="Descripción del recibo" />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {pedidosDisponibles.length > 0 && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Pedidos con saldo pendiente:
+            </p>
+            {pedidosDisponibles.map((p) => (
+              <div
+                key={p.id}
+                className="flex justify-between items-center border p-2 rounded"
+              >
+                <div>
+                  <p className="text-sm font-medium">Pedido #{p.id}</p>
+                  <p className="text-sm font-medium">
+                    Fecha:{new Date(p.fecha).toLocaleDateString("es-CO")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.saldoPendiente.toLocaleString()}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => handleAgregarPedido(p)}
+                  variant="secondary"
+                  size="sm"
+                >
+                  Usar
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {fields.length > 0 && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Pedidos a abonar:</p>
+            {fields.map((field, index) => (
+              <div key={field.id} className="grid grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
-                  name="email"
+                  name={`pedidos.${index}.pedidoId`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>ID Pedido</FormLabel>
                       <FormControl>
                         <Input {...field} disabled />
                       </FormControl>
-                      <FormDescription>
-                        Se enviará el recibo a este correo
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
-                  name="ciudad"
+                  name={`pedidos.${index}.valorAplicado`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Ciudad</FormLabel>
-                      <FormControl>
-                        <Input {...field} disabled />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="tipo"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo de pago</FormLabel>
-                      <FormControl>
-                        <select
-                          {...field}
-                          className="w-full border rounded-md p-2"
-                        >
-                          <option value="">Selecciona un tipo</option>
-                          <option value="efectivo">Efectivo</option>
-                          <option value="consignacion">Consignación</option>
-                        </select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="valor"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Valor</FormLabel>
+                      <FormLabel>Valor a aplicar</FormLabel>
                       <FormControl>
                         <Input
+                          {...field}
                           type="number"
-                          value={field.value}
                           onChange={(e) =>
                             field.onChange(e.target.valueAsNumber || 0)
                           }
-                          placeholder="Ej: 45000"
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
-                <div className="col-span-3">
-                  <FormField
-                    control={form.control}
-                    name="concepto"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Concepto</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="Descripción..." />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                <div className="flex items-end">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => remove(index)}
+                  >
+                    Quitar
+                  </Button>
                 </div>
-              </>
-            )}
+              </div>
+            ))}
           </div>
+        )}
 
-          {clienteEncontrado && (
-            <Button disabled={!form.formState.isValid} type="submit">
-              Crear Recibo
-            </Button>
-          )}
-        </form>
-      </Form>
-    </div>
+        <div className="flex justify-center">
+          <Button type="submit" disabled={isSubmitting}>
+            Crear Recibo
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 }

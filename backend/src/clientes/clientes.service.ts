@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
+
 //import { UpdateClienteDto } from './dto/update-cliente.dto';
 
 @Injectable()
@@ -101,6 +102,37 @@ export class ClienteService {
 
     // Retornar solo los clientes (puedes incluir info del usuario si quieres también)
     return relaciones.map((rel) => rel.cliente);
+  }
+
+  async getClientePorNit(nit: string, usuario: UsuarioPayload) {
+    if (!usuario) {
+      throw new UnauthorizedException('Usuario no autorizado');
+    }
+    const { id: usuarioId, rol, empresaId } = usuario;
+    console.log('entrando al service');
+    const cliente = await this.prisma.cliente.findFirst({
+      where: {
+        nit: nit,
+      },
+    });
+    console.log('cliente encontrado:', cliente);
+    if (!cliente) throw new NotFoundException('cliente no encontrado');
+
+    const clienteEmpresa = await this.prisma.clienteEmpresa.findFirst({
+      where: {
+        empresaId,
+        clienteId: cliente.id,
+        ...(rol !== 'admin' && { usuarioId }),
+      },
+      include: {
+        cliente: true,
+      },
+    });
+    if (!clienteEmpresa) {
+      throw new UnauthorizedException('Cliente no encontrado');
+    }
+    console.log('retornando al front:', clienteEmpresa);
+    return clienteEmpresa;
   }
 
   //// retorna todos los clientes de un vendedor o toddos si el usuario es admin

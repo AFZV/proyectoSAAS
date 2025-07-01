@@ -42,7 +42,7 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
 }
 
-export function ClienteDataTable<TData, TValue>({
+export function DataTable<TData, TValue>({
   columns,
   data,
 }: DataTableProps<TData, TValue>) {
@@ -69,30 +69,36 @@ export function ClienteDataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      {/* Filtros superiores */}
+      {/* Barra de filtros y controles */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          {/* Filtro por NIT */}
+          {/* Buscador */}
           <div className="relative">
             <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por NIT..."
-              value={(table.getColumn("nit")?.getFilterValue() as string) ?? ""}
+              placeholder="Buscar por identificacion..."
+              value={
+                (table
+                  .getColumn("identificacion")
+                  ?.getFilterValue() as string) ?? ""
+              }
               onChange={(event) =>
-                table.getColumn("nit")?.setFilterValue(event.target.value)
+                table
+                  .getColumn("identificacion")
+                  ?.setFilterValue(event.target.value)
               }
               className="pl-10 w-[260px] sm:w-[280px] md:w-[320px] lg:w-[360px]"
             />
           </div>
 
-          {/* Filtro por nombre */}
+          {/* Filtro por Empresa */}
           <Input
-            placeholder="Buscar por nombre..."
+            placeholder="Buscar por razon social..."
             value={
-              (table.getColumn("nombre")?.getFilterValue() as string) ?? ""
+              (table.getColumn("razonsocial")?.getFilterValue() as string) ?? ""
             }
             onChange={(event) =>
-              table.getColumn("nombre")?.setFilterValue(event.target.value)
+              table.getColumn("razonsocial")?.setFilterValue(event.target.value)
             }
             className="max-w-sm"
           />
@@ -110,16 +116,20 @@ export function ClienteDataTable<TData, TValue>({
             {table
               .getAllColumns()
               .filter((column) => column.getCanHide())
-              .map((column) => (
-                <DropdownMenuCheckboxItem
-                  key={column.id}
-                  className="capitalize"
-                  checked={column.getIsVisible()}
-                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                >
-                  {column.id}
-                </DropdownMenuCheckboxItem>
-              ))}
+              .map((column) => {
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    className="capitalize"
+                    checked={column.getIsVisible()}
+                    onCheckedChange={(value) =>
+                      column.toggleVisibility(!!value)
+                    }
+                  >
+                    {column.id}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -130,16 +140,18 @@ export function ClienteDataTable<TData, TValue>({
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="font-medium">
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                ))}
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead key={header.id} className="font-medium">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  );
+                })}
               </TableRow>
             ))}
           </TableHeader>
@@ -170,7 +182,7 @@ export function ClienteDataTable<TData, TValue>({
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <Search className="w-8 h-8 text-muted-foreground" />
                     <p className="text-muted-foreground">
-                      No se encontraron clientes
+                      No se encontraron Proveedores
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Intenta ajustar los filtros de búsqueda
@@ -183,20 +195,22 @@ export function ClienteDataTable<TData, TValue>({
         </Table>
       </div>
 
-      {/* Paginación */}
+      {/* Paginación mejorada */}
       <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          Mostrando{" "}
-          {table.getState().pagination.pageIndex *
-            table.getState().pagination.pageSize +
-            1}{" "}
-          a{" "}
-          {Math.min(
-            (table.getState().pagination.pageIndex + 1) *
-              table.getState().pagination.pageSize,
-            table.getFilteredRowModel().rows.length
-          )}{" "}
-          de {table.getFilteredRowModel().rows.length} clientes
+        <div className="flex items-center space-x-2">
+          <p className="text-sm text-muted-foreground">
+            Mostrando{" "}
+            {table.getState().pagination.pageIndex *
+              table.getState().pagination.pageSize +
+              1}{" "}
+            a{" "}
+            {Math.min(
+              (table.getState().pagination.pageIndex + 1) *
+                table.getState().pagination.pageSize,
+              table.getFilteredRowModel().rows.length
+            )}{" "}
+            de {table.getFilteredRowModel().rows.length} clientes
+          </p>
         </div>
 
         <div className="flex items-center space-x-2">

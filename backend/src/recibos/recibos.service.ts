@@ -10,19 +10,16 @@ import { UpdateReciboDto } from './dto/update-recibo.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { ResendService } from 'src/resend/resend.service';
 
-import * as fs from 'fs';
-import { unlink, writeFile } from 'fs/promises';
-import * as path from 'path';
 import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import { ResumenReciboDto } from 'src/pdf-uploader/dto/resumen-recibo.dto';
-import { GoogleDriveService } from 'src/google-drive/google-drive.service';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 @Injectable()
 export class RecibosService {
   constructor(
     private prisma: PrismaService,
     private pdfUploaderService: PdfUploaderService,
-    private googleDriveService: GoogleDriveService,
-    private resendService: ResendService
+    private resendService: ResendService,
+    private cloudinaryService: CloudinaryService
   ) {}
 
   //helper para validar que el saldo a abonar o actualizar en un recibo no supere el saldo actual
@@ -89,8 +86,6 @@ export class RecibosService {
     const { clienteId, tipo, concepto, pedidos } = data;
     await this.validarClienteVendedor(clienteId, usuario);
 
-    const inicio = Date.now();
-
     if (!pedidos || pedidos.length === 0) {
       throw new BadRequestException(
         'Debe asociar al menos un pedido al recibo.'
@@ -107,6 +102,7 @@ export class RecibosService {
       valorAplicado: number;
       saldoPendiente: number;
       estado: string;
+      totalPedido: number;
     }[] = [];
 
     for (const pedido of pedidos) {
@@ -140,6 +136,7 @@ export class RecibosService {
         valorAplicado: pedido.valorAplicado,
         saldoPendiente: Math.max(nuevoSaldo, 0),
         estado: nuevoSaldo <= 0 ? 'completo' : 'parcial',
+        totalPedido: pedidoOriginal.total,
       });
     }
 
@@ -164,6 +161,7 @@ export class RecibosService {
             estado: detalle.estado,
             saldoPendiente: detalle.saldoPendiente,
           },
+          include: { pedido: true },
         });
 
         await tx.movimientosCartera.create({
@@ -172,7 +170,6 @@ export class RecibosService {
             valorMovimiento: detalle.valorAplicado,
             idUsuario: usuario.id,
             empresaId: usuario.empresaId,
-            idPedido: detalle.idPedido,
             idRecibo: creado.id,
             observacion: `Abono generado desde creación de recibo #${creado.id}`,
           },
@@ -182,9 +179,6 @@ export class RecibosService {
       return creado;
     });
 
-    console.log(`📤 Recibo creado en ${Date.now() - inicio}ms`);
-
-    // PDF en segundo plano
     setImmediate(() => {
       void (async () => {
         try {
@@ -198,6 +192,19 @@ export class RecibosService {
             },
           });
 
+          const empresa = await this.prisma.empresa.findUnique({
+            where: { id: recibo.empresaId },
+            select: {
+              nombreComercial: true,
+              nit: true,
+              direccion: true,
+              logoUrl: true,
+              telefono: true,
+            },
+          });
+
+          if (!empresa) throw new Error('no se encontro empresa');
+
           const resumenRecibo: ResumenReciboDto = {
             id: recibo.id,
             cliente:
@@ -209,62 +216,47 @@ export class RecibosService {
             concepto,
             pedidos: detalles.map((detalle) => ({
               id: detalle.idPedido,
-              total: 0,
+              total: detalle.totalPedido,
               valorAplicado: detalle.valorAplicado,
               saldoPendiente: detalle.saldoPendiente,
             })),
             totalPagado: totalAbonado,
+            direccionEmpresa: empresa.direccion,
+            logoUrl: empresa.logoUrl,
+            nombreEmpresa: empresa.nombreComercial,
+            telefonoEmpresa: empresa.telefono,
           };
 
-          const pdfBuffer =
+          const pdfResult =
             await this.pdfUploaderService.generarReciboPDF(resumenRecibo);
 
-          // Paso 1: Obtener empresa y usuario
-          const empresa = await this.prisma.empresa.findUnique({
-            where: { id: recibo.empresaId },
-            select: { nombreComercial: true, nit: true },
-          });
-
-          const usuario = await this.prisma.usuario.findUnique({
+          const usuarioDB = await this.prisma.usuario.findUnique({
             where: { id: recibo.usuarioId },
             select: { nombre: true },
           });
 
-          if (!empresa || !usuario) {
+          if (!empresa || !usuarioDB) {
             throw new Error('Empresa o usuario no encontrados');
           }
 
-          // Paso 2: Construir ruta jerárquica
-          const empresaFolderName = `${empresa.nit}-${empresa.nombreComercial}`;
-          const folderPath = [empresaFolderName, usuario.nombre, 'recibos'];
-          const rootFolderId = this.googleDriveService.EMPRESAS_FOLDER_ID;
-          if (!rootFolderId) {
-            throw new Error('GOOGLE_DRIVE_EMPRESAS_FOLDER_ID no está definida');
-          }
-          // Paso 3: Buscar carpeta destino en Drive
-          const folderId = await this.googleDriveService.findFolderByPath(
-            folderPath,
-            rootFolderId
-          );
-
-          if (!folderId)
-            throw new Error('No se encontró carpeta destino en Drive');
-
-          // Paso 4: Subir PDF a Drive
-          const publicUrl = await this.googleDriveService.uploadPdf({
-            name: `recibo_${recibo.id}_${cliente?.nombre || 'cliente'}.pdf`,
-            buffer: pdfBuffer.buffer,
-            folderId,
+          const { url: publicUrl } = await this.cloudinaryService.uploadPdf({
+            buffer: pdfResult.buffer,
+            fileName: `recibo_${recibo.id}.pdf`,
+            empresaNit: empresa.nit,
+            empresaNombre: empresa.nombreComercial,
+            usuarioNombre: usuarioDB.nombre,
+            tipo: 'recibos',
           });
-          if (!cliente?.email) throw new Error('error al obtener email');
-          const emailSend = await this.resendService.enviarCorreo(
-            cliente?.email,
+
+          if (!cliente?.email) throw new Error('Error al obtener email');
+
+          await this.resendService.enviarCorreo(
+            cliente.email,
             'Recibo de pago',
-            `<p>Hola ${cliente?.nombre},</p><p>Adjunto tu recibo.</p><a href="${publicUrl}">Ver recibo</a>`
+            `<p>Hola ${cliente.nombre},</p><p>Adjunto tu recibo.</p><a href="${publicUrl}">Ver recibo</a>`
           );
 
-          console.log('email enviado:', emailSend);
-
+          console.log('📨 Email enviado');
           console.log(`✅ PDF subido: ${publicUrl}`);
         } catch (err) {
           console.error('❌ Error generando o subiendo PDF de recibo:', err);
@@ -285,7 +277,7 @@ export class RecibosService {
     const { id, empresaId } = usuario;
     const rol = usuario.rol;
 
-    return this.prisma.recibo.findMany({
+    const recibos = await this.prisma.recibo.findMany({
       where: {
         ...(rol === 'admin' //verifica si es rol admin obtiene todos los recibos de la empresa
           ? {
@@ -310,6 +302,14 @@ export class RecibosService {
             valorTotal: true,
             saldoPendiente: true,
             estado: true,
+            idPedido: true,
+            idRecibo: true,
+          },
+        },
+        usuario: {
+          select: {
+            nombre: true,
+            rol: true,
           },
         },
       },
@@ -317,48 +317,42 @@ export class RecibosService {
         Fechacrecion: 'desc',
       },
     });
+    if (!recibos) return null;
+    console.log('recibos:', recibos);
+    return recibos;
   }
   //logica para actualizar un recibo y sus relaciones
+
   async actualizarRecibo(
     id: string,
     data: UpdateReciboDto,
     usuario: UsuarioPayload
   ) {
-    if (!usuario) {
-      throw new UnauthorizedException('Usuario no autorizado');
-    }
+    if (!usuario) throw new UnauthorizedException('Usuario no autorizado');
+
     const { clienteId } = data;
     if (!clienteId) throw new UnauthorizedException('Usuario no autorizado');
     await this.validarClienteVendedor(clienteId, usuario);
+
     const recibo = await this.prisma.recibo.findUnique({
       where: { id },
-      include: {
-        detalleRecibo: true,
-      },
+      include: { detalleRecibo: true },
     });
 
-    if (!recibo) {
-      throw new NotFoundException('Recibo no encontrado');
-    }
-
+    if (!recibo) throw new NotFoundException('Recibo no encontrado');
     if (usuario.rol !== 'admin') {
       throw new UnauthorizedException(
         'No tienes permiso para editar este recibo'
       );
     }
 
-    // Validar saldos antes de modificar, considerando valores previos del recibo
     if (data.pedidos) {
       for (const pedido of data.pedidos) {
-        const detalleAnterior = recibo.detalleRecibo.find(
+        const anterior = recibo.detalleRecibo.find(
           (d) => d.idPedido === pedido.pedidoId
         );
-
-        const valorPrevio = detalleAnterior?.valorTotal || 0;
-        const valorNuevo = pedido.valorAplicado;
-
-        const diferencia = valorNuevo - valorPrevio;
-
+        const valorPrevio = anterior?.valorTotal || 0;
+        const diferencia = pedido.valorAplicado - valorPrevio;
         if (diferencia > 0) {
           await this.validarSaldoPedido(pedido.pedidoId, diferencia);
         }
@@ -370,25 +364,22 @@ export class RecibosService {
       data: {
         tipo: data.tipo,
         concepto: data.concepto,
-        cliente: {
-          connect: { id: data.clienteId },
-        },
+        cliente: { connect: { id: clienteId } },
       },
     });
 
-    // Borrar detalles antiguos
-    await this.prisma.detalleRecibo.deleteMany({
+    // Eliminar detalleRecibo y movimientosCartera anteriores
+    await this.prisma.detalleRecibo.deleteMany({ where: { idRecibo: id } });
+    await this.prisma.movimientosCartera.deleteMany({
       where: { idRecibo: id },
     });
 
-    // Registrar nuevos detalles
     if (data.pedidos) {
       for (const pedido of data.pedidos) {
         const { saldoRestante } = await this.validarSaldoPedido(
           pedido.pedidoId,
           pedido.valorAplicado
         );
-
         const nuevoSaldo = saldoRestante - pedido.valorAplicado;
 
         await this.prisma.detalleRecibo.create({
@@ -400,32 +391,55 @@ export class RecibosService {
             saldoPendiente: Math.max(nuevoSaldo, 0),
           },
         });
+
+        await this.prisma.movimientosCartera.create({
+          data: {
+            idCliente: clienteId,
+            valorMovimiento: pedido.valorAplicado,
+            idUsuario: usuario.id,
+            empresaId: usuario.empresaId,
+            idRecibo: recibo.id,
+            observacion: `Abono actualizado para recibo #${recibo.id}`,
+          },
+        });
       }
     }
 
-    // PDF actualizado en segundo plano
+    // Generar y subir nuevo PDF en segundo plano
     setImmediate(() => {
       void (async () => {
         try {
           const cliente = await this.prisma.cliente.findUnique({
-            where: { id: data.clienteId },
+            where: { id: clienteId },
             select: {
               nombre: true,
               apellidos: true,
               rasonZocial: true,
+              email: true,
             },
           });
 
           const detallesActualizados = await this.prisma.detalleRecibo.findMany(
             {
               where: { idRecibo: id },
-              include: {
-                pedido: true,
-              },
+              include: { pedido: true },
             }
           );
 
-          const resumenRecibo: ResumenReciboDto = {
+          const empresa = await this.prisma.empresa.findUnique({
+            where: { id: usuario.empresaId },
+            select: {
+              nit: true,
+              nombreComercial: true,
+              direccion: true,
+              telefono: true,
+              logoUrl: true,
+            },
+          });
+
+          if (!empresa) throw new Error('no se encontro empresa');
+
+          const resumen: ResumenReciboDto = {
             id,
             cliente:
               cliente?.rasonZocial ||
@@ -444,28 +458,34 @@ export class RecibosService {
               (sum, d) => sum + d.valorTotal,
               0
             ),
+            direccionEmpresa: empresa.direccion,
+            logoUrl: empresa.logoUrl,
+            nombreEmpresa: empresa.nombreComercial,
+            telefonoEmpresa: empresa.telefono,
           };
 
           const pdfBuffer =
-            await this.pdfUploaderService.generarReciboPDF(resumenRecibo);
+            await this.pdfUploaderService.generarReciboPDF(resumen);
 
-          const outputPath = path.join(
-            'C:',
-            'Users',
-            'USUARIO',
-            'Desktop',
-            'pdfs',
-            `recibo_${id}${cliente?.nombre}.pdf`
-          );
+          const usuarioDb = await this.prisma.usuario.findUnique({
+            where: { id: usuario.id },
+            select: { nombre: true },
+          });
 
-          if (fs.existsSync(outputPath)) {
-            await unlink(outputPath);
-          }
+          if (!empresa || !usuarioDb) throw new Error('Datos incompletos');
 
-          await writeFile(outputPath, pdfBuffer.buffer);
-          console.log(`✅ PDF actualizado: ${outputPath}`);
+          const { url: pdfUrl } = await this.cloudinaryService.uploadPdf({
+            buffer: pdfBuffer.buffer,
+            fileName: `recibo_${id}.pdf`,
+            empresaNit: empresa.nit,
+            empresaNombre: empresa.nombreComercial,
+            usuarioNombre: usuarioDb.nombre,
+            tipo: 'recibos',
+          });
+
+          console.log(`✅ PDF actualizado en Cloudinary: ${pdfUrl}`);
         } catch (err) {
-          console.error('❌ Error generando nuevo PDF de recibo:', err);
+          console.error('❌ Error al regenerar PDF actualizado:', err);
         }
       })();
     });
@@ -479,9 +499,10 @@ export class RecibosService {
   //logica para obtener acceso a un recibo por su id
   async getReciboPorId(id: string, usuario: UsuarioPayload) {
     if (!usuario) throw new UnauthorizedException('Usuario no autorizado');
+    const { empresaId } = usuario;
 
     const recibo = await this.prisma.recibo.findUnique({
-      where: { id },
+      where: { empresaId, id },
       include: {
         cliente: true,
         detalleRecibo: true,
@@ -491,14 +512,6 @@ export class RecibosService {
 
     if (!recibo) {
       throw new NotFoundException('Recibo no encontrado');
-    }
-
-    // Verificar permisos (admin o vendedor propietario)
-    const esAdmin = usuario.rol === 'admin';
-    const esVendedorPropietario = recibo.usuarioId === usuario.id;
-
-    if (!esAdmin && !esVendedorPropietario) {
-      throw new UnauthorizedException('No tienes acceso a este recibo');
     }
 
     return recibo;
@@ -574,5 +587,106 @@ export class RecibosService {
     });
 
     return { mensaje: 'Recibo eliminado correctamente', id };
+  }
+
+  //obtener estadisticas para el header de recibos
+  async getResumen(usuario: UsuarioPayload) {
+    const { empresaId, id: userId, rol } = usuario;
+    const totalRecibos = await this.prisma.recibo.count({
+      where:
+        rol === 'admin'
+          ? {
+              empresaId: empresaId,
+            }
+          : {
+              empresaId: empresaId,
+              usuarioId: userId,
+            },
+    });
+
+    const totalRecaudado = await this.prisma.detalleRecibo.aggregate({
+      where: {
+        recibo: {
+          empresaId: empresaId,
+          ...(rol !== 'admin' && { usuarioId: userId }),
+        },
+      },
+      _sum: {
+        valorTotal: true,
+      },
+    });
+    const pedidos = await this.prisma.pedido.findMany({
+      where: rol === 'admin' ? { empresaId } : { empresaId, usuarioId: userId },
+      include: {
+        detalleRecibo: true,
+      },
+      orderBy: {
+        fechaPedido: 'asc',
+      },
+    });
+
+    const pedidosConSaldo = pedidos
+      .map((pedido) => {
+        const totalAbonado = pedido.detalleRecibo.reduce(
+          (suma, d) => suma + d.valorTotal,
+          0
+        );
+        const saldoPendiente = pedido.total - totalAbonado;
+        return { saldoPendiente };
+      })
+      .filter((p) => p.saldoPendiente > 0);
+
+    // ✅ Sumar el total pendiente
+    const totalPorRecaudar = pedidosConSaldo.reduce(
+      (sum, p) => sum + p.saldoPendiente,
+      0
+    );
+
+    console.log('enviandod desde backend:', totalPorRecaudar);
+
+    return {
+      totalRecibos,
+      totalRecaudado: totalRecaudado._sum.valorTotal || 0,
+      totalPorRecaudar: totalPorRecaudar || 0,
+    };
+  }
+
+  async obtenerPedidosConSaldoPorCliente(
+    clienteId: string,
+    usuario: UsuarioPayload
+  ) {
+    console.log('ingreso al service');
+    const { empresaId } = usuario;
+    const pedidos = await this.prisma.pedido.findMany({
+      where: {
+        clienteId,
+        empresaId,
+      },
+      include: {
+        detalleRecibo: true,
+      },
+      orderBy: {
+        fechaPedido: 'asc',
+      },
+    });
+
+    // Calcular saldo pendiente manualmente
+    const pedidosConSaldo = pedidos
+      .map((pedido) => {
+        const totalAbonado = pedido.detalleRecibo.reduce(
+          (suma, d) => suma + d.valorTotal,
+          0
+        );
+        const saldoPendiente = pedido.total - totalAbonado;
+
+        return {
+          id: pedido.id,
+          fecha: pedido.fechaPedido,
+          saldoPendiente,
+        };
+      })
+      .filter((p) => p.saldoPendiente > 0);
+    console.log('respondio el service:', pedidosConSaldo);
+    return pedidosConSaldo;
   }
 }

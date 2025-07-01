@@ -123,7 +123,7 @@ export default async function Home() {
         />
         <CardSummary
           icon={TrendingUp}
-          total={String(data.ultimosPedidos?.length || 0)}
+          total={String(data.operacionesActual || 0)}
           title="Transacciones"
           subtitle="Operaciones completadas"
           trend={formatTrend(

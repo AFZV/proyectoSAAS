@@ -8,15 +8,11 @@ import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { CreateSuperadminDto } from './dto/create-superadmin.dto';
 import { UpdateUsuarioAdminDto } from './dto/update-usuarioadmin.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
-import { GoogleDriveService } from 'src/google-drive/google-drive.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 
 @Injectable()
 export class UsuarioService {
-  constructor(
-    private prisma: PrismaService,
-    private readonly googleDriveService: GoogleDriveService
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   async createSuperAdmin(data: CreateSuperadminDto, empresaId: string) {
     console.log('empresa id u¿que llega a crera superadmin:', empresaId);
@@ -73,41 +69,6 @@ export class UsuarioService {
 
     if (!empresa) {
       throw new Error('Empresa no encontrada');
-    }
-
-    // Construir nombre de carpeta empresa
-    const empresaFolderName = `${empresa.nit}-${empresa.nombreComercial}`;
-
-    // Validar carpeta raíz de empresas
-    const rootEmpresasFolderId = this.googleDriveService.EMPRESAS_FOLDER_ID;
-    if (!rootEmpresasFolderId) {
-      throw new Error('GOOGLE_DRIVE_EMPRESAS_FOLDER_ID no está definida.');
-    }
-
-    // Buscar ID de carpeta de la empresa
-    const empresaFolderId = await this.googleDriveService.findFolderIdByName(
-      empresaFolderName,
-      rootEmpresasFolderId
-    );
-
-    if (!empresaFolderId) {
-      throw new Error(
-        `No se encontró la carpeta de la empresa: ${empresaFolderName}`
-      );
-    }
-
-    // Intentar crear carpeta del usuario y subcarpetas
-    let usuarioFolderId: string;
-    try {
-      usuarioFolderId = await this.googleDriveService.createFolder(
-        data.nombre,
-        empresaFolderId
-      );
-
-      await this.googleDriveService.createFolder('recibos', usuarioFolderId);
-      await this.googleDriveService.createFolder('pedidos', usuarioFolderId);
-    } catch (error) {
-      throw new Error(`Error al crear carpetas en Google Drive: ${error}`);
     }
 
     // Ahora sí, crear el usuario en la base de datos

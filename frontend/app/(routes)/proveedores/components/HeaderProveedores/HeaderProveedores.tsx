@@ -28,7 +28,7 @@ export function HeaderProveedores() {
     try {
       const token = await getToken();
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/proveedor/summary`,
+        `${process.env.NEXT_PUBLIC_API_URL}/proveedores/summary`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -39,8 +39,9 @@ export function HeaderProveedores() {
 
       if (res.ok) {
         const data = await res.json();
+        console.log("esto llega del backend :", data);
         setTotalProveedores(data.total);
-        setProveedoresActivos(data.activos);
+        setProveedoresActivos(data.total);
         setProveedoresInactivos(data.inactivos);
       }
     } catch (error) {
@@ -49,7 +50,7 @@ export function HeaderProveedores() {
       setLoading(false);
     }
   };
-
+  console.log("esto llega del backend :", totalProveedores);
   useEffect(() => {
     fetchData();
   }, []);
@@ -137,7 +138,7 @@ export function HeaderProveedores() {
                   Proveedores Inactivos
                 </p>
                 <p className="text-2xl font-bold text-red-600">
-                  {loading ? "..." : proveedoresInactivos}
+                  {loading ? "..." : 0}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Estado: Inactivo
@@ -163,8 +164,8 @@ export function HeaderProveedores() {
             <DialogDescription>Registra un nuevo proveedor</DialogDescription>
           </DialogHeader>
           <FormCrearProveedor
-          // setOpenModalCreate={setOpenCreateModal}
-          // onSuccess={fetchData}
+            setOpenModalCreate={setOpenCreateModal}
+            onSuccess={fetchData}
           />
         </DialogContent>
       </Dialog>
@@ -182,7 +183,7 @@ export function HeaderProveedores() {
               Busca y actualiza la información de un proveedor
             </DialogDescription>
           </DialogHeader>
-          <FormUpdateProveedor /* setOpenModalUpdate={setOpenUpdateModal}*/ />
+          <FormUpdateProveedor setOpenModalUpdate={setOpenUpdateModal} />
         </DialogContent>
       </Dialog>
     </div>

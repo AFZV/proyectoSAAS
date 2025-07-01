@@ -9,12 +9,14 @@ import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import * as fs from 'fs';
 import { unlink, writeFile } from 'fs/promises';
 import * as path from 'path';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Injectable()
 export class PedidosService {
   constructor(
     private prisma: PrismaService,
     private pdfUploaderService: PdfUploaderService,
+    private cloudinaryService: CloudinaryService
   ) {}
 
   ///crea un pedido en la bdd y sus relaciones
@@ -24,7 +26,7 @@ export class PedidosService {
     const set = new Set(ids);
     if (set.size !== ids.length) {
       throw new BadRequestException(
-        'No se permiten productos duplicados en el pedido',
+        'No se permiten productos duplicados en el pedido'
       );
     }
     //se calcula el total del pedido antes de crear el pedido
@@ -66,7 +68,7 @@ export class PedidosService {
   async agregarEstado(
     pedidoId: string,
     estado: string,
-    guiaYflete: UpdatePedidoDto,
+    guiaYflete: UpdatePedidoDto
   ) {
     const estadoNormalizado = estado.toUpperCase();
 
@@ -76,11 +78,11 @@ export class PedidosService {
 
     if (yaTieneEstado) {
       throw new BadRequestException(
-        `El pedido ya tiene el estado "${estadoNormalizado}"`,
+        `El pedido ya tiene el estado "${estadoNormalizado}"`
       );
     }
 
-    if (['SEPARADO', 'ENTREGADO', 'CANCELADO'].includes(estadoNormalizado)) {
+    if (['SEPARADO', 'ENVIADO', 'CANCELADO'].includes(estadoNormalizado)) {
       return this.prisma.estadoPedido.create({
         data: { pedidoId, estado: estadoNormalizado },
       });
@@ -102,6 +104,7 @@ export class PedidosService {
                 apellidos: true,
                 rasonZocial: true,
                 ciudad: true,
+                email: true,
               },
             },
             usuario: {
@@ -117,7 +120,7 @@ export class PedidosService {
 
       if (!pedido) throw new BadRequestException('Pedido no encontrado');
       if (!tipoSalida)
-        throw new BadRequestException('No se encontró tipo "SALIDA"');
+        throw new BadRequestException("No se encontró tipo 'SALIDA'");
 
       const productosIds = pedido.productos.map((p) => p.productoId);
       const inventarios = await this.prisma.inventario.findMany({
@@ -129,13 +132,13 @@ export class PedidosService {
       });
 
       const inventarioMap = new Map(
-        inventarios.map((i) => [i.idProducto, i.stockActual]),
+        inventarios.map((i) => [i.idProducto, i.stockActual])
       );
       for (const item of pedido.productos) {
         const stock = inventarioMap.get(item.productoId);
         if (stock === undefined || stock < item.cantidad) {
           throw new BadRequestException(
-            `Stock insuficiente para producto ${item.productoId}. Disponible: ${stock}, requerido: ${item.cantidad}`,
+            `Stock insuficiente para producto ${item.productoId}. Disponible: ${stock}, requerido: ${item.cantidad}`
           );
         }
       }
@@ -144,7 +147,7 @@ export class PedidosService {
         this.prisma.inventario.updateMany({
           where: { idProducto: item.productoId, idEmpresa: pedido.empresaId },
           data: { stockActual: { decrement: item.cantidad } },
-        }),
+        })
       );
 
       const movimientosInventario = pedido.productos.map((item) =>
@@ -157,7 +160,7 @@ export class PedidosService {
             IdUsuario: pedido.usuarioId,
             IdPedido: pedido.id,
           },
-        }),
+        })
       );
 
       const movimientoCartera = this.prisma.movimientosCartera.create({
@@ -185,9 +188,8 @@ export class PedidosService {
           .then((res) => res[res.length - 1]),
       ]);
 
-      // Generar el PDF sin bloquear la respuesta
+      // Generar y subir el PDF sin bloquear la respuesta
       setImmediate(() => {
-        // Ejecutar la función async sin que `setImmediate` reciba directamente una promesa
         void (async () => {
           try {
             const resumen: ResumenPedidoDto = {
@@ -195,7 +197,6 @@ export class PedidosService {
               cliente:
                 pedido.cliente.rasonZocial ||
                 `${pedido.cliente.nombre}, ${pedido.cliente.apellidos}`,
-
               fecha: new Date(),
               vendedor: pedido.usuario.nombre,
               productos: pedido.productos.map((item) => ({
@@ -206,27 +207,28 @@ export class PedidosService {
               })),
               total: pedido.productos.reduce(
                 (sum, item) => sum + item.cantidad * item.precio,
-                0,
+                0
               ),
             };
 
             const pdfBuffer =
               await this.pdfUploaderService.generarPedidoPDF(resumen);
 
-            const outputPath = path.join(
-              'C:',
-              'Users',
-              'USUARIO',
-              'Desktop',
-              'pdfs',
-              `pedido_${resumen.id}.pdf`,
-            );
+            const { url } = await this.cloudinaryService.uploadPdf({
+              buffer: pdfBuffer.buffer,
+              fileName: `pedido_${pedido.id}.pdf`,
+              empresaNit: pedido.empresaId, // si tienes nit directo usa ese
+              empresaNombre: resumen.cliente,
+              usuarioNombre: resumen.vendedor,
+              tipo: 'pedidos',
+            });
 
-            await writeFile(outputPath, pdfBuffer.buffer);
-
-            console.log(`✅ PDF generado en segundo plano: ${outputPath}`);
+            console.log(`✅ PDF subido a Cloudinary: ${url}`);
           } catch (error) {
-            console.error('❌ Error al generar PDF en segundo plano:', error);
+            console.error(
+              '❌ Error al generar/subir PDF en segundo plano:',
+              error
+            );
           }
         })();
       });
@@ -273,6 +275,11 @@ export class PedidosService {
               empresaId,
               usuarioId,
             },
+      include: {
+        cliente: true,
+        usuario: true,
+        productos: true,
+      },
     });
     return pedidos;
   }
@@ -281,7 +288,7 @@ export class PedidosService {
   async actualizarPedido(
     pedidoId: string,
     data: UpdatePedidoDto,
-    usuario: UsuarioPayload,
+    usuario: UsuarioPayload
   ) {
     const pedidoExistente = await this.prisma.pedido.findUnique({
       where: { id: pedidoId },
@@ -312,20 +319,20 @@ export class PedidosService {
             data: {
               stockActual: { increment: item.cantidad },
             },
-          }),
+          })
         );
 
         accionesReversibles.push(
           this.prisma.movimientoInventario.deleteMany({
             where: { IdPedido: pedidoExistente.id },
-          }),
+          })
         );
       }
 
       accionesReversibles.push(
         this.prisma.movimientosCartera.deleteMany({
           where: { idPedido: pedidoExistente.id },
-        }),
+        })
       );
 
       await this.prisma.$transaction(accionesReversibles);
@@ -360,7 +367,7 @@ export class PedidosService {
 
     const totalCalculado = pedidoActualizado.productos.reduce(
       (sum, p) => sum + p.cantidad * p.precio,
-      0,
+      0
     );
 
     const tipoSalida = await this.prisma.tipoMovimientos.findFirst({
@@ -369,7 +376,7 @@ export class PedidosService {
 
     if (!tipoSalida) {
       throw new BadRequestException(
-        'No se encontró el tipo de movimiento "SALIDA"',
+        'No se encontró el tipo de movimiento "SALIDA"'
       );
     }
 
@@ -382,7 +389,7 @@ export class PedidosService {
         data: {
           stockActual: { decrement: item.cantidad },
         },
-      }),
+      })
     );
 
     const movimientos = pedidoActualizado.productos.map((item) =>
@@ -395,7 +402,7 @@ export class PedidosService {
           IdUsuario: usuario.id,
           IdPedido: pedidoActualizado.id,
         },
-      }),
+      })
     );
 
     const movimientoCartera = this.prisma.movimientosCartera.create({
@@ -444,7 +451,7 @@ export class PedidosService {
             'USUARIO',
             'Desktop',
             'pdfs',
-            `pedido_${resumenPedidoDto.id}.pdf`,
+            `pedido_${resumenPedidoDto.id}.pdf`
           );
 
           if (fs.existsSync(outputPath)) {

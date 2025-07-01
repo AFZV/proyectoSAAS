@@ -9,6 +9,7 @@ import {
   Req,
   UseGuards,
   Patch,
+  BadRequestException,
   //Res,
 } from '@nestjs/common';
 //import { parseISO } from 'date-fns';
@@ -25,9 +26,24 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 @Controller('recibos')
 export class RecibosController {
   constructor(private recibosService: RecibosService) {}
+
+  @Roles('admin', 'vendedor')
+  @Get('PedidosSaldoPendiente/:idCliente')
+  getPedidosConSaldo(
+    @Param('idCliente') idCliente: string,
+    @Req() req: UsuarioRequest
+  ) {
+    if (!req.usuario) throw new BadRequestException('el usuario es requerido');
+    const usuario = req.usuario;
+    return this.recibosService.obtenerPedidosConSaldoPorCliente(
+      idCliente,
+      usuario
+    );
+  }
+
   //endpoint para obtener todos los recibos si es admin o solo los del usuario logueado
   @Roles('admin', 'vendedor')
-  @Get('/all')
+  @Get('all')
   async getRecibos(@Req() req: UsuarioRequest) {
     console.log('Usuario recibido en controlador:', req.usuario);
     const usuario = req.usuario;
@@ -49,7 +65,7 @@ export class RecibosController {
   async actualizarRecibo(
     @Param('id') id: string,
     @Body() data: UpdateReciboDto,
-    @Req() req: UsuarioRequest,
+    @Req() req: UsuarioRequest
   ) {
     const usuario = req.usuario;
     if (!usuario) throw new UnauthorizedException('userId requerido');
@@ -57,11 +73,18 @@ export class RecibosController {
   }
 
   //endpoint para retornar un recibo por su id
-  @Roles('admin', 'vendedor')
-  @Get(':id')
+  @Roles('admin')
+  @Get('getById:id')
   async getRecibo(@Param('id') id: string, @Req() req: UsuarioRequest) {
     const usuario = req.usuario;
     return this.recibosService.getReciboPorId(id, usuario);
+  }
+  @Roles('admin', 'vendedor')
+  @Get('getStats/summary')
+  async resumenRecibos(@Req() req: UsuarioRequest) {
+    console.log('llego al backend', req.usuario.id);
+    const usuario = req.usuario;
+    return this.recibosService.getResumen(usuario);
   }
 
   @Post('exportar')

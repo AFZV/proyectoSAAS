@@ -1,67 +1,157 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
   <head>
-    <meta charset="utf-8" />
+    <meta charset="UTF-8" />
     <title>Recibo de Pago</title>
     <style>
       body {
-        font-family: Arial, sans-serif;
+        font-family: "Arial", sans-serif;
         margin: 40px;
         color: #333;
       }
-      h1 {
-        color: #222;
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 3px solid #007bff;
+        padding-bottom: 10px;
       }
+
+      .empresa-info {
+        display: flex;
+        gap: 20px;
+      }
+
+      .empresa-info img {
+        height: 60px;
+        object-fit: contain;
+      }
+
+      .empresa-datos h2 {
+        margin: 0;
+        color: #007bff;
+        font-size: 20px;
+      }
+
+      .empresa-datos p {
+        margin: 2px 0;
+        font-size: 14px;
+      }
+
+      .datos-recibo p {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+
+      .section {
+        margin-top: 30px;
+      }
+
+      .section h3 {
+        color: #007bff;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 5px;
+        margin-bottom: 10px;
+      }
+
       table {
         width: 100%;
         border-collapse: collapse;
-        margin-top: 20px;
+        font-size: 14px;
       }
-      th, td {
+
+      th {
+        background-color: #007bff;
+        color: white;
         padding: 10px;
-        border: 1px solid #ccc;
         text-align: left;
       }
-      .total {
-        font-weight: bold;
-        text-align: right;
+
+      td {
+        padding: 8px;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .resumen {
         margin-top: 20px;
+        text-align: right;
+        font-size: 16px;
+        font-weight: bold;
+      }
+
+      .footer {
+        margin-top: 40px;
+        font-size: 13px;
+        text-align: center;
+        color: #555;
+      }
+
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px 40px;
       }
     </style>
   </head>
   <body>
-    <h1>Recibo de Pago</h1>
+    <div class="header">
+      <div class="empresa-info">
+        <img src="<%= logoUrl %>" alt="Logo Empresa" />
+        <div class="empresa-datos">
+          <h2><%= nombreEmpresa %></h2>
+          <p><%= direccionEmpresa %></p>
+          <p>Tel: <%= telefonoEmpresa %></p>
+        </div>
+      </div>
+      <div class="datos-recibo">
+        <p><strong>Recibo:</strong> <%= id %></p>
+        <p><strong>Fecha:</strong> <%= new Date(fecha).toLocaleDateString("es-CO") %></p>
+      </div>
+    </div>
 
-    <p><strong>ID Recibo:</strong> <%= id %></p>
-    <p><strong>Cliente:</strong> <%= cliente %></p>
-    <p><strong>Vendedor:</strong> <%= vendedor %></p>
-    <p><strong>Tipo:</strong> <%= tipo %></p>
-    <p><strong>Concepto:</strong> <%= concepto %></p>
-    <p><strong>Fecha:</strong> <%= new Date(fecha).toLocaleString() %></p>
+    <div class="section info-grid">
+      <div>
+        <p><strong>Cliente:</strong> <%= cliente %></p>
+        <p><strong>Vendedor:</strong> <%= vendedor %></p>
+      </div>
+      <div>
+        <p><strong>Tipo de Pago:</strong> <%= tipo %></p>
+        <p><strong>Concepto:</strong> <%= concepto %></p>
+      </div>
+    </div>
 
-    <h2>Pedidos Asociados</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>ID Pedido</th>
-          <th>Total Pedido</th>
-          <th>Valor Aplicado</th>
-          <th>Saldo Pendiente</th>
-        </tr>
-      </thead>
-      <tbody>
-  <% pedidos.forEach(p => { %>
-    <tr>
-      <td><%= p.id %></td>
-      <td>$<%= (p.total ?? 0).toLocaleString() %></td>
-      <td>$<%= (p.valorAplicado ?? 0).toLocaleString() %></td>
-      <td>$<%= (p.saldoPendiente ?? 0).toLocaleString() %></td>
-    </tr>
-  <% }) %>
-</tbody>
+    <div class="section">
+      <h3>Pedidos Asociados</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>ID Pedido</th>
+            <th>Total Pedido</th>
+            <th>Valor Aplicado</th>
+            <th>Saldo Pendiente</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% pedidos.forEach(p => { %>
+            <tr>
+              <td>#<%= p.id.slice(0, 6) %></td>
+              <td>$<%= (p.total ?? 0).toLocaleString("es-CO") %></td>
+              <td>$<%= (p.valorAplicado ?? 0).toLocaleString("es-CO") %></td>
+              <td>$<%= (p.saldoPendiente ?? 0).toLocaleString("es-CO") %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
 
-    </table>
+    <div class="resumen">
+      Total Pagado: $<%= totalPagado.toLocaleString("es-CO") %>
+    </div>
 
-    <p class="total">Total Pagado: $<%= totalPagado.toLocaleString() %></p>
+    <div class="footer">
+      <p><strong>Este documento es generado automáticamente.</strong></p>
+      <p>Gracias por su pago.</p>
+    </div>
   </body>
 </html>
