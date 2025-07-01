@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCompraDto } from './dto/create-compra.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
@@ -99,7 +99,7 @@ export class ComprasService {
   async updateCompra(
     compraId: string,
     usuario: UsuarioPayload,
-    data: UpdateCompraDto
+    data: UpdateCompraDto,
   ) {
     // Verificamos que la compra exista
     const compraExistente = await this.prisma.compras.findUnique({
@@ -239,11 +239,12 @@ export class ComprasService {
       select: {
         cantidad: true,
         producto: {
-          select: { nombre: true },
+          select: { nombre: true, id: true, precioCompra: true },
         },
         compra: {
           select: {
             idCompra: true,
+            proveedor: { select: { razonsocial: true } },
             FechaCompra: true,
             movimientosInventario: {
               // 2) preguntamos sólo los movimientos de tipo ENTRADA
@@ -254,15 +255,96 @@ export class ComprasService {
                   // o lo omites si no te importa traer también SALIDA
                   equals:
                     (
-                      await this.prisma.tipoMovimientos.findFirst({
+                      (await this.prisma.tipoMovimientos.findFirst({
                         where: { tipo: 'ENTRADA' },
-                      })
-                    )?.idTipoMovimiento ?? undefined,
-                },
-                // igualamos idProducto a este detalleCompra
+                      }))?.idTipoMovimiento ?? undefined
+                    ),
+                  },
+                  // igualamos idProducto a este detalleCompra
                 // Prisma infiere que `this` es el campo `producto`,
-                // pero lo más explícito es:
+                  // pero lo más explícito es:
                 // idProducto: { equals: /* mismo idProducto */ }
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // 2) Agrupamos por idCompra
+    interface Group {
+      idCompra: string;
+      proveedor: string;
+      FechaCompra: Date;
+      productos: Array<{
+        id: string;
+        nombre: string;
+        cantidad: number;
+        precioCompra: number;
+      }>;
+    }
+
+    const agrupado: Record<string, Group> = {};
+
+    detalles.forEach((dc) => {
+      const key = dc.compra.idCompra;
+      if (!agrupado[key]) {
+        agrupado[key] = {
+          idCompra: key,
+          proveedor: dc.compra.proveedor.razonsocial,
+          FechaCompra: dc.compra.FechaCompra,
+          productos: [],
+        };
+      }
+      agrupado[key].productos.push({
+        id: dc.producto.id,
+        nombre: dc.producto.nombre,
+        cantidad: dc.cantidad,
+        precioCompra: dc.producto.precioCompra,
+      });
+    });
+
+    // 3) Transformamos a array, calculando totalCompra
+    return Object.values(agrupado).map(compra => {
+      const totalCompra = compra.productos
+        .reduce((sum, p) => sum + p.cantidad * p.precioCompra, 0);
+
+      return {
+        idCompra: compra.idCompra,
+        proveedor: compra.proveedor,
+        FechaCompra: compra.FechaCompra,
+        totalCompra,
+        productos: compra.productos,
+      };
+    });
+  }
+
+  // Obtener una compra por su ID
+  async findById(idCompra: string, usuario: UsuarioPayload) {
+    const TipoEntrada = await this.prisma.tipoMovimientos.findFirst({
+      where: { tipo: 'ENTRADA' },
+    });
+    const detalle = await this.prisma.detalleCompra.findMany({
+      where: {
+        idCompra: idCompra,
+        compra: {
+          idEmpresa: usuario.empresaId,
+        },
+      },
+      select: {
+        cantidad: true,
+        producto: {
+          select: { nombre: true, id: true },
+        },
+        compra: {
+          // Traemos la compra completa para obtener idCompra y FechaCompra
+          // y los movimientos de inventario asociados a esta compra
+          select: {
+            idCompra: true,
+            FechaCompra: true,
+            movimientosInventario: {
+              where: {
+                idTipoMovimiento: TipoEntrada?.idTipoMovimiento,
               },
               select: { cantidadMovimiendo: true },
               take: 1,
@@ -272,38 +354,23 @@ export class ComprasService {
       },
     });
 
-    //2) Contruyo un objeto de agrupacion por idCompra
-    const agrupado: Record<
-      string,
-      {
-        idCompra: string;
-        FechaCompra: Date;
-        productos: Array<{
-          nombre: string;
-          cantidad: number;
-          cantidadMovimiendo: number;
-        }>;
-      }
-    > = {};
+    if (!detalle || detalle.length === 0) {
+      throw new BadRequestException(`Compra ${idCompra} no encontrada.`);
+    }
 
-    detalles.forEach((dc) => {
-      const key = dc.compra.idCompra;
-      if (!agrupado[key]) {
-        agrupado[key] = {
-          idCompra: key,
-          FechaCompra: dc.compra.FechaCompra,
-          productos: [],
-        };
-      }
-      agrupado[key].productos.push({
+    // Agrupamos por idCompra
+    const first = detalle[0].compra;
+    const resultado = {
+      idCompra: first.idCompra,
+      FechaCompra: first.FechaCompra,
+      productos: detalle.map((dc) => ({
+        id: dc.producto.id,
         nombre: dc.producto.nombre,
         cantidad: dc.cantidad,
         cantidadMovimiendo:
           dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0,
-      });
-    });
-
-    // 3) Devuelvo como array
-    return Object.values(agrupado);
+      })),
+    };
+    return resultado;
   }
 }

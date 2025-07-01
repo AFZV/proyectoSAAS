@@ -151,7 +151,7 @@ export const columns: ColumnDef<Cliente>[] = [
               {/* {vendedor.nombre.charAt(0).toUpperCase()} */}
             </span>
           </div>
-          <span className="font-medium">{vendedor.nombre}</span>
+          {/* <span className="font-medium">{vendedor.nombre}</span> */}
         </div>
       );
     },
