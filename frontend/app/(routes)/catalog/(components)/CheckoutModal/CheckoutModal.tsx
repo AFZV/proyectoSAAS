@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+
 import {
   User,
   Search,
@@ -35,7 +36,7 @@ interface ClienteSearchProps {
 }
 
 // Componente para buscar cliente
-function ClienteSearch({
+export function ClienteSearch({
   onClienteSeleccionado,
   clienteSeleccionado,
   onLimpiarCliente,
@@ -43,8 +44,10 @@ function ClienteSearch({
   const [nitBusqueda, setNitBusqueda] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const { toast } = useToast();
+  const { getToken } = useAuth();
 
   const buscarCliente = async () => {
+    const token = await getToken();
     if (!nitBusqueda.trim()) {
       toast({
         title: "Error",
@@ -56,12 +59,22 @@ function ClienteSearch({
 
     try {
       setIsSearching(true);
-      const cliente = await catalogService.buscarClientePorNit(nitBusqueda);
-      onClienteSeleccionado(cliente);
+      const cliente = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/clientes/getByNit/${clienteSeleccionado?.nit}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (!cliente) return;
+      const clienteFinal = await cliente.json();
+      onClienteSeleccionado(clienteFinal);
+      console.log("cliente del backend:", clienteFinal);
 
       toast({
         title: "Cliente encontrado",
-        description: `${cliente.nombres} ${cliente.apellidos}`,
+        description: `${clienteFinal.nombres} ${clienteFinal.apellidos}`,
       });
     } catch (error) {
       console.error("Error:", error);

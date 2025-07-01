@@ -4,12 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Search, 
-  X, 
-  Filter,
-  Clock
-} from "lucide-react";
+import { Search, X, Filter, Clock } from "lucide-react";
 
 interface SearchBarProps {
   onSearch: (searchTerm: string) => void;
@@ -20,13 +15,13 @@ interface SearchBarProps {
   className?: string;
 }
 
-export function SearchBar({ 
-  onSearch, 
+export function SearchBar({
+  onSearch,
   placeholder = "Buscar productos...",
   resultCount,
   isLoading = false,
   suggestions = [],
-  className = ""
+  className = "",
 }: SearchBarProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -34,12 +29,12 @@ export function SearchBar({
 
   // Cargar búsquedas recientes del localStorage al montar
   useEffect(() => {
-    const saved = localStorage.getItem('catalog-recent-searches');
+    const saved = localStorage.getItem("catalog-recent-searches");
     if (saved) {
       try {
         setRecentSearches(JSON.parse(saved));
       } catch (error) {
-        console.error('Error loading recent searches:', error);
+        console.error("Error loading recent searches:", error);
       }
     }
   }, []);
@@ -64,13 +59,16 @@ export function SearchBar({
       // Agregar a búsquedas recientes
       const newRecentSearches = [
         term,
-        ...recentSearches.filter(item => item !== term)
+        ...recentSearches.filter((item) => item !== term),
       ].slice(0, 5); // Máximo 5 búsquedas recientes
-      
+
       setRecentSearches(newRecentSearches);
-      localStorage.setItem('catalog-recent-searches', JSON.stringify(newRecentSearches));
+      localStorage.setItem(
+        "catalog-recent-searches",
+        JSON.stringify(newRecentSearches)
+      );
     }
-    
+
     setSearchTerm(term);
     setShowSuggestions(false);
     onSearch(term);
@@ -88,13 +86,13 @@ export function SearchBar({
 
   const clearRecentSearches = () => {
     setRecentSearches([]);
-    localStorage.removeItem('catalog-recent-searches');
+    localStorage.removeItem("catalog-recent-searches");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleSearch(searchTerm);
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       setShowSuggestions(false);
     }
   };
@@ -110,17 +108,21 @@ export function SearchBar({
           value={searchTerm}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => setShowSuggestions(searchTerm.length > 0 || recentSearches.length > 0)}
+          onFocus={() =>
+            setShowSuggestions(
+              searchTerm.length > 0 || recentSearches.length > 0
+            )
+          }
           className="pl-10 pr-20"
           disabled={isLoading}
         />
-        
+
         {/* Indicador de carga y botón limpiar */}
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
           {isLoading && (
             <div className="animate-spin h-4 w-4 border-2 border-muted-foreground border-t-transparent rounded-full" />
           )}
-          
+
           {searchTerm && !isLoading && (
             <Button
               variant="ghost"
@@ -139,10 +141,9 @@ export function SearchBar({
         <div className="mt-2 flex items-center gap-2">
           <Filter className="h-3 w-3 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">
-            {resultCount === 0 
-              ? "No se encontraron productos" 
-              : `${resultCount} producto${resultCount === 1 ? '' : 's'} encontrado${resultCount === 1 ? '' : 's'}`
-            }
+            {resultCount === 0
+              ? "No se encontraron productos"
+              : `${resultCount} producto${resultCount === 1 ? "" : "s"} encontrado${resultCount === 1 ? "" : "s"}`}
           </span>
           {searchTerm && (
             <Badge variant="secondary" className="text-xs">
@@ -155,7 +156,6 @@ export function SearchBar({
       {/* Dropdown de sugerencias */}
       {showSuggestions && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-background border rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
-          
           {/* Sugerencias automáticas */}
           {suggestions.length > 0 && (
             <div className="p-2">
@@ -211,18 +211,20 @@ export function SearchBar({
           )}
 
           {/* Mensaje si no hay sugerencias */}
-          {suggestions.length === 0 && recentSearches.length === 0 && searchTerm && (
-            <div className="p-4 text-center text-sm text-muted-foreground">
-              Escribe para buscar productos
-            </div>
-          )}
+          {suggestions.length === 0 &&
+            recentSearches.length === 0 &&
+            searchTerm && (
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                Escribe para buscar productos
+              </div>
+            )}
         </div>
       )}
 
       {/* Overlay para cerrar sugerencias */}
       {showSuggestions && (
-        <div 
-          className="fixed inset-0 z-40" 
+        <div
+          className="fixed inset-0 z-40"
           onClick={() => setShowSuggestions(false)}
         />
       )}

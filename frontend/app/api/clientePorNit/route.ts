@@ -7,12 +7,9 @@ import { getToken } from "@/lib/getToken";
 export async function GET(request: NextRequest) {
   try {
     const { userId } = auth();
-    
+
     if (!userId) {
-      return NextResponse.json(
-        { error: "No autorizado" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
     // Obtener NIT de los parámetros de consulta
@@ -20,10 +17,7 @@ export async function GET(request: NextRequest) {
     const nit = searchParams.get("nit");
 
     if (!nit) {
-      return NextResponse.json(
-        { error: "NIT es requerido" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "NIT es requerido" }, { status: 400 });
     }
 
     // Obtener token para el backend
@@ -31,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     // Hacer petición al backend de clientes (igual que en FormUpdateCliente)
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/clientes/${nit}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/clientes/getByNit/${nit}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -50,10 +44,10 @@ export async function GET(request: NextRequest) {
     }
 
     const clientes = await response.json();
-    
+
     // Si es un array, devolver el primero; si es un objeto, devolverlo directamente
     const cliente = Array.isArray(clientes) ? clientes[0] : clientes;
-    
+
     return NextResponse.json(cliente);
   } catch (error) {
     console.error("Error en API clientePorNit:", error);
