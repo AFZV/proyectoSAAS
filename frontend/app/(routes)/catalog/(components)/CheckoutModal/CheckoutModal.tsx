@@ -34,7 +34,7 @@ interface ClienteSearchProps {
   onLimpiarCliente: () => void;
 }
 
-// Componente para buscar cliente
+// Componente para buscar cliente - CORREGIDO
 function ClienteSearch({
   onClienteSeleccionado,
   clienteSeleccionado,
@@ -42,6 +42,7 @@ function ClienteSearch({
 }: ClienteSearchProps) {
   const [nitBusqueda, setNitBusqueda] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const { getToken } = useAuth();
   const { toast } = useToast();
 
   const buscarCliente = async () => {
@@ -56,18 +57,40 @@ function ClienteSearch({
 
     try {
       setIsSearching(true);
-      const cliente = await catalogService.buscarClientePorNit(nitBusqueda);
+
+      console.log("🔍 Iniciando búsqueda de cliente con NIT:", nitBusqueda);
+
+      // 🔥 OBTENER TOKEN PRIMERO
+      const token = await getToken();
+
+      if (!token) {
+        throw new Error("No se pudo obtener el token de autenticación");
+      }
+
+      console.log("🔑 Token obtenido correctamente");
+
+      // 🎯 USAR EL MÉTODO CORREGIDO CON TOKEN
+      const cliente = await catalogService.buscarClientePorNit(
+        token,
+        nitBusqueda
+      );
+
+      console.log("✅ Cliente encontrado:", cliente);
+
       onClienteSeleccionado(cliente);
 
       toast({
         title: "Cliente encontrado",
-        description: `${cliente.nombres} ${cliente.apellidos}`,
+        description: `${cliente.nombre} ${cliente.apellidos}`,
       });
-    } catch (error) {
-      console.error("Error:", error);
+
+      // Limpiar campo de búsqueda
+      setNitBusqueda("");
+    } catch (error: any) {
+      console.error("❌ Error al buscar cliente:", error);
       toast({
         title: "Cliente no encontrado",
-        description: "No existe un cliente con ese NIT",
+        description: error.message || "No existe un cliente con ese NIT",
         variant: "destructive",
       });
     } finally {
@@ -97,7 +120,7 @@ function ClienteSearch({
                 <div className="space-y-1">
                   <h4 className="font-medium text-lg">
                     {clienteSeleccionado.rasonZocial ||
-                      `${clienteSeleccionado.nombres} ${clienteSeleccionado.apellidos}`}
+                      `${clienteSeleccionado.nombre} ${clienteSeleccionado.apellidos}`}
                   </h4>
                   {clienteSeleccionado.nit && (
                     <p className="text-sm text-muted-foreground">
@@ -107,10 +130,15 @@ function ClienteSearch({
                   <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                     <span>📍 {clienteSeleccionado.ciudad}</span>
                     <span>📞 {clienteSeleccionado.telefono}</span>
-                    {clienteSeleccionado.correo && (
-                      <span>✉️ {clienteSeleccionado.correo}</span>
+                    {clienteSeleccionado.email && (
+                      <span>✉️ {clienteSeleccionado.email}</span>
                     )}
                   </div>
+                  {clienteSeleccionado.direccion && (
+                    <p className="text-sm text-muted-foreground">
+                      📍 {clienteSeleccionado.direccion}
+                    </p>
+                  )}
                 </div>
                 <Button variant="outline" size="sm" onClick={onLimpiarCliente}>
                   Cambiar
@@ -138,11 +166,16 @@ function ClienteSearch({
             <div className="flex gap-2 mt-1">
               <Input
                 id="nit"
-                placeholder="Ingrese el NIT"
+                placeholder="Ingrese el NIT (solo números)"
                 value={nitBusqueda}
-                onChange={(e) => setNitBusqueda(e.target.value)}
+                onChange={(e) => {
+                  // Solo permitir números
+                  const value = e.target.value.replace(/\D/g, "");
+                  setNitBusqueda(value);
+                }}
                 onKeyPress={handleKeyPress}
                 disabled={isSearching}
+                maxLength={20}
               />
               <Button
                 onClick={buscarCliente}
@@ -196,6 +229,7 @@ export function CheckoutModal({
   );
 
   const handleClienteSeleccionado = (clienteData: Cliente) => {
+    console.log("👤 Cliente seleccionado:", clienteData);
     setCliente(clienteData);
   };
 
@@ -224,11 +258,20 @@ export function CheckoutModal({
 
     try {
       setIsSubmitting(true);
+      console.log("🛒 Iniciando creación de pedido...");
+
       const token = await getToken();
 
       if (!token) {
         throw new Error("No se pudo obtener el token de autenticación");
       }
+
+      console.log("📋 Datos del pedido:", {
+        clienteId: cliente.id,
+        items: carrito.length,
+        total: totalPrecio,
+        observaciones,
+      });
 
       await catalogService.crearPedidoDesdeCarrito(
         token,
@@ -241,6 +284,8 @@ export function CheckoutModal({
         observaciones
       );
 
+      console.log("✅ Pedido creado exitosamente");
+
       toast({
         title: "¡Pedido creado exitosamente!",
         description: `Pedido por ${formatValue(totalPrecio)} registrado correctamente`,
@@ -251,7 +296,7 @@ export function CheckoutModal({
       setObservaciones("");
       onPedidoCreado();
     } catch (error: any) {
-      console.error("Error al crear pedido:", error);
+      console.error("❌ Error al crear pedido:", error);
       toast({
         title: "Error al crear pedido",
         description: error.message || "Ocurrió un error inesperado",
@@ -264,6 +309,9 @@ export function CheckoutModal({
 
   const handleClose = () => {
     if (!isSubmitting) {
+      // Limpiar estados al cerrar
+      setCliente(null);
+      setObservaciones("");
       onOpenChange(false);
     }
   };
