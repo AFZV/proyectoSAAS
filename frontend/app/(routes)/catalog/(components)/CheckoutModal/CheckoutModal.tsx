@@ -45,7 +45,6 @@ function ClienteSearch({
   const [isSearching, setIsSearching] = useState(false);
   const { getToken } = useAuth();
   const { toast } = useToast();
-  const { getToken } = useAuth();
 
   const buscarCliente = async () => {
     const token = await getToken();
@@ -60,12 +59,31 @@ function ClienteSearch({
 
     try {
       setIsSearching(true);
-      const cliente = await catalogService.buscarClientePorNit(nitBusqueda);
+
+      console.log("🔍 Iniciando búsqueda de cliente con NIT:", nitBusqueda);
+
+      // 🔥 OBTENER TOKEN PRIMERO
+      const token = await getToken();
+
+      if (!token) {
+        throw new Error("No se pudo obtener el token de autenticación");
+      }
+
+      console.log("🔑 Token obtenido correctamente");
+
+      // 🎯 USAR EL MÉTODO CORREGIDO CON TOKEN
+      const cliente = await catalogService.buscarClientePorNit(
+        token,
+        nitBusqueda
+      );
+
+      console.log("✅ Cliente encontrado:", cliente);
+
       onClienteSeleccionado(cliente);
 
       toast({
         title: "Cliente encontrado",
-        description: `${cliente.nombres} ${cliente.apellidos}`,
+        description: `${cliente.nombre} ${cliente.apellidos}`,
       });
 
       // Limpiar campo de búsqueda
