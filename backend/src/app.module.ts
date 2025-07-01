@@ -22,8 +22,8 @@ import { ReportesModule } from './reportes/reportes.module';
 import { PedidosModule } from './pedidos/pedidos.module';
 import { BalanceModule } from './balance/balance.module';
 import { PdfUploaderModule } from './pdf-uploader/pdf-uploader.module';
-import { GoogleDriveModule } from './google-drive/google-drive.module';
 import { ResendModule } from './resend/resend.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -46,9 +46,9 @@ import { ResendModule } from './resend/resend.module';
 
     PdfUploaderModule,
 
-    GoogleDriveModule,
-
     ResendModule,
+
+    CloudinaryModule,
   ],
   controllers: [PrismaController],
 })

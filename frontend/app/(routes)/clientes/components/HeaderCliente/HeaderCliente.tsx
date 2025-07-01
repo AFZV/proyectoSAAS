@@ -34,14 +34,17 @@ export default function HeaderCliente() {
     const fetchData = async () => {
       try {
         const token = await getToken();
-        
+
         // 1. Traer totalClientes del dashboard
-        const dashboardRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/dashboard/summary`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          cache: "no-store",
-        });
+        const dashboardRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/dashboard/summary`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            cache: "no-store",
+          }
+        );
 
         if (dashboardRes.ok) {
           const dashboardData = await dashboardRes.json();
@@ -49,24 +52,30 @@ export default function HeaderCliente() {
         }
 
         // 2. Traer lista de clientes para calcular activos/inactivos
-        const clientesRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clientes`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          cache: "no-store",
-        });
+        const clientesRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/clientes`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            cache: "no-store",
+          }
+        );
 
         if (clientesRes.ok) {
           const clientes = await clientesRes.json();
-          const activos = clientes.filter((cliente: any) => cliente.estado === true).length;
-          const inactivos = clientes.filter((cliente: any) => cliente.estado === false).length;
-          
+          const activos = clientes.filter(
+            (cliente: any) => cliente.estado === true
+          ).length;
+          const inactivos = clientes.filter(
+            (cliente: any) => cliente.estado === false
+          ).length;
+
           setClientesActivos(activos);
           setClientesInactivos(inactivos);
         }
-
       } catch (error) {
-        console.error('Error al cargar datos:', error);
+        console.error("Error al cargar datos:", error);
       } finally {
         setLoading(false);
       }
@@ -79,14 +88,17 @@ export default function HeaderCliente() {
   const refreshStats = async () => {
     try {
       const token = await getToken();
-      
+
       // Refrescar datos del dashboard
-      const dashboardRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/dashboard/summary`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
+      const dashboardRes = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/dashboard/summary`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        }
+      );
 
       if (dashboardRes.ok) {
         const dashboardData = await dashboardRes.json();
@@ -94,23 +106,30 @@ export default function HeaderCliente() {
       }
 
       // Refrescar lista de clientes
-      const clientesRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/clientes`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
+      const clientesRes = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/clientes`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        }
+      );
 
       if (clientesRes.ok) {
         const clientes = await clientesRes.json();
-        const activos = clientes.filter((cliente: any) => cliente.estado === true).length;
-        const inactivos = clientes.filter((cliente: any) => cliente.estado === false).length;
-        
+        const activos = clientes.filter(
+          (cliente: any) => cliente.estado === true
+        ).length;
+        const inactivos = clientes.filter(
+          (cliente: any) => cliente.estado === false
+        ).length;
+
         setClientesActivos(activos);
         setClientesInactivos(inactivos);
       }
     } catch (error) {
-      console.error('Error al actualizar datos:', error);
+      console.error("Error al actualizar datos:", error);
     }
   };
 
@@ -143,7 +162,7 @@ export default function HeaderCliente() {
               <Edit3 className="w-4 h-4" />
               <span>Actualizar Cliente</span>
             </Button>
-            
+
             <Button
               onClick={() => setOpenCreateModal(true)}
               className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md"
@@ -164,7 +183,7 @@ export default function HeaderCliente() {
                   Total Clientes
                 </p>
                 <p className="text-2xl font-bold text-blue-600">
-                  {loading ? '...' : String(totalClientes)}
+                  {loading ? "..." : String(totalClientes)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Activos en la Plataforma
@@ -184,7 +203,7 @@ export default function HeaderCliente() {
                   Clientes Activos
                 </p>
                 <p className="text-2xl font-bold text-green-600">
-                  {loading ? '...' : String(clientesActivos)}
+                  {loading ? "..." : String(clientesActivos)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Estado: Activo
@@ -204,7 +223,7 @@ export default function HeaderCliente() {
                   Clientes Inactivos
                 </p>
                 <p className="text-2xl font-bold text-red-600">
-                  {loading ? '...' : String(clientesInactivos)}
+                  {loading ? "..." : String(clientesInactivos)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Estado: Inactivo
@@ -232,7 +251,7 @@ export default function HeaderCliente() {
               Registra un nuevo cliente en el sistema
             </DialogDescription>
           </DialogHeader>
-          <FormCreateCliente 
+          <FormCreateCliente
             setOpenModalCreate={setOpenCreateModal}
             onSuccess={refreshStats}
           />
@@ -253,11 +272,12 @@ export default function HeaderCliente() {
               Busca y actualiza la información de un cliente existente
               <br />
               <span className="text-xs text-blue-600 mt-1 block">
-                💡 Puedes probar buscando cualquier NIT para ver cómo funciona la búsqueda
+                💡 Puedes probar buscando cualquier NIT para ver cómo funciona
+                la búsqueda
               </span>
             </DialogDescription>
           </DialogHeader>
-          <FormUpdateCliente 
+          <FormUpdateCliente
             setOpenModalUpdate={setOpenUpdateModal}
             onSuccess={refreshStats}
           />

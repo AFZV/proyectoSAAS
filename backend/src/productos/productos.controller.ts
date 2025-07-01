@@ -45,17 +45,14 @@ export class ProductosController {
     return { productos };
   }
 
-  //Obtener los productos activos de una empresa
+  //Obtener los productos con stock de una empresa
   @Roles('admin', 'vendedor', 'superadmin')
   @Get('empresa/activos')
   async findAllActivos(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
-    const productos = await this.productosService.findAllforEmpresa(usuario);
-    //Filtramos los productos activos
-    const productosActivos = productos.filter(
-      (producto) => producto.estado === 'activo',
-    );
-    return { productos: productosActivos };
+    const productos =
+      await this.productosService.findAllforEmpresaActiva(usuario);
+    return { productos };
   }
   //Actualizar el Estado de  un producto (Activo/Inactivo) por su ID
   @Roles('admin')

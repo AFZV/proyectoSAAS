@@ -30,7 +30,12 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, SlidersHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Search,
+  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -72,11 +77,13 @@ export function DataTable<TData, TValue>({
             <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por nombre..."
-              value={(table.getColumn("nombre")?.getFilterValue() as string) ?? ""}
+              value={
+                (table.getColumn("nombre")?.getFilterValue() as string) ?? ""
+              }
               onChange={(event) =>
                 table.getColumn("nombre")?.setFilterValue(event.target.value)
               }
-              className="pl-8 max-w-sm"
+              className="pl-10 w-[260px] sm:w-[280px] md:w-[320px] lg:w-[360px]"
             />
           </div>
 
@@ -168,7 +175,9 @@ export function DataTable<TData, TValue>({
                 >
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <Search className="w-8 h-8 text-muted-foreground" />
-                    <p className="text-muted-foreground">No se encontraron clientes</p>
+                    <p className="text-muted-foreground">
+                      No se encontraron clientes
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       Intenta ajustar los filtros de búsqueda
                     </p>
@@ -184,9 +193,14 @@ export function DataTable<TData, TValue>({
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <p className="text-sm text-muted-foreground">
-            Mostrando {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} a{" "}
+            Mostrando{" "}
+            {table.getState().pagination.pageIndex *
+              table.getState().pagination.pageSize +
+              1}{" "}
+            a{" "}
             {Math.min(
-              (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+              (table.getState().pagination.pageIndex + 1) *
+                table.getState().pagination.pageSize,
               table.getFilteredRowModel().rows.length
             )}{" "}
             de {table.getFilteredRowModel().rows.length} clientes
@@ -203,12 +217,15 @@ export function DataTable<TData, TValue>({
             <ChevronLeft className="w-4 h-4 mr-1" />
             Anterior
           </Button>
-          
+
           <div className="flex items-center space-x-1">
             {Array.from({ length: table.getPageCount() }, (_, i) => i + 1)
               .slice(
                 Math.max(0, table.getState().pagination.pageIndex - 2),
-                Math.min(table.getPageCount(), table.getState().pagination.pageIndex + 3)
+                Math.min(
+                  table.getPageCount(),
+                  table.getState().pagination.pageIndex + 3
+                )
               )
               .map((pageNumber) => (
                 <Button
@@ -239,4 +256,5 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
     </div>
-  )};
+  );
+}

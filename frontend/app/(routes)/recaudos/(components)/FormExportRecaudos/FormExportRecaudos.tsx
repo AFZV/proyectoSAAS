@@ -8,11 +8,11 @@ import { useAuth } from "@clerk/nextjs";
 export function DatePickerWithRange({
   onSelect,
   onClose,
-  user,
+  rol,
 }: {
   onSelect?: (range: DateRange | undefined) => void;
   onClose?: () => void;
-  user: string;
+  rol: string;
 }) {
   const [date, setDate] = useState<DateRange | undefined>({
     from: addDays(new Date(), -7),
@@ -72,7 +72,7 @@ export function DatePickerWithRange({
 
   return (
     <>
-      {user === "admin" && (
+      {rol === "admin" && (
         <div className="grid gap-4">
           <div className="text-sm text-muted-foreground">
             Rango seleccionado:{" "}

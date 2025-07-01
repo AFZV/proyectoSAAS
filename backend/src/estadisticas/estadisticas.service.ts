@@ -1,20 +1,78 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-//import { UsuarioPayload } from 'src/types/usuario-payload';
+import { UsuarioPayload } from 'src/types/usuario-payload';
 
 @Injectable()
 export class EstadisticasService {
   constructor(private prisma: PrismaService) {}
-  // async bajoStock(usuario: UsuarioPayload) {
-  //   if (!usuario) throw new Error('Usuario no encontrado');
 
-  //   const { codigo: usuarioId, empresaId, rol } = usuario;
-  // }
+  async getStats(usuario: UsuarioPayload) {
+    if (!usuario) throw new Error('Usuario no encontrado');
 
-  ///estadosticas de productos con poco movimientos
+    const { empresaId } = usuario;
 
-  // estadisticas de clientes que pasan mas de 90 dias sin comprar
-  //  ofrecer incentivos a clientes para que pidan y enviarles el catalogo
+    const ProductsLowStock = await this.prisma.$queryRaw`
+  SELECT 
+     p.id as id,
+    p.nombre,
+    p."imagenUrl",
+    p."precioCompra",
+    i."stockActual"
+  FROM "Inventario" i
+  JOIN "Producto" p ON p.id = i."idProducto"
+  WHERE 
+    i."idEmpresa" = ${empresaId}
+    AND i."stockReferenciaOinicial" > 0
+    AND i."stockActual" <= i."stockReferenciaOinicial" * 0.2
+  ORDER BY i."stockActual" ASC
+`;
+
+    const productos = await this.prisma.$queryRaw`
+    SELECT 
+      p.id,
+      p.nombre,
+      p."imagenUrl",
+      p."precioCompra",
+      COALESCE(i."stockActual", 0) AS "stockActual"
+    FROM "Producto" p
+    LEFT JOIN "Inventario" i ON i."idProducto" = p.id AND i."idEmpresa" = ${empresaId}
+    LEFT JOIN "DetallePedido" dp ON dp."productoId" = p.id
+    LEFT JOIN "Pedido" pe ON pe.id = dp."pedidoId"
+    WHERE 
+      i."idEmpresa" = ${empresaId}
+      AND (
+        pe."fechaPedido" IS NULL OR pe."fechaPedido" < NOW() - INTERVAL '30 days'
+      )
+    ORDER BY "stockActual" ASC
+  `;
+    const clientes = await this.prisma.$queryRaw`
+  SELECT 
+    cli.id,
+    cli.nit,
+    cli.nombre,
+    cli.apellidos,
+    cli."rasonZocial",
+    cli.telefono,
+    cli.ciudad,
+    cli.estado,
+    usr.nombre AS "usuario",
+    MAX(ped."fechaPedido") AS "ultimaCompra"
+  FROM "Cliente" cli
+  JOIN "ClienteEmpresa" ce ON ce."clienteId" = cli.id
+  JOIN "Usuario" usr ON usr.id = ce."usuarioId"
+  LEFT JOIN "Pedido" ped ON ped."clienteId" = cli.id AND ped."empresaId" = ${empresaId}
+  WHERE ce."empresaId" = ${empresaId}
+  GROUP BY cli.id, usr.nombre
+  HAVING MAX(ped."fechaPedido") IS NULL OR MAX(ped."fechaPedido") < NOW() - INTERVAL '90 days'
+  ORDER BY cli.nombre ASC;
+`;
+
+    return {
+      ProductsLowStock,
+      productos,
+      clientes,
+    };
+  }
 
   //productos mas vendidos
 

@@ -1,0 +1,1 @@
+export { default as ListInventariosPage } from "./ListInventario/ListInventariosPage";

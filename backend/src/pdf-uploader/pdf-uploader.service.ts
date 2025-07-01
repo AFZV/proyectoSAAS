@@ -45,7 +45,7 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   private async compileTemplates(): Promise<void> {
     try {
       await Promise.all(
-        Object.values(this.templatePaths).map((path) => fs.access(path)),
+        Object.values(this.templatePaths).map((path) => fs.access(path))
       );
 
       const [pedidoHtml, reciboHtml] = await Promise.all([
@@ -64,7 +64,7 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   }
 
   async generarPedidoPDF(
-    data: ResumenPedidoDto,
+    data: ResumenPedidoDto
   ): Promise<{ buffer: Buffer; path: string }> {
     return this.generarPDF({
       data,
@@ -74,7 +74,7 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   }
 
   async generarReciboPDF(
-    data: ResumenReciboDto,
+    data: ResumenReciboDto
   ): Promise<{ buffer: Buffer; path: string }> {
     return this.generarPDF({
       data,
@@ -111,14 +111,14 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       this.logger.error(`❌ Error generando PDF`, error);
       throw new Error(
-        `Fallo al generar PDF: ${error instanceof Error ? error.message : String(error)}`,
+        `Fallo al generar PDF: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
 
   private renderTemplate(
     tipo: 'pedido' | 'recibo',
-    data: TemplateData,
+    data: TemplateData
   ): string {
     const template = this.templates[tipo];
     if (!template) {
@@ -187,7 +187,7 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
       this.browser &&
         this.browser.isConnected() &&
         this.templates.pedido &&
-        this.templates.recibo,
+        this.templates.recibo
     );
   }
 

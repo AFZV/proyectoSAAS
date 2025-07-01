@@ -134,6 +134,7 @@ export function FormUpdateCliente({
     if (selectedDpto) {
       const fetchCiudades = async () => {
         const dptoObj = departamentos.find((d) => d.name === selectedDpto);
+        const dptoObj = departamentos.find((d) => d.name === selectedDpto);
         if (dptoObj) {
           const data = await getCiudades(String(dptoObj.id));
           setCiudades(data);
@@ -245,6 +246,7 @@ export function FormUpdateCliente({
 
     setIsUpdating(true);
 
+
     try {
       const token = await getToken();
 
@@ -318,6 +320,10 @@ export function FormUpdateCliente({
           </div>
 
           <Form {...searchForm}>
+            <form
+              onSubmit={searchForm.handleSubmit(onSearch)}
+              className="space-y-4"
+            >
             <form
               onSubmit={searchForm.handleSubmit(onSearch)}
               className="space-y-4"
@@ -398,6 +404,9 @@ export function FormUpdateCliente({
                 <span className="font-medium text-gray-600 dark:text-gray-300">
                   NIT:
                 </span>
+                <span className="font-medium text-gray-600 dark:text-gray-300">
+                  NIT:
+                </span>
                 <span className="ml-1 font-mono">{clienteActual?.nit}</span>
               </div>
               <div>
@@ -422,6 +431,10 @@ export function FormUpdateCliente({
               onSubmit={editForm.handleSubmit(onUpdate)}
               className="space-y-4"
             >
+            <form
+              onSubmit={editForm.handleSubmit(onUpdate)}
+              className="space-y-4"
+            >
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={editForm.control}
@@ -430,6 +443,11 @@ export function FormUpdateCliente({
                     <FormItem>
                       <FormLabel>NIT</FormLabel>
                       <FormControl>
+                        <Input
+                          {...field}
+                          disabled
+                          className="bg-muted cursor-not-allowed"
+                        />
                         <Input
                           {...field}
                           disabled
@@ -452,6 +470,10 @@ export function FormUpdateCliente({
                           {...field}
                           className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
+                        <Input
+                          {...field}
+                          className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -469,6 +491,10 @@ export function FormUpdateCliente({
                           {...field}
                           className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
+                        <Input
+                          {...field}
+                          className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -482,6 +508,10 @@ export function FormUpdateCliente({
                     <FormItem>
                       <FormLabel>Apellidos</FormLabel>
                       <FormControl>
+                        <Input
+                          {...field}
+                          className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                         <Input
                           {...field}
                           className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -504,6 +534,11 @@ export function FormUpdateCliente({
                           {...field}
                           className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
+                        <Input
+                          type="email"
+                          {...field}
+                          className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -521,6 +556,10 @@ export function FormUpdateCliente({
                           {...field}
                           className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
+                        <Input
+                          {...field}
+                          className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -534,6 +573,10 @@ export function FormUpdateCliente({
                     <FormItem>
                       <FormLabel>Departamento</FormLabel>
                       <FormControl>
+                        <select
+                          {...field}
+                          className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-background"
+                        >
                         <select
                           {...field}
                           className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-background"
@@ -562,6 +605,10 @@ export function FormUpdateCliente({
                           {...field}
                           className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-background"
                         >
+                        <select
+                          {...field}
+                          className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-background"
+                        >
                           <option value="">Seleccione una ciudad</option>
                           {ciudades.map((ciudad) => (
                             <option key={ciudad.id} value={ciudad.name}>
@@ -581,6 +628,10 @@ export function FormUpdateCliente({
                   type="submit"
                   className="px-8 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
                 >
+                <Button
+                  type="submit"
+                  className="px-8 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+                >
                   <Edit3 className="w-4 h-4 mr-2" />
                   Actualizar Cliente
                 </Button>
@@ -592,3 +643,4 @@ export function FormUpdateCliente({
     </div>
   );
 }
+

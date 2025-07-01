@@ -1,23 +1,32 @@
-"use client";
 import React from "react";
-import { HeaderPanels } from "@/components/HeaderPanels";
-import { FormCrearEmpresa } from "../components/FormCrearEmpresa";
+import { HeaderEmpresa } from "./components/HeaderEmpresa";
+import ListEmpresasPage from "./components/ListEmpresas/ListEmpresas";
+import { redirect } from "next/navigation";
+import { getToken } from "@/lib/getToken";
 
-export default function EmpresasPage() {
+export default async function EmpresasPage() {
+  const token = await getToken();
+  const userLogged = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/auth/superadmin`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  if (!userLogged.ok) {
+    redirect("/");
+  }
+  const usuario = await userLogged.json();
+
+  const rol = usuario.rol;
+  const superadmin = rol === "superadmin" ? rol : null;
   return (
-    <div>
-      <div className="pb-10 mb-10">
-        <HeaderPanels
-          title="Panel de Empresas"
-          buttonLabel="Crear Empresa"
-          dialogTitle="Crear Empresa"
-          dialogDescription="Crear Una Nueva Empresa"
-        >
-          {(setOpenModalCreate) => (
-            <FormCrearEmpresa setOpenModalCreate={setOpenModalCreate} />
-          )}
-        </HeaderPanels>
+    superadmin && (
+      <div>
+        <HeaderEmpresa />
+        <ListEmpresasPage />
       </div>
-    </div>
+    )
   );
 }

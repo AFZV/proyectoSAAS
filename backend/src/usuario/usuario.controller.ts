@@ -16,8 +16,11 @@ import { UpdateUsuarioAdminDto } from './dto/update-usuarioadmin.dto';
 import { SuperadminGuard } from 'src/common/guards/superadmin.guard';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
 
-@UseGuards(SuperadminGuard)
+@UseGuards(SuperadminGuard, RolesGuard)
+@Roles('superadmin')
 @Controller('usuario')
 export class UsuarioController {
   constructor(private readonly usuarioService: UsuarioService) {}
@@ -25,7 +28,7 @@ export class UsuarioController {
   @Post('admin')
   crearSuperAdmin(
     @Body() data: CreateSuperadminDto,
-    @Req() req: UsuarioRequest,
+    @Req() req: UsuarioRequest
   ) {
     return this.usuarioService.createSuperAdmin(data, req.usuario.empresaId);
   }
@@ -33,7 +36,7 @@ export class UsuarioController {
   @Patch('admin/:id')
   actualizarAdmin(
     @Param('id') id: string,
-    @Body() data: UpdateUsuarioAdminDto,
+    @Body() data: UpdateUsuarioAdminDto
   ) {
     return this.usuarioService.actualizarAdmin(id, data);
   }
@@ -41,6 +44,12 @@ export class UsuarioController {
   @Get('admin')
   obtenerUsuarios() {
     return this.usuarioService.obtenerSuperAdmins();
+  }
+
+  @Get('resumen')
+  getResumen(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return this.usuarioService.getResumen(usuario);
   }
 
   //estado actualiza el estado de cualquier usuario
@@ -54,22 +63,28 @@ export class UsuarioController {
     return this.usuarioService.crearUsuario(data);
   }
   ///actualiza un usuario se hace aparte porque se puede cambiar de empresa
-  @Patch(':id')
+  @Patch('update-id/:id')
   actualizarUsuarioEmpresa(
     @Body() data: UpdateUsuarioDto,
-    @Param('id') id: string,
+    @Param('id') id: string
   ) {
     return this.usuarioService.actualizarUsuarioEmpresa(data, id);
   }
   //obtener todos los usuarios
   @Get('all')
-  getUsuarioConEmpresa() {
-    return this.usuarioService.obtenerTodosUsuarios();
+  getUsuarioConEmpresa(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return this.usuarioService.obtenerTodosUsuarios(usuario);
   }
 
-  @Get(':userId')
+  @Get('porId/:userId')
   getUsuario(@Param('userId') userId: string) {
     return this.usuarioService.obtenerUsuarioPorId(userId);
+  }
+
+  @Get('correo/:correo')
+  getByEmail(@Param('correo') correo: string) {
+    return this.usuarioService.getByEmail(correo);
   }
 
   @Get('empresa/:empresaId')

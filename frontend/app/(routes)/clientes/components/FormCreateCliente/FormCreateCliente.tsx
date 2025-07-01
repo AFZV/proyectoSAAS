@@ -27,7 +27,7 @@ import { FormCreateClienteProps } from "./FormCreateCliente.type";
 
 const formSchema = z.object({
   nit: z.string().min(2).max(10),
-  rasonZocial: z.string().min(2).max(50).optional(),
+  razonSocial: z.string().min(2).max(50).optional(),
   nombre: z.string().min(2).max(50),
   apellidos: z.string().min(2).max(50),
   direccion: z.string().min(10).max(50),
@@ -159,7 +159,7 @@ export function FormCreateCliente(props: FormCreateClienteProps) {
 
       const clientePayload = {
         nit: values.nit,
-        rasonZocial: "CLIENTE PRUEBA ABZD",
+        rasonZocial: values.razonSocial,
         nombre: values.nombre,
         apellidos: values.apellidos,
         direccion: values.direccion,
@@ -215,6 +215,7 @@ export function FormCreateCliente(props: FormCreateClienteProps) {
             {(
               [
                 "nit",
+                "razonSocial",
                 "nombre",
                 "apellidos",
                 "telefono",

@@ -8,6 +8,12 @@ datasource db {
   relationMode = "foreignKeys"
 }
 
+enum OrigenMovimientoEnum {
+  PEDIDO
+  RECIBO
+  AJUSTE_MANUAL
+}
+
 model Empresa {
   id               String             @id @default(uuid())
   nit              String             @unique
@@ -34,6 +40,7 @@ model Empresa {
   inventario Inventario[]
   movimientoInventario MovimientoInventario[]
   categorias CategoriasProducto[]
+  proveedoresEmpresa ProveedorEmpresa[]
 
 }
 
@@ -112,6 +119,7 @@ model Producto {
   fechaCreado      DateTime @default(now())
   fechaActualizado DateTime @updatedAt
   estado String @db.Text
+  manifiestoUrl     String?   @db.Text // ← NUEVO CAMPO OPCIONAL
 
   empresaId   String
   empresa     Empresa  @relation(fields: [empresaId], references: [id])
@@ -190,10 +198,10 @@ model Proveedores {
   razonsocial String @db.Text
   telefono String @db.Text
   direccion String @db.Text
-  idEmpresa String
+  idEmpresa String  /// esta se va 
 
 
- empresa Empresa @relation(fields: [idEmpresa],references: [id])
+ empresa Empresa @relation(fields: [idEmpresa],references: [id])// esta se va 
   compras Compras[]
   proveedorEmpresa ProveedorEmpresa[]
 }
@@ -201,8 +209,10 @@ model Proveedores {
 model ProveedorEmpresa {
   idProveedorEmpresa String @id @default(uuid())
   proveedorId String
+  empresaId String
 
   proveedor Proveedores @relation(fields: [proveedorId],references: [idProveedor])
+  empresa Empresa @relation(fields: [empresaId],references: [id])
 
 
   
@@ -258,6 +268,7 @@ model Pedido {
   flete         Float?           @default(0) @db.DoublePrecision 
   guiaTransporte String?         @db.Text                        
   empresaId String
+  pdfUrl     String?   @db.Text // ← NUEVO CAMPO OPCIONAL
 
 
 empresa Empresa @relation(fields: [empresaId],references: [id])
@@ -314,6 +325,7 @@ model MovimientoInventario {
   idCompra String ?
   observacion             String? @db.Text // <- nuevo campo para ajustes manuales
 
+
   compra Compras? @relation(fields: [idCompra],references: [idCompra])
   pedido Pedido? @relation(fields: [IdPedido],references: [id])
   empresa Empresa @relation(fields: [idEmpresa],references: [id])
@@ -350,7 +362,8 @@ model MovimientosCartera {
   empresaId String
   idPedido String?
   idRecibo String?
-  observacion             String? @db.Text // <- nuevo campo para ajustes manuales
+  observacion             String? @db.Text // 
+  tipoMovimientoOrigen OrigenMovimientoEnum? //<- nuevo campo para ajustes manuales
 
 
 empresa Empresa @relation(fields: [empresaId],references: [id])

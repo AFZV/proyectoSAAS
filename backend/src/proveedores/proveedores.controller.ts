@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -29,17 +30,39 @@ export class ProveedoresController {
   }
 
   ///
-  @Get()
+  @Get('all')
   obtenerProveedoresPorEmpresa(@Req() req: UsuarioRequest) {
     const empresaId = req.usuario.empresaId;
+    if (!empresaId)
+      throw new BadRequestException('no es posible esta peticion');
     return this.proveedoresService.obtenerProveedores(empresaId);
+  }
+  @Get('summary')
+  getResume(@Req() req: UsuarioRequest) {
+    console.log('llego al backend .......................');
+    const usuario = req.usuario;
+    return this.proveedoresService.getResumen(usuario);
+  }
+  @Get('getbyid/:proveedorId')
+  getById(
+    @Param('proveedorId') proveedorId: string,
+    @Req() req: UsuarioRequest
+  ) {
+    console.log('llego al backend id:', proveedorId);
+    const usuario = req.usuario;
+    return this.proveedoresService.getProveedorById(usuario, proveedorId);
   }
 
   @Patch(':proveedorId')
   actualizarProveedor(
     @Param('proveedorId') proveedorId: string,
     @Body() data: UpdateProveedorDto,
+    @Req() req: UsuarioRequest
   ) {
-    return this.proveedoresService.actualizarProveedorId(proveedorId, data);
+    return this.proveedoresService.actualizarProveedorId(
+      proveedorId,
+      data,
+      req.usuario
+    );
   }
 }

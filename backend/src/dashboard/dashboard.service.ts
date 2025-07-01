@@ -327,7 +327,11 @@ export class DashboardService {
         ? totalActualCobros > 0
           ? 100
           : 0
-        : Math.round(((totalActualCobros - totalAnteriorCobros) / totalAnteriorCobros) * 100 * 100) / 100;  
+        : Math.round(
+            ((totalActualCobros - totalAnteriorCobros) / totalAnteriorCobros) *
+              100 *
+              100
+          ) / 100;
 
     // console.log(`🟢 cobros actuales: ${totalActualCobros}`);
     // console.log(`🔵 cobros anteriores: ${totalAnteriorCobros}`);
@@ -420,6 +424,7 @@ export class DashboardService {
       totalClientes,
       totalValorRecibos,
       totalVentas,
+      operacionesActual: operacionesActual._count,
 
       variaciones: {
         variacionPorcentualVentas,

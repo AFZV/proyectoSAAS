@@ -1,6 +1,7 @@
+import { ro } from "date-fns/locale";
+import { HeaderCartera } from "../cartera/components/HeaderCartera";
 import { HeaderRecaudos } from "./(components)/HeaderRecaudos";
 import { ListRecaudos } from "./(components)/ListRecaudos";
-import { auth } from "@clerk/nextjs/server";
 import NoDisponible from "@/components/NoDisponible/NoDisponible";
 import { getToken } from "@/lib/getToken";
 
@@ -9,7 +10,7 @@ export default async function RecaudosPage() {
 
   if (!token) return <NoDisponible />;
 
-  const res = await fetch(
+  const userRes = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/auth/usuario-actual`,
     {
       headers: {
@@ -19,23 +20,39 @@ export default async function RecaudosPage() {
     }
   );
 
-  if (!res.ok) {
-    console.error("❌ Error en la respuesta del backend");
+  if (!userRes.ok) {
     return <NoDisponible />;
   }
 
-  let usuario;
-  try {
-    usuario = await res.json();
-  } catch (err) {
-    console.error("❌ Error al parsear JSON:", err);
-    return <NoDisponible />;
-  }
+  const usuario = await userRes.json();
+  const rol = usuario.rol; // ← aquí sí tienes acceso a `rol`
+
+  // Obtener recibos
+  const dataRes = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/recibos/all`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await dataRes.json();
+
+  // Obtener stats
+  const statsRes = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/recibos/getStats/summary`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  const stats = await statsRes.json();
+  console.log("debugPedidos desde backend:", stats.debugPedidos);
 
   return (
     <div className="min-h-screen bg-background text-foreground px-4 py-6">
-      <HeaderRecaudos user={usuario.rol} />
-      <ListRecaudos />
+      <HeaderRecaudos rol={rol} stats={stats} />
+      <ListRecaudos data={data} />
     </div>
   );
 }

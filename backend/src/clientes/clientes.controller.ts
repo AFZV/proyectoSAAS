@@ -24,7 +24,7 @@ export class ClienteController {
   @Post()
   async crearCliente(
     @Body() body: CreateClienteDto,
-    @Req() req: UsuarioRequest,
+    @Req() req: UsuarioRequest
   ) {
     const usuario = req.usuario;
     return await this.clienteService.crearCliente(body, usuario);
@@ -44,21 +44,30 @@ export class ClienteController {
   }
 
   @Roles('admin', 'vendedor')
-  @Get(':filtro')
+  @Get('getByFilter/:filtro')
   async getClientePorNit(
     @Param('filtro') filtro: string,
-    @Req() req: UsuarioRequest,
+    @Req() req: UsuarioRequest
   ) {
     const usuario = req.usuario;
+    console.log('nit recibido en backend:', filtro);
     if (!usuario) throw new UnauthorizedException('Usuario requerido');
     return this.clienteService.getClientesPorFiltro(filtro, usuario);
   }
 
+  @Roles('admin', 'vendedor')
+  @Get('getByNit/:nit')
+  getByNiT(@Param('nit') nit: string, @Req() req: UsuarioRequest) {
+    console.log('nit que llega al backend:', nit);
+    if (!req.usuario) throw new UnauthorizedException('Usuario requerido');
+    const usuario = req.usuario;
+    return this.clienteService.getClientePorNit(nit, usuario);
+  }
   @Roles('admin')
   @Patch(':idCliente')
   async actualizarCliente(
     @Param('idCliente') idCliente: string,
-    @Body() data: UpdateClienteDto,
+    @Body() data: UpdateClienteDto
   ) {
     return await this.clienteService.actualizarCliente(data, idCliente);
   }
