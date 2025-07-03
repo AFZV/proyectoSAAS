@@ -87,68 +87,89 @@ export class InventarioService {
 
   //Obtener  todos los movimientos de inventario de un producto
 
-  async getMovimientosproduc(productoId: string, usuario: UsuarioPayload) {
-    try {
-      const movimientos = await this.prisma.movimientoInventario.findMany({
-        where: {
-          idProducto: productoId,
-          idEmpresa: usuario.empresaId,
-        },
-        select: {
-          // Campos propios del movimiento
-          cantidadMovimiendo: true,
-          fechaMovimiento: true,
-          observacion: true,
-
-          // Relación con tipoMovimiento
-          tipoMovimiento: {
-            select: { tipo: true },
-          },
-
-          // Relación con usuario
-          usuario: {
-            select: { nombre: true, apellidos: true },
-          },
-
-          // Relación con producto, anidando luego el inventario
-          producto: {
-            select: {
-              nombre: true,
-              precioCompra: true,
-              inventario: {
-                select: {
-                  stockReferenciaOinicial: true,
-                  stockActual: true,
-                },
+  async getMovimientosproduc(
+  productoId: string,
+  usuario: UsuarioPayload
+): Promise<MovimientoInventarioDto[]> {
+  try {
+    const movimientos = await this.prisma.movimientoInventario.findMany({
+      where: {
+        idProducto: productoId,
+        idEmpresa: usuario.empresaId,
+      },
+      select: {
+        IdPedido: true,
+        cantidadMovimiendo: true,
+        fechaMovimiento: true,
+        observacion: true,
+        tipoMovimiento: { select: { tipo: true } },
+        usuario: { select: { nombre: true, apellidos: true } },
+        producto: {
+          select: {
+            nombre: true,
+            precioCompra: true,
+            inventario: {
+              select: {
+                stockReferenciaOinicial: true,
+                stockActual: true,
               },
             },
           },
         },
-        orderBy: {
-          fechaMovimiento: 'desc',
-        },
-      });
+      },
+      orderBy: { fechaMovimiento: 'asc' },
+    });
 
-      return movimientos.map( (m): MovimientoInventarioDto => ({
-          tipoMovimiento: m.tipoMovimiento.tipo,
-          nombreProducto: m.producto.nombre,
-          precioCompra: m.producto.precioCompra,
-          usuario: `${m.usuario.nombre} ${m.usuario.apellidos}`,
-          cantidadMovimiendo: m.cantidadMovimiendo,
-          stockInicial:
-            m.producto.inventario?.[0]?.stockReferenciaOinicial ?? 0,
-          stockActual: m.producto.inventario?.[0]?.stockActual ?? 0,
-          fecha: m.fechaMovimiento,
-          observacion: m.observacion || null,
-        })
-      );
-    } catch (error) {
-      console.error('Error interno al obtener movimientos:', error);
-      throw new InternalServerErrorException(
-        'Error al obtener los movimientos de inventario'
-      );
+    if (movimientos.length === 0) {
+      return [];
     }
+
+    // Tomamos el stockActual de la primera fila como base
+    const baseStock =
+      movimientos[0].producto.inventario?.[0]?.stockActual ?? 0;
+
+    // Mapeamos y calculamos la nueva observación en función del tipo
+    const mapped = movimientos.map((m) => {
+      const tipo = m.tipoMovimiento.tipo.toUpperCase();
+      const esSalida = tipo === 'SALIDA';
+
+      // Si es SALIDA, sobrescribimos la observación
+      const observacionFinal = esSalida
+        ? ` pedido con id ${m.IdPedido}`
+        : m.observacion || null;
+
+      // calculamos un stock “virtual” (opcional)
+      const stockCalc = esSalida
+        ? baseStock - m.cantidadMovimiendo
+        : baseStock + m.cantidadMovimiendo;
+
+      return {
+        tipoMovimiento: tipo,
+        idPedido: m.IdPedido || null,
+        nombreProducto: m.producto.nombre,
+        precioCompra: m.producto.precioCompra,
+        usuario: `${m.usuario.nombre} ${m.usuario.apellidos}`,
+        cantidadMovimiendo: m.cantidadMovimiendo,
+        stockInicial: baseStock,
+        stockActual: m.producto.inventario?.[0]?.stockActual ?? 0,
+        fecha: m.fechaMovimiento,
+        observacion: observacionFinal,
+        stock: stockCalc,
+      } as MovimientoInventarioDto;
+    });
+
+    // devolvemos en orden cronológico inverso (opcional)
+    return mapped.reverse();
+  } catch (error) {
+    console.error('Error interno al obtener movimientos:', error);
+    throw new InternalServerErrorException(
+      'Error al obtener los movimientos de inventario'
+    );
   }
+}
+
+
+
 
 /**
    * Ajuste manual de inventario: ENTRADA o SALIDA
@@ -210,7 +231,7 @@ export class InventarioService {
           },
           include: {
             tipoMovimiento: { select: { tipo: true } },
-            usuario:          { select: { nombre: true, apellidos: true } },
+            usuario: { select: { nombre: true, apellidos: true } },
             producto: {
               select: {
                 nombre: true,

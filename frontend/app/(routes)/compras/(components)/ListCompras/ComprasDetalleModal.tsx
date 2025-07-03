@@ -476,10 +476,7 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
                           <div className="text-right">
                             <div className="text-sm text-gray-600">
                               <span className="font-medium">Cantidad:</span> {prod.cantidad?.toLocaleString() || 0}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              <span className="font-medium">Movimiento:</span> {prod.cantidadMovimiendo?.toLocaleString() || 0}
-                            </div>
+                            </div>                            
                           </div>
                         </div>
                       </div>
@@ -492,18 +489,14 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
             {compra.productos && compra.productos.length > 0 && (
               <div className="mt-6 pt-4 border-t">
                 <div className="flex justify-between text-sm font-medium">
-                  <span>Total Cantidad:</span>
+                  <span>Total Cantidades Compradas:</span>
                   <span>
                     {isEditing 
                       ? editingProducts.reduce((sum, p) => sum + p.cantidad, 0).toLocaleString()
                       : compra.productos.reduce((sum, p) => sum + (p.cantidad || 0), 0).toLocaleString()
                     }
                   </span>
-                </div>
-                <div className="flex justify-between text-sm font-medium">
-                  <span>Total Movimiento:</span>
-                  <span>{compra.productos.reduce((sum, p) => sum + (p.cantidadMovimiendo || 0), 0).toLocaleString()}</span>
-                </div>
+                </div>                
               </div>
             )}
           </div>

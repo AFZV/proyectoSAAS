@@ -14,6 +14,8 @@ import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { Loader2, X, Download, Filter, FileSpreadsheet } from "lucide-react";
 import * as XLSX from 'xlsx';
+import { ArrowUp, ArrowDown } from "lucide-react";
+
 
 interface Movimiento {
   tipoMovimiento: string;
@@ -363,14 +365,26 @@ export function InventarioDetalleModal({
                           <td className="px-4 py-3 text-sm text-gray-900 text-center">
                             $ {m.precioCompra.toLocaleString("es-CO")}
                           </td>
-                          <td className="px-4 py-3 text-sm font-medium text-center">
-                            <span className={m.cantidadMovimiendo > 0 ? "text-green-600" : "text-red-600"}>
-                              {m.cantidadMovimiendo > 0 ? "+" : ""}
-                              {m.cantidadMovimiendo.toLocaleString("es-CO")}
-                            </span>
-                          </td>
+                      <td className="px-4 py-3 text-sm font-medium text-center flex items-center justify-center space-x-1">
+  {m.tipoMovimiento.toLowerCase().includes("salida") ? (
+    <>
+      <span className="text-red-600 font-bold">–</span>
+      <span className="text-red-600">
+        {m.cantidadMovimiendo.toLocaleString("es-CO")}
+      </span>
+    </>
+  ) : (
+    <>
+      <span className="text-green-600 font-bold">+</span>
+      <span className="text-green-600">
+        {m.cantidadMovimiendo.toLocaleString("es-CO")}
+      </span>
+    </>
+  )}
+</td>
+
                           <td className="px-4 py-3 text-sm text-gray-900 text-left">
-                            {(m.stockActual || 0).toLocaleString("es-CO")}
+                            {(m.stock || 0).toLocaleString("es-CO")}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {m.usuario}
