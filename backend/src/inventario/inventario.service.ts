@@ -87,16 +87,14 @@ export class InventarioService {
 
   //Obtener  todos los movimientos de inventario de un producto
 
-  async getMovimientosproduc(
+async getMovimientosproduc(
   productoId: string,
   usuario: UsuarioPayload
 ): Promise<MovimientoInventarioDto[]> {
   try {
+    // 1) Traemos movimientos ordenados cronológicamente
     const movimientos = await this.prisma.movimientoInventario.findMany({
-      where: {
-        idProducto: productoId,
-        idEmpresa: usuario.empresaId,
-      },
+      where: { idProducto: productoId, idEmpresa: usuario.empresaId },
       select: {
         IdPedido: true,
         cantidadMovimiendo: true,
@@ -110,65 +108,59 @@ export class InventarioService {
             precioCompra: true,
             inventario: {
               select: {
-                stockReferenciaOinicial: true,
+                // lo seguimos trayendo sólo para el header (stockActual)
                 stockActual: true,
               },
             },
           },
         },
       },
-      orderBy: { fechaMovimiento: 'asc' },
+      orderBy: { fechaMovimiento: "asc" },
     });
 
-    if (movimientos.length === 0) {
-      return [];
-    }
+    if (movimientos.length === 0) return [];
 
-    // Tomamos el stockActual de la primera fila como base
-    const baseStock =
-      movimientos[0].producto.inventario?.[0]?.stockActual ?? 0;
+    // 2) Arrancamos en cero
+    const stockInicial = 0;
+    let runningStock = 0;
 
-    // Mapeamos y calculamos la nueva observación en función del tipo
-    const mapped = movimientos.map((m) => {
-      const tipo = m.tipoMovimiento.tipo.toUpperCase();
-      const esSalida = tipo === 'SALIDA';
+    // 3) Mapeamos y vamos acumulando
+    const mapped: MovimientoInventarioDto[] = movimientos
+      .map((m) => {
+        const tipo = m.tipoMovimiento.tipo.toUpperCase();
+        const delta = m.cantidadMovimiendo;
 
-      // Si es SALIDA, sobrescribimos la observación
-      const observacionFinal = esSalida
-        ? ` pedido con id ${m.IdPedido}`
-        : m.observacion || null;
+        // acumulamos + para ENTRADA, − para SALIDA
+        runningStock += tipo === "SALIDA" ? -delta : delta;
 
-      // calculamos un stock “virtual” (opcional)
-      const stockCalc = esSalida
-        ? baseStock - m.cantidadMovimiendo
-        : baseStock + m.cantidadMovimiendo;
+        return {
+          tipoMovimiento: tipo,
+          idPedido: m.IdPedido || null,
+          nombreProducto: m.producto.nombre,
+          precioCompra: m.producto.precioCompra,
+          usuario: `${m.usuario.nombre} ${m.usuario.apellidos}`,
+          cantidadMovimiendo: delta,
+          // siempre 0 en la columna inicial
+          stockInicial,
+          // para el header seguimos usando el stockActual real
+          stockActual: m.producto.inventario?.[0]?.stockActual ?? 0,
+          fecha: m.fechaMovimiento,
+          observacion: m.observacion || null,
+          // aquí el valor «kardex» en ese momento
+          stock: runningStock,
+        };
+      })
+      // 4) invertimos para mostrar primero lo más reciente
+      .reverse();
 
-      return {
-        tipoMovimiento: tipo,
-        idPedido: m.IdPedido || null,
-        nombreProducto: m.producto.nombre,
-        precioCompra: m.producto.precioCompra,
-        usuario: `${m.usuario.nombre} ${m.usuario.apellidos}`,
-        cantidadMovimiendo: m.cantidadMovimiendo,
-        stockInicial: baseStock,
-        stockActual: m.producto.inventario?.[0]?.stockActual ?? 0,
-        fecha: m.fechaMovimiento,
-        observacion: observacionFinal,
-        stock: stockCalc,
-      } as MovimientoInventarioDto;
-    });
-
-    // devolvemos en orden cronológico inverso (opcional)
-    return mapped.reverse();
+    return mapped;
   } catch (error) {
-    console.error('Error interno al obtener movimientos:', error);
+    console.error("Error interno al obtener movimientos:", error);
     throw new InternalServerErrorException(
-      'Error al obtener los movimientos de inventario'
+      "Error al obtener los movimientos de inventario"
     );
   }
 }
-
-
 
 
 /**
