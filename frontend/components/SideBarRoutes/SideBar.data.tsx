@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Wallet,
   BanknoteIcon,
+  WarehouseIcon,
 } from "lucide-react";
 
 export const dataGeneralSideBar = [
@@ -36,7 +37,7 @@ export const dataFacturacionSidebar = [
     icon: CreditCard,
     label: "Compras",
     href: "/compras",
-  }
+  },
 ];
 
 export const dataCuentasPorCobrarSideBar = [
@@ -73,6 +74,11 @@ export const dataClienteSideBar = [
     icon: Users,
     label: "Clientes",
     href: "/clientes",
+  },
+  {
+    icon: WarehouseIcon,
+    label: "Proveedores",
+    href: "proveedores",
   },
 ];
 

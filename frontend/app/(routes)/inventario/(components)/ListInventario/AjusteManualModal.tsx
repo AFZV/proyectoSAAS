@@ -56,24 +56,24 @@ export function AjusteManualModal({
   // Cargar tipos de movimiento
   useEffect(() => {
     if (!open) return;
-    
+
     const cargarTipos = async () => {
       try {
         const token = await getToken();
         if (!token) throw new Error("No se obtuvo token");
-        
+
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/inventario/tiposmov`,
-          { 
-            headers: { 
-              "Content-Type": "application/json", 
-              Authorization: `Bearer ${token}` 
-            } 
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
           }
         );
-        
+
         if (!res.ok) throw new Error("Error en la respuesta");
-        
+
         const data = await res.json();
         setTipos(Array.isArray(data.tiposmov) ? data.tiposmov : []);
       } catch (err) {
@@ -87,7 +87,7 @@ export function AjusteManualModal({
 
   const handleSubmit = async () => {
     if (!tipoSeleccionado || cantidad <= 0) return;
-    
+
     setLoading(true);
     try {
       const token = await getToken();
@@ -111,7 +111,7 @@ export function AjusteManualModal({
       onClose();
     } catch (error) {
       console.error("Error al ajustar inventario:", error);
-      alert('Error al realizar el ajuste. Inténtalo de nuevo.');
+      alert("Error al realizar el ajuste. Inténtalo de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -131,12 +131,12 @@ export function AjusteManualModal({
   };
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onOpenChange={handleOpenChange}
       modal={true} // Forzar modalidad
     >
-      <DialogContent 
+      <DialogContent
         className="max-w-md"
         onPointerDownOutside={(e) => {
           if (loading) e.preventDefault();
@@ -148,7 +148,7 @@ export function AjusteManualModal({
         <DialogHeader>
           <DialogTitle>Ajuste Manual de Inventario</DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4">
           {/* Información del producto */}
           <div className="bg-gray-50 p-3 rounded-lg">
@@ -181,7 +181,10 @@ export function AjusteManualModal({
             >
               <option value="">Selecciona tipo</option>
               {tipos.map((tipo) => (
-                <option key={tipo.idTipoMovimiento} value={tipo.idTipoMovimiento}>
+                <option
+                  key={tipo.idTipoMovimiento}
+                  value={tipo.idTipoMovimiento}
+                >
                   {tipo.tipo}
                 </option>
               ))}
@@ -207,11 +210,7 @@ export function AjusteManualModal({
 
           {/* Botones */}
           <div className="flex justify-end space-x-2 pt-4">
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              disabled={loading}
-            >
+            <Button variant="outline" onClick={handleClose} disabled={loading}>
               Cancelar
             </Button>
             <Button

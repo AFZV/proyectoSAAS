@@ -278,9 +278,22 @@ export class PedidosService {
       include: {
         cliente: true,
         usuario: true,
-        productos: true,
+        productos: {
+          include: {
+            producto: true, // ✅ Incluir información del producto
+          },
+        },
+        estados: {
+          orderBy: {
+            fechaEstado: 'desc', // ✅ Ordenar estados por fecha
+          },
+        },
+      },
+      orderBy: {
+        fechaPedido: 'desc', // ✅ Ordenar pedidos por fecha más reciente
       },
     });
+
     return pedidos;
   }
   ////////////////////////////////////////////////////////////////

@@ -41,32 +41,35 @@ export function CarrouselProducts({
   }
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <h2 className="text-center text-lg font-semibold mb-4">{titulo}</h2>
+    <div className="w-full max-w-md mx-auto px-2">
+      <h2 className="text-center text-xl font-bold text-primary mb-4 text-balance">
+        {titulo}
+      </h2>
 
       <Carousel setApi={setApi} className="w-full">
         <CarouselContent>
           {productos.map((producto) => (
             <CarouselItem key={producto.id} className="basis-full">
-              <Card className="h-full">
-                <CardContent className="flex flex-col items-center justify-center p-6 space-y-4 min-h-[360px]">
-                  <div className="w-full h-full overflow-hidden rounded-md">
+              <Card className="h-full shadow-lg border-none rounded-2xl transition hover:scale-[1.01]">
+                <CardContent className="flex flex-col items-center justify-between p-6 space-y-4 min-h-[380px]">
+                  <div className="w-full h-48 overflow-hidden rounded-xl bg-gray-100">
                     <img
                       src={producto.imagenUrl}
                       alt={producto.nombre}
-                      className="w-full h-full object-cover "
+                      className="w-full h-full object-cover transition duration-300 ease-in-out hover:scale-105"
                     />
                   </div>
-                  <p className="text-base font-semibold text-center">
-                    {producto.nombre}
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    Stock: {producto.stockActual}
-                  </p>
-                  <p className="text-base text-green-700 font-medium">
-                    Precio Compra $
-                    {producto.precioCompra.toLocaleString("es-CO")}
-                  </p>
+                  <div className="text-center space-y-1">
+                    <p className="text-lg font-semibold text-foreground">
+                      {producto.nombre}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Stock: {producto.stockActual}
+                    </p>
+                    <p className="text-base font-bold text-green-600">
+                      $ {producto.precioCompra.toLocaleString("es-CO")}
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             </CarouselItem>

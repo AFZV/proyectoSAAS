@@ -24,18 +24,17 @@ import { Search, RefreshCw, User, Edit3, AlertCircle } from "lucide-react";
 import { getDepartamentos } from "@/lib/getDepartamentos";
 import { getCiudades } from "@/lib/getCiudades";
 import { Loading } from "@/components/Loading";
-import { FormUpdateClienteProps } from "./FormUpdateCliente.type";
 
 const searchSchema = z.object({
   searchTerm: z.string().min(1, "Ingrese NIT o nombre para buscar"),
 });
 
 const formSchema = z.object({
-  nit: z.string().min(2).max(10),
+  nit: z.string().min(2).max(20),
   nombre: z.string().min(2).max(50),
   apellidos: z.string().min(2).max(50),
-  direccion: z.string().min(10).max(50),
-  telefono: z.string().min(1).max(10),
+  direccion: z.string().min(10).max(100),
+  telefono: z.string().min(1).max(15),
   email: z.string().email("Correo inválido").max(50).optional(),
   departamento: z.string().min(1),
   ciudad: z.string().min(1),
@@ -52,25 +51,38 @@ interface Ciudad {
 }
 
 interface Cliente {
+  id?: string;
   nit: string;
   nombre: string;
   apellidos: string;
-  direccion: string;
+  direccion?: string;
   telefono: string;
   email?: string;
-  departamento: string;
+  departamento?: string;
   ciudad: string;
-  estado: boolean;
+  estado?: boolean;
 }
 
-export function FormUpdateCliente(props: FormUpdateClienteProps) {
-  const { setOpenModalUpdate } = props;
+interface FormUpdateClienteProps {
+  setOpenModalUpdate: (open: boolean) => void;
+  clienteInicial?: Cliente;
+  onSuccess?: () => void;
+}
 
+export function FormUpdateCliente({
+  setOpenModalUpdate,
+  clienteInicial,
+  onSuccess,
+}: FormUpdateClienteProps) {
   // Estados principales
-  const [step, setStep] = useState<"search" | "edit" | "demo">("search");
+  const [step, setStep] = useState<"search" | "edit">(
+    clienteInicial ? "edit" : "search"
+  );
   const [isSearching, setIsSearching] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [clienteActual, setClienteActual] = useState<Cliente | null>(null);
+  const [clienteActual, setClienteActual] = useState<Cliente | null>(
+    clienteInicial || null
+  );
 
   // Estados para ubicación
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
@@ -94,12 +106,33 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
   // Cargar departamentos al iniciar
   useEffect(() => {
     async function fetchDepartamentos() {
-      const res = await getDepartamentos();
-      const data = await res.json();
-      setDepartamentos(data);
+      try {
+        const res = await getDepartamentos();
+        const data = await res.json();
+        setDepartamentos(data);
+      } catch (error) {
+        console.error("Error al cargar departamentos:", error);
+      }
     }
     fetchDepartamentos();
   }, []);
+
+  // Si hay cliente inicial, llenar el formulario
+  useEffect(() => {
+    if (clienteInicial) {
+      editForm.reset({
+        nit: clienteInicial.nit,
+        nombre: clienteInicial.nombre,
+        apellidos: clienteInicial.apellidos,
+        direccion: clienteInicial.direccion || "",
+        telefono: clienteInicial.telefono,
+        email: clienteInicial.email || "",
+        departamento: clienteInicial.departamento || "",
+        ciudad: clienteInicial.ciudad,
+      });
+      setStep("edit");
+    }
+  }, [clienteInicial, editForm]);
 
   // Cargar ciudades cuando cambia departamento
   useEffect(() => {
@@ -108,8 +141,12 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
       const fetchCiudades = async () => {
         const dptoObj = departamentos.find((d) => d.name === selectedDpto);
         if (dptoObj) {
-          const data = await getCiudades(String(dptoObj.id));
-          setCiudades(data);
+          try {
+            const data = await getCiudades(String(dptoObj.id));
+            setCiudades(data);
+          } catch (error) {
+            console.error("Error al cargar ciudades:", error);
+          }
         }
       };
       fetchCiudades();
@@ -118,126 +155,155 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
     }
   }, [editForm.watch("departamento"), departamentos]);
 
-  // Función para mostrar demo del formulario
-  const showDemo = () => {
-    const clienteDemo: Cliente = {
-      nit: "12345678",
-      nombre: "Juan Carlos",
-      apellidos: "Pérez González",
-      direccion: "Calle 123 #45-67",
-      telefono: "3012345678",
-      email: "juan.perez@email.com",
-      departamento: "Valle del Cauca",
-      ciudad: "Cali",
-      estado: true,
-    };
-
-    setClienteActual(clienteDemo);
-    editForm.reset({
-      nit: clienteDemo.nit,
-      nombre: clienteDemo.nombre,
-      apellidos: clienteDemo.apellidos,
-      direccion: clienteDemo.direccion,
-      telefono: clienteDemo.telefono,
-      email: clienteDemo.email || "",
-      departamento: clienteDemo.departamento,
-      ciudad: clienteDemo.ciudad,
-    });
-
-    setStep("demo");
-    toast({
-      title: "Modo Demo Activado",
-      description: "Este es un ejemplo de cómo se ve el formulario de edición",
-    });
-  };
-
-  // Buscar cliente
+  // 🔍 BUSCAR CLIENTE - CORREGIDO CON ENDPOINT CORRECTO
   const onSearch = async (values: z.infer<typeof searchSchema>) => {
     setIsSearching(true);
 
+    console.log("🔍 Iniciando búsqueda con término:", values.searchTerm);
+
     try {
       const token = await getToken();
-      const res = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/clientes/${values.searchTerm}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      console.log("🔑 Token obtenido:", token ? "Sí" : "No");
 
-      const cliente = res.data;
-      setClienteActual(cliente);
+      if (!token) {
+        throw new Error("No se pudo obtener el token de autenticación");
+      }
 
-      // Llenar el formulario de edición
-      editForm.reset({
-        nit: cliente.nit,
-        nombre: cliente.nombre,
-        apellidos: cliente.apellidos,
-        direccion: cliente.direccion,
-        telefono: cliente.telefono,
-        email: cliente.email || "",
-        departamento: cliente.departamento,
-        ciudad: cliente.ciudad,
+      // 🎯 USAR EL ENDPOINT CORRECTO
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/clientes/getByFilter/${values.searchTerm}`;
+      console.log("🌐 URL de búsqueda:", url);
+
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      setStep("edit");
-      toast({ title: "Cliente encontrado" });
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
+      console.log("📡 Response status:", response.status);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("Cliente no encontrado");
+        } else {
+          const errorText = await response.text();
+          throw new Error(`Error ${response.status}: ${errorText}`);
+        }
+      }
+
+      const clientes = await response.json();
+      console.log("📋 Clientes encontrados:", clientes);
+
+      // Verificar si se encontraron clientes
+      if (!clientes || clientes.length === 0) {
         toast({
           title: "Cliente no encontrado",
-          description:
-            "¿Quieres ver un ejemplo de cómo funciona el formulario?",
+          description: "No se encontró ningún cliente con ese NIT o nombre",
           variant: "destructive",
         });
-        // Ofrecer mostrar demo después de un segundo
-        setTimeout(() => {
-          if (step === "search") {
-            showDemo();
-          }
-        }, 2000);
-      } else {
-        toast({
-          title: "Error al buscar cliente",
-          variant: "destructive",
-        });
+        return;
       }
+
+      // Si solo hay un cliente, seleccionarlo directamente
+      const cliente = Array.isArray(clientes) ? clientes[0] : clientes;
+      seleccionarCliente(cliente);
+    } catch (error: any) {
+      console.error("❌ Error al buscar cliente:", error);
+
+      toast({
+        title: "Cliente no encontrado",
+        description:
+          error.message || "No se encontró ningún cliente con ese criterio",
+        variant: "destructive",
+      });
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Actualizar cliente
+  // Función para seleccionar un cliente específico
+  const seleccionarCliente = (cliente: Cliente) => {
+    setClienteActual(cliente);
+
+    // Llenar el formulario de edición con los datos del cliente
+    editForm.reset({
+      nit: cliente.nit,
+      nombre: cliente.nombre,
+      apellidos: cliente.apellidos,
+      direccion: cliente.direccion || "",
+      telefono: cliente.telefono,
+      email: cliente.email || "",
+      departamento: cliente.departamento || "",
+      ciudad: cliente.ciudad,
+    });
+
+    setStep("edit");
+    toast({
+      title: "Cliente encontrado",
+      description: `${cliente.nombre} ${cliente.apellidos}`,
+    });
+  };
+
+  // 🔄 ACTUALIZAR CLIENTE - CORREGIDO PARA USAR ID
   const onUpdate = async (values: z.infer<typeof formSchema>) => {
     if (!clienteActual) return;
-
-    // Si estamos en modo demo, no hacer llamada real
-    if (step === "demo") {
-      toast({
-        title: "Demo: Cliente actualizado",
-        description: "En modo real esto actualizaría la base de datos",
-      });
-      setOpenModalUpdate(false);
-      return;
-    }
 
     setIsUpdating(true);
 
     try {
       const token = await getToken();
-      await axios.patch(
-        `${process.env.NEXT_PUBLIC_API_URL}/clientes/${clienteActual.nit}`,
-        values,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
 
-      toast({ title: "Cliente actualizado exitosamente" });
-      router.refresh();
+      if (!token) {
+        throw new Error("No se pudo obtener el token de autenticación");
+      }
+
+      console.log("🔄 Actualizando cliente:", clienteActual);
+      console.log("📝 Datos a actualizar:", values);
+
+      // 🎯 USAR EL ID DEL CLIENTE, NO EL NIT
+      const clienteId = clienteActual.id;
+
+      if (!clienteId) {
+        throw new Error("No se encontró el ID del cliente para actualizar");
+      }
+
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/clientes/${clienteId}`;
+      console.log("🌐 URL de actualización (con ID):", url);
+
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(values),
+      });
+
+      console.log("📡 Response status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Error response:", errorText);
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+
+      const clienteActualizado = await response.json();
+      console.log("✅ Cliente actualizado:", clienteActualizado);
+
+      toast({
+        title: "Cliente actualizado exitosamente",
+        description: `${values.nombre} ${values.apellidos} ha sido actualizado`,
+      });
+
+      // Cerrar modal y refrescar
       setOpenModalUpdate(false);
-    } catch (error) {
+      if (onSuccess) {
+        onSuccess();
+      }
+      router.refresh();
+    } catch (error: any) {
+      console.error("❌ Error al actualizar cliente:", error);
+
       toast({
         title: "Error al actualizar cliente",
+        description: error.message || "Error desconocido",
         variant: "destructive",
       });
     } finally {
@@ -245,8 +311,13 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
     }
   };
 
-  // Volver a búsqueda
+  // Volver a búsqueda (solo si no hay cliente inicial)
   const handleBack = () => {
+    if (clienteInicial) {
+      setOpenModalUpdate(false);
+      return;
+    }
+
     setStep("search");
     setClienteActual(null);
     searchForm.reset();
@@ -258,7 +329,7 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
   return (
     <div className="space-y-6">
       {step === "search" ? (
-        // Pantalla de búsqueda
+        // Pantalla de búsqueda (solo si no hay cliente inicial)
         <div className="space-y-6">
           <div className="text-center space-y-2">
             <div className="mx-auto w-12 h-12 bg-gradient-to-r from-blue-600 to-blue-700 rounded-full flex items-center justify-center shadow-md">
@@ -296,72 +367,34 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                 )}
               />
 
-              <div className="space-y-3">
-                <Button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
-                  disabled={isSearching}
-                >
-                  {isSearching ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Buscando...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="w-4 h-4 mr-2" />
-                      Buscar Cliente
-                    </>
-                  )}
-                </Button>
-
-                {/* Botón para mostrar demo */}
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={showDemo}
-                  className="w-full border-blue-200 text-blue-600 hover:bg-blue-50"
-                >
-                  <User className="w-4 h-4 mr-2" />
-                  Ver Demo del Formulario
-                </Button>
-              </div>
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-blue-500/25"
+                disabled={isSearching}
+              >
+                {isSearching ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Buscando...
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-4 h-4 mr-2" />
+                    Buscar Cliente
+                  </>
+                )}
+              </Button>
             </form>
           </Form>
-
-          {/* Mensaje informativo */}
-          <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-            <div className="flex items-start space-x-3">
-              <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm">
-                <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">
-                  ¿No tienes clientes registrados?
-                </p>
-                <p className="text-blue-700 dark:text-blue-300">
-                  Puedes usar el botón Ver Demo para probar cómo funciona el
-                  formulario de actualización, o crear tu primer cliente usando
-                  el botón Crear Cliente.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       ) : (
-        // Pantalla de edición (real o demo)
+        // Pantalla de edición
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-700 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-white" />
-              </div>
               <div>
                 <h3 className="text-lg font-semibold flex items-center">
-                  {step === "demo" ? "Demo: " : ""}Editar Cliente
-                  {step === "demo" && (
-                    <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                      DEMO
-                    </span>
-                  )}
+                  Editar Cliente
                 </h3>
                 <p className="text-sm text-muted-foreground">
                   {clienteActual?.nombre} {clienteActual?.apellidos}
@@ -372,9 +405,9 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
               variant="outline"
               size="sm"
               onClick={handleBack}
-              className="border-blue-200 text-blue-600 hover:bg-blue-50"
+              className="border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
             >
-              Buscar Otro
+              {clienteInicial ? "Cancelar" : "Buscar Otro"}
             </Button>
           </div>
 
@@ -383,11 +416,6 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
             <h4 className="font-medium flex items-center text-blue-800 dark:text-blue-200">
               <Edit3 className="w-4 h-4 mr-2" />
               Información Actual
-              {step === "demo" && (
-                <span className="ml-2 text-xs text-blue-600">
-                  (Datos de ejemplo)
-                </span>
-              )}
             </h4>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
@@ -402,12 +430,12 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                 </span>
                 <span
                   className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
-                    clienteActual?.estado
+                    (clienteActual?.estado ?? true)
                       ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
                       : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
                   }`}
                 >
-                  {clienteActual?.estado ? "Activo" : "Inactivo"}
+                  {(clienteActual?.estado ?? true) ? "Activo" : "Inactivo"}
                 </span>
               </div>
             </div>
@@ -418,7 +446,7 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
               onSubmit={editForm.handleSubmit(onUpdate)}
               className="space-y-4"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={editForm.control}
                   name="nit"
@@ -446,6 +474,11 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                       <FormControl>
                         <Input
                           {...field}
+                          onChange={(e) => {
+                            // Solo permitir números
+                            const value = e.target.value.replace(/\D/g, "");
+                            field.onChange(value);
+                          }}
                           className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                       </FormControl>
@@ -532,7 +565,7 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                       <FormControl>
                         <select
                           {...field}
-                          className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-background"
+                          className="w-full border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md"
                         >
                           <option value="">Seleccione un departamento</option>
                           {departamentos.map((dep) => (
@@ -556,7 +589,7 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
                       <FormControl>
                         <select
                           {...field}
-                          className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-background"
+                          className="w-full border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded-md"
                         >
                           <option value="">Seleccione una ciudad</option>
                           {ciudades.map((ciudad) => (
@@ -575,12 +608,10 @@ export function FormUpdateCliente(props: FormUpdateClienteProps) {
               <div className="flex justify-center pt-4">
                 <Button
                   type="submit"
-                  className="px-8 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+                  className="px-8 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-blue-500/25"
                 >
                   <Edit3 className="w-4 h-4 mr-2" />
-                  {step === "demo"
-                    ? "Simular Actualización"
-                    : "Actualizar Cliente"}
+                  Actualizar Cliente
                 </Button>
               </div>
             </form>

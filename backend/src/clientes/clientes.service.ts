@@ -131,7 +131,7 @@ export class ClienteService {
     if (!clienteEmpresa) {
       throw new UnauthorizedException('Cliente no encontrado');
     }
-    console.log('retornando al front:', clienteEmpresa);
+    console.log('retornando al front prueba final:', clienteEmpresa);
     return clienteEmpresa;
   }
 
