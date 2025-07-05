@@ -238,12 +238,25 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
                       <div className="text-sm text-gray-600">ID: {it.idProducto}</div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Input
-                        type="number"
-                        min={0}
-                        value={it.cantidad}
-                        onChange={(e) => updateQty(idx, +e.target.value)}
-                        className="w-20"
+                    <Input
+                          type="number"
+                          min={1}
+                          placeholder="Cantidad"
+                          // Si it.cantidad === 0 mostramos cadena vacía, si no el número:
+                          value={it.cantidad > 0 ? it.cantidad : ''}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            // Si el usuario ha borrado todo, raw === ''
+                            if (raw === '') {
+                              // dejamos 0 en el estado pero no lo renderizamos
+                              updateQty(idx, 0);
+                            } else {
+                              // parseInt evitará el leading zero y convierte "0500"→500
+                              const n = parseInt(raw, 10);
+                              updateQty(idx, isNaN(n) ? 0 : n);
+                            }
+                          }}
+                          className="w-20"
                       />
                       <div className="font-medium">
                         ${(it.cantidad * it.precio).toLocaleString("es-CO")}

@@ -135,9 +135,9 @@ export class InventarioService {
           if (isManual) {
             obsText = 'Ajuste manual';
           } else if (tipo === 'SALIDA') {
-            obsText = `Pedido con id ${m.IdPedido}`;
+            obsText = `Pedido # ${m.IdPedido}`;
           } else {
-            obsText = `Compra con id ${m.idCompra}`;
+            obsText = `Compra # ${m.idCompra}`;
           }
 
           // acumulamos + para ENTRADA, − para SALIDA

@@ -172,7 +172,7 @@ export function InventarioDetalleModal({
 
     // Configurar anchos de columnas
     const colWidths = [
-      { wch: 20 }, // Fecha
+      { wch: 35 }, // Fecha
       { wch: 25 }, // Tipo de Movimiento
       { wch: 15 }, // Precio
       { wch: 12 }, // Cantidad
@@ -327,8 +327,7 @@ export function InventarioDetalleModal({
                       <tr>
                         {[
                           "Fecha",
-                          "Tipo",
-                          "P. Unitario",
+                          "Tipo",                          
                           "Cantidad",
                           "Stock",
                           "Usuario",
@@ -349,7 +348,7 @@ export function InventarioDetalleModal({
                           key={i} 
                           className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                         >
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-sm text-gray-600 w-1/6">
                             {fmt(m.fecha)}
                           </td>
                           <td className="px-4 py-3">
@@ -361,10 +360,7 @@ export function InventarioDetalleModal({
                             >
                               {m.tipoMovimiento}
                             </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                            $ {m.precioCompra.toLocaleString("es-CO")}
-                          </td>
+                          </td>                         
                       <td className="px-4 py-3 text-sm font-medium text-center flex items-center justify-center space-x-1">
                           {m.tipoMovimiento.toLowerCase().includes("salida") ? (
                             <>
