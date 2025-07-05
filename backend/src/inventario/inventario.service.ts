@@ -87,83 +87,92 @@ export class InventarioService {
 
   //Obtener  todos los movimientos de inventario de un producto
 
-async getMovimientosproduc(
-  productoId: string,
-  usuario: UsuarioPayload
-): Promise<MovimientoInventarioDto[]> {
-  try {
-    // 1) Traemos movimientos ordenados cronológicamente
-    const movimientos = await this.prisma.movimientoInventario.findMany({
-      where: { idProducto: productoId, idEmpresa: usuario.empresaId },
-      select: {
-        IdPedido: true,
-        cantidadMovimiendo: true,
-        fechaMovimiento: true,
-        observacion: true,
-        tipoMovimiento: { select: { tipo: true } },
-        usuario: { select: { nombre: true, apellidos: true } },
-        producto: {
-          select: {
-            nombre: true,
-            precioCompra: true,
-            inventario: {
-              select: {
-                // lo seguimos trayendo sólo para el header (stockActual)
-                stockActual: true,
+  async getMovimientosproduc(
+    productoId: string,
+    usuario: UsuarioPayload
+  ): Promise<MovimientoInventarioDto[]> {
+    try {
+      // 1) Traemos movimientos ordenados cronológicamente
+      const movimientos = await this.prisma.movimientoInventario.findMany({
+        where: { idProducto: productoId, idEmpresa: usuario.empresaId },
+        select: {
+          IdPedido: true,
+          idCompra: true,
+          cantidadMovimiendo: true,
+          fechaMovimiento: true,
+          observacion: true,
+          tipoMovimiento: { select: { tipo: true } },
+          usuario: { select: { nombre: true, apellidos: true } },
+          producto: {
+            select: {
+              nombre: true,
+              precioCompra: true,
+              inventario: {
+                select: {
+                  // lo seguimos trayendo sólo para el header (stockActual)
+                  stockActual: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { fechaMovimiento: "asc" },
-    });
+        orderBy: { fechaMovimiento: "asc" },
+      });
 
-    if (movimientos.length === 0) return [];
+      if (movimientos.length === 0) return [];
 
-    // 2) Arrancamos en cero
-    const stockInicial = 0;
-    let runningStock = 0;
+      // 2) Arrancamos en cero
+      const stockInicial = 0;
+      let runningStock = 0;
 
-    // 3) Mapeamos y vamos acumulando
-    const mapped: MovimientoInventarioDto[] = movimientos
-      .map((m) => {
-        const tipo = m.tipoMovimiento.tipo.toUpperCase();
-        const delta = m.cantidadMovimiendo;
+      // 3) Mapeamos y vamos acumulando
+      const mapped: MovimientoInventarioDto[] = movimientos
+        .map((m) => {
+          const tipo = m.tipoMovimiento.tipo.toUpperCase();
+          const delta = m.cantidadMovimiendo;
+          const isManual = !m.IdPedido && !m.idCompra;
+          let obsText: string;
+          if (isManual) {
+            obsText = 'Ajuste manual';
+          } else if (tipo === 'SALIDA') {
+            obsText = `Pedido con id ${m.IdPedido}`;
+          } else {
+            obsText = `Compra con id ${m.idCompra}`;
+          }
 
-        // acumulamos + para ENTRADA, − para SALIDA
-        runningStock += tipo === "SALIDA" ? -delta : delta;
+          // acumulamos + para ENTRADA, − para SALIDA
+          runningStock += tipo === 'SALIDA' ? -delta : delta;
 
-        return {
-          tipoMovimiento: tipo,
-          idPedido: m.IdPedido || null,
-          nombreProducto: m.producto.nombre,
-          precioCompra: m.producto.precioCompra,
-          usuario: `${m.usuario.nombre} ${m.usuario.apellidos}`,
-          cantidadMovimiendo: delta,
-          // siempre 0 en la columna inicial
-          stockInicial,
-          // para el header seguimos usando el stockActual real
-          stockActual: m.producto.inventario?.[0]?.stockActual ?? 0,
-          fecha: m.fechaMovimiento,
-          observacion: m.observacion || null,
-          // aquí el valor «kardex» en ese momento
-          stock: runningStock,
-        };
-      })
-      // 4) invertimos para mostrar primero lo más reciente
-      .reverse();
+          return {
+            tipoMovimiento: tipo,
+            idPedido: m.IdPedido || null,
+            nombreProducto: m.producto.nombre,
+            precioCompra: m.producto.precioCompra,
+            usuario: `${m.usuario.nombre} ${m.usuario.apellidos}`,
+            cantidadMovimiendo: delta,
+            // siempre 0 en la columna inicial
+            stockInicial,
+            // para el header seguimos usando el stockActual real
+            stockActual: m.producto.inventario?.[0]?.stockActual ?? 0,
+            fecha: m.fechaMovimiento,
+            observacion: obsText,
+            // aquí el valor «kardex» en ese momento
+            stock: runningStock,
+          };
+        })
+        // 4) invertimos para mostrar primero lo más reciente
+        .reverse();
 
-    return mapped;
-  } catch (error) {
-    console.error("Error interno al obtener movimientos:", error);
-    throw new InternalServerErrorException(
-      "Error al obtener los movimientos de inventario"
-    );
+      return mapped;
+    } catch (error) {
+      console.error("Error interno al obtener movimientos:", error);
+      throw new InternalServerErrorException(
+        "Error al obtener los movimientos de inventario"
+      );
+    }
   }
-}
 
-
-/**
+  /**
    * Ajuste manual de inventario: ENTRADA o SALIDA
    * También registra un MovimientoInventario con observación "Ajuste manual".
    */
@@ -171,7 +180,7 @@ async getMovimientosproduc(
     productoId: string,
     tipomovid: string,
     cantidad: number,
-    usuario: UsuarioPayload,
+    usuario: UsuarioPayload
   ): Promise<{ stockActualizado: number; movimiento: MovimientoInventarioDto }> {
     try {
       // 1) Buscamos el inventario existente

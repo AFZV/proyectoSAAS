@@ -224,7 +224,7 @@ export function InventarioDetalleModal({
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <DialogTitle className="text-xl font-bold text-gray-900">
-                Cardex de Inventario
+                kardex de Inventario
               </DialogTitle>
               <DialogDescription className="text-sm text-gray-600 mt-1">
                 {producto.nombre}
@@ -328,7 +328,7 @@ export function InventarioDetalleModal({
                         {[
                           "Fecha",
                           "Tipo",
-                          "Precio Unitario",
+                          "P. Unitario",
                           "Cantidad",
                           "Stock",
                           "Usuario",
@@ -366,22 +366,22 @@ export function InventarioDetalleModal({
                             $ {m.precioCompra.toLocaleString("es-CO")}
                           </td>
                       <td className="px-4 py-3 text-sm font-medium text-center flex items-center justify-center space-x-1">
-  {m.tipoMovimiento.toLowerCase().includes("salida") ? (
-    <>
-      <span className="text-red-600 font-bold">–</span>
-      <span className="text-red-600">
-        {m.cantidadMovimiendo.toLocaleString("es-CO")}
-      </span>
-    </>
-  ) : (
-    <>
-      <span className="text-green-600 font-bold">+</span>
-      <span className="text-green-600">
-        {m.cantidadMovimiendo.toLocaleString("es-CO")}
-      </span>
-    </>
-  )}
-</td>
+                          {m.tipoMovimiento.toLowerCase().includes("salida") ? (
+                            <>
+                              <span className="text-red-600 font-bold">–</span>
+                              <span className="text-red-600">
+                                {m.cantidadMovimiendo.toLocaleString("es-CO")}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-green-600 font-bold">+</span>
+                              <span className="text-green-600">
+                                {m.cantidadMovimiendo.toLocaleString("es-CO")}
+                              </span>
+                            </>
+                          )}
+                        </td>
 
                           <td className="px-4 py-3 text-sm text-gray-900 text-left">
                             {(m.stock || 0).toLocaleString("es-CO")}
@@ -389,7 +389,7 @@ export function InventarioDetalleModal({
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {m.usuario}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
+                          <td className="px-4 py-3 text-sm text-gray-600 w-2/5 break-words">
                             {m.observacion || "-"}
                           </td>
                         </tr>
