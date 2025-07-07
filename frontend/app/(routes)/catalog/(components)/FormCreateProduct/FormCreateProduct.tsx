@@ -52,6 +52,50 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
   const { getToken } = useAuth();
   const { toast } = useToast();
 
+  const handleImageUpload = async (
+    file: File,
+    setUrl: (url: string) => void,
+    setUploaded: (v: boolean) => void
+  ) => {
+    const formData = new FormData();
+    formData.append("imagen", file);
+
+    try {
+      const token = await getToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/cloudinary/upload/producto`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Error al subir imagen");
+      }
+
+      const data = await response.json(); // { url: string }
+      setUrl(data.url);
+      setUploaded(true);
+
+      toast({
+        title: "Imagen cargada",
+        description: "La imagen se subió correctamente",
+      });
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        title: "Error al subir imagen",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -95,8 +139,8 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
   // Función para formatear números mientras el usuario escribe
   const formatearNumero = (value: string): number => {
     // Remover todo lo que no sea dígito o punto decimal
-    const cleaned = value.replace(/[^\d.]/g, '');
-    return cleaned === '' ? 0 : parseFloat(cleaned) || 0;
+    const cleaned = value.replace(/[^\d.]/g, "");
+    return cleaned === "" ? 0 : parseFloat(cleaned) || 0;
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -179,7 +223,7 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
                       type="text"
                       placeholder="0"
                       className="pl-8"
-                      value={field.value === 0 ? '' : field.value.toString()}
+                      value={field.value === 0 ? "" : field.value.toString()}
                       onChange={(e) => {
                         const value = formatearNumero(e.target.value);
                         field.onChange(value);
@@ -217,7 +261,7 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
                       type="text"
                       placeholder="0"
                       className="pl-8"
-                      value={field.value === 0 ? '' : field.value.toString()}
+                      value={field.value === 0 ? "" : field.value.toString()}
                       onChange={(e) => {
                         const value = formatearNumero(e.target.value);
                         field.onChange(value);
@@ -274,7 +318,6 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
             )}
           />
 
-          {/* Imagen */}
           <FormField
             control={form.control}
             name="imagenUrl"
@@ -283,7 +326,7 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
                 <FormLabel>Imagen del Producto</FormLabel>
                 <FormControl>
                   <div className="space-y-4">
-                    {photoUploaded ? (
+                    {photoUploaded && field.value ? (
                       <div className="flex items-center space-x-4">
                         <div className="w-20 h-20 border rounded-lg overflow-hidden">
                           <img
@@ -310,30 +353,26 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
                         </div>
                       </div>
                     ) : (
-                      <UploadButton
-                        endpoint="productImage"
-                        className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg hover:border-slate-400 transition-colors"
-                        onClientUploadComplete={(res) => {
-                          if (res && res.length > 0) {
-                            const url = res[0].url || res[0].ufsUrl;
-                            if (typeof url === "string") {
-                              field.onChange(url);
-                              setPhotoUploaded(true);
-                              toast({
-                                title: "Imagen cargada",
-                                description: "La imagen se subió correctamente",
-                              });
+                      <div>
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg hover:border-slate-400 transition-colors p-2"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              handleImageUpload(
+                                file,
+                                field.onChange,
+                                setPhotoUploaded
+                              );
                             }
-                          }
-                        }}
-                        onUploadError={(error: Error) => {
-                          toast({
-                            title: "Error al subir imagen",
-                            description: error.message,
-                            variant: "destructive",
-                          });
-                        }}
-                      />
+                          }}
+                        />
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Sube una imagen en formato JPG o PNG
+                        </p>
+                      </div>
                     )}
                   </div>
                 </FormControl>
@@ -349,15 +388,27 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
             <h4 className="font-medium mb-2">Resumen financiero</h4>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-muted-foreground">Ganancia unitaria:</span>
+                <span className="text-muted-foreground">
+                  Ganancia unitaria:
+                </span>
                 <p className="font-semibold text-green-600">
-                  ${(form.watch("precioVenta") - form.watch("precioCompra")).toLocaleString('es-CO')}
+                  $
+                  {(
+                    form.watch("precioVenta") - form.watch("precioCompra")
+                  ).toLocaleString("es-CO")}
                 </p>
               </div>
               <div>
-                <span className="text-muted-foreground">Margen de ganancia:</span>
+                <span className="text-muted-foreground">
+                  Margen de ganancia:
+                </span>
                 <p className="font-semibold">
-                  {(((form.watch("precioVenta") - form.watch("precioCompra")) / form.watch("precioVenta")) * 100).toFixed(1)}%
+                  {(
+                    ((form.watch("precioVenta") - form.watch("precioCompra")) /
+                      form.watch("precioVenta")) *
+                    100
+                  ).toFixed(1)}
+                  %
                 </p>
               </div>
             </div>

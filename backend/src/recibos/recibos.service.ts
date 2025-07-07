@@ -13,6 +13,7 @@ import { ResendService } from 'src/resend/resend.service';
 import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import { ResumenReciboDto } from 'src/pdf-uploader/dto/resumen-recibo.dto';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+
 @Injectable()
 export class RecibosService {
   constructor(
@@ -149,7 +150,7 @@ export class RecibosService {
           tipo,
           concepto,
         },
-        include: { usuario: true },
+        include: { usuario: true, cliente: true, empresa: true },
       });
 
       for (const detalle of detalles) {
@@ -172,6 +173,7 @@ export class RecibosService {
             empresaId: usuario.empresaId,
             idRecibo: creado.id,
             observacion: `Abono generado desde creación de recibo #${creado.id}`,
+            tipoMovimientoOrigen: 'RECIBO',
           },
         });
       }
@@ -204,6 +206,9 @@ export class RecibosService {
           });
 
           if (!empresa) throw new Error('no se encontro empresa');
+
+          console.log('📨 Email enviado');
+          process.stdout.write('🔍 logo URL: ' + empresa.logoUrl + '\n');
 
           const resumenRecibo: ResumenReciboDto = {
             id: recibo.id,
@@ -248,14 +253,39 @@ export class RecibosService {
             tipo: 'recibos',
           });
 
-          if (!cliente?.email) throw new Error('Error al obtener email');
+          if (!recibo.cliente?.email) throw new Error('Error al obtener email');
 
+          const numeroWhatsApp = `+57${recibo.usuario?.telefono?.replace(/\D/g, '')}`;
           await this.resendService.enviarCorreo(
-            cliente.email,
-            'Recibo de pago',
-            `<p>Hola ${cliente.nombre},</p><p>Adjunto tu recibo.</p><a href="${publicUrl}">Ver recibo</a>`
-          );
+            recibo.cliente.email,
+            'Confirmación de tu recibo',
+            `
+  <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+    <p>Hola <strong>${recibo.cliente.nombre}</strong>,</p>
 
+    <p>Tu Recibo ha sido <strong>Generado exitosamente</strong>. Adjuntamos el comprobante en PDF:</p>
+
+    <p style="margin: 16px 0;">
+      <a href="${publicUrl}" target="_blank"
+         style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
+        Ver Comprobante PDF
+      </a>
+    </p>
+
+    <p>¿Tienes alguna duda sobre tu pago? Contáctanos:</p>
+
+    <p>
+      <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
+         style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
+        💬 Contactar por WhatsApp
+      </a>
+    </p>
+
+    <p style="margin-top: 30px;">Gracias por tu pago,</p>
+    <p><strong>Equipo de Recaudos</strong></p>
+  </div>
+  `
+          );
           console.log('📨 Email enviado');
           console.log(`✅ PDF subido: ${publicUrl}`);
         } catch (err) {
@@ -400,6 +430,7 @@ export class RecibosService {
             empresaId: usuario.empresaId,
             idRecibo: recibo.id,
             observacion: `Abono actualizado para recibo #${recibo.id}`,
+            tipoMovimientoOrigen: 'RECIBO',
           },
         });
       }
@@ -655,8 +686,9 @@ export class RecibosService {
     clienteId: string,
     usuario: UsuarioPayload
   ) {
-    console.log('ingreso al service');
     const { empresaId } = usuario;
+
+    // Traer pedidos con sus recibos
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         clienteId,
@@ -670,14 +702,47 @@ export class RecibosService {
       },
     });
 
-    // Calcular saldo pendiente manualmente
+    // Traer detalles de ajustes manuales por movimiento y pedido
+    const detallesAjuste = await this.prisma.detalleAjusteCartera.findMany({
+      where: {
+        pedido: {
+          clienteId,
+          empresaId,
+        },
+        movimiento: {
+          tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+          idCliente: clienteId,
+          empresaId,
+        },
+      },
+      select: {
+        idPedido: true,
+        valor: true,
+      },
+    });
+
+    // Agrupar ajustes por pedidoId
+    const ajustesPorPedido = detallesAjuste.reduce(
+      (acc, ajuste) => {
+        if (!ajuste.idPedido) return acc;
+        if (!acc[ajuste.idPedido]) acc[ajuste.idPedido] = 0;
+        acc[ajuste.idPedido] += ajuste.valor;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
+    // Calcular saldo pendiente por pedido
     const pedidosConSaldo = pedidos
       .map((pedido) => {
         const totalAbonado = pedido.detalleRecibo.reduce(
           (suma, d) => suma + d.valorTotal,
           0
         );
-        const saldoPendiente = pedido.total - totalAbonado;
+
+        const ajusteManual = ajustesPorPedido[pedido.id] || 0;
+
+        const saldoPendiente = pedido.total - totalAbonado - ajusteManual;
 
         return {
           id: pedido.id,
@@ -686,7 +751,7 @@ export class RecibosService {
         };
       })
       .filter((p) => p.saldoPendiente > 0);
-    console.log('respondio el service:', pedidosConSaldo);
+
     return pedidosConSaldo;
   }
 }

@@ -98,6 +98,10 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
 
       try {
         await this.loadContent(page, html);
+
+        // 🧪 Screenshot opcional para depurar si no carga el logo
+        // await page.screenshot({ path: 'debug_logo.png', fullPage: true });
+
         const buffer = await this.generatePdfBuffer(page);
         const filePath = join(os.tmpdir(), fileName);
 
@@ -114,6 +118,24 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
         `Fallo al generar PDF: ${error instanceof Error ? error.message : String(error)}`
       );
     }
+  }
+
+  private async loadContent(page: Page, html: string): Promise<void> {
+    await page.setContent(html, {
+      waitUntil: 'domcontentloaded',
+      timeout: 10000,
+    });
+
+    // 🕒 Esperar a que se cargue el logo (primera <img>)
+    await page.evaluate(() => {
+      return new Promise<void>((resolve) => {
+        const img = document.querySelector('img');
+        if (!img) return resolve();
+        if (img.complete) return resolve();
+        img.addEventListener('load', () => resolve(), { once: true });
+        img.addEventListener('error', () => resolve(), { once: true });
+      });
+    });
   }
 
   private renderTemplate(
@@ -157,13 +179,6 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     const page = await this.browser.newPage();
     await page.setViewport({ width: 794, height: 1123 });
     return page;
-  }
-
-  private async loadContent(page: Page, html: string): Promise<void> {
-    await page.setContent(html, {
-      waitUntil: 'domcontentloaded',
-      timeout: 10000,
-    });
   }
 
   private async generatePdfBuffer(page: Page): Promise<Buffer> {

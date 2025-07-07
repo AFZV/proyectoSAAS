@@ -27,7 +27,7 @@ export class ProductosController {
   @Post('create')
   async create(
     @Body() data: CreateProductoDto,
-    @Req() req: UsuarioRequest,
+    @Req() req: UsuarioRequest
     //@
   ) {
     const usuario = req.usuario;
@@ -42,6 +42,7 @@ export class ProductosController {
   async findAll(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
     const productos = await this.productosService.findAllforEmpresa(usuario);
+    console.log('esto hay en la bdd en productos :', productos);
     return { productos };
   }
 
@@ -67,12 +68,12 @@ export class ProductosController {
   @Put('update/:productoId')
   async updateall(
     @Param('productoId') productoId: string,
-    @Body() data: UpdateProductoDto,
+    @Body() data: UpdateProductoDto
   ) {
     //Se actualiza el producto usando el servicio
     const producto = await this.productosService.UpdateProducto(
       productoId,
-      data,
+      data
     );
     //Se retorna un mensaje de éxito y el producto actualizado
     return {
@@ -86,12 +87,12 @@ export class ProductosController {
   @Post('categoria/create')
   async createCategoria(
     @Body() data: CreateCategoriaProductoDto,
-    @Req() req: UsuarioRequest,
+    @Req() req: UsuarioRequest
   ) {
     const usuario = req.usuario;
     const categoria = await this.productosService.createCategoria(
       usuario,
-      data,
+      data
     );
     return {
       message: `Se ha creado la categoría ${categoria.nombre}`,
@@ -100,7 +101,7 @@ export class ProductosController {
   }
 
   //Obtener todas las categorías de productos de una empresa
-  @Roles('admin','superadmin', 'vendedor')
+  @Roles('admin', 'superadmin', 'vendedor')
   @Get('categoria/empresa')
   async findAllCategorias(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
@@ -114,12 +115,12 @@ export class ProductosController {
   @Get('categoria/:categoriaId')
   async findByCategoria(
     @Param('categoriaId') categoriaId: string,
-    @Req() req: UsuarioRequest,
+    @Req() req: UsuarioRequest
   ) {
     const usuario = req.usuario;
     const productos = await this.productosService.findByCategoria(
       usuario,
-      categoriaId,
+      categoriaId
     );
     return { productos };
   }

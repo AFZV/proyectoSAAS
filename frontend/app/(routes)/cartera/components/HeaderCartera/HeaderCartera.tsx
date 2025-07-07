@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { BadgeDollarSign, FileSearch, PlusCircle } from "lucide-react";
+import { ClienteCartera } from "../ListCartera/ListCartera.types";
+import { BuscarClienteCartera } from "../BuscarClienteCartera";
 
 export type CarteraStats = {
   totalSaldo: number;
@@ -18,14 +20,14 @@ export type CarteraStats = {
 };
 
 export function HeaderCartera({
-  rol,
+  onClienteSeleccionado,
   stats,
 }: {
-  rol: string;
+  onClienteSeleccionado: (cliente: ClienteCartera) => void;
   stats: CarteraStats;
 }) {
-  const [openBuscarModal, setOpenBuscarModal] = useState(false);
-  const [openAjusteModal, setOpenAjusteModal] = useState(false);
+  const [openBuscarModal, setOpenBuscarModal] = useState<boolean>(false);
+  const [openAjusteModal, setOpenAjusteModal] = useState<boolean>(false);
 
   return (
     <div className="border-b bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-950/30 dark:to-yellow-900/20">
@@ -49,17 +51,10 @@ export function HeaderCartera({
             <Button
               variant="outline"
               onClick={() => setOpenBuscarModal(true)}
-              className="flex items-center space-x-2 border-yellow-200 text-yellow-700 hover:bg-yellow-50 hover:border-yellow-300 hover:text-yellow-800"
+              className="flex items-center space-x-2 bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white shadow-md"
             >
               <FileSearch className="w-4 h-4" />
               <span>Buscar Cliente</span>
-            </Button>
-            <Button
-              onClick={() => setOpenAjusteModal(true)}
-              className="flex items-center space-x-2 bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white shadow-md"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>Ajuste Manual</span>
             </Button>
           </div>
         </div>
@@ -112,24 +107,12 @@ export function HeaderCartera({
               Busca un cliente por NIT para ver sus movimientos
             </DialogDescription>
           </DialogHeader>
-          {/* Aquí irá el formulario o componente de búsqueda */}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={openAjusteModal} onOpenChange={setOpenAjusteModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-yellow-600 rounded-full flex items-center justify-center">
-                <PlusCircle className="w-3 h-3 text-white" />
-              </div>
-              <span>Ajuste Manual</span>
-            </DialogTitle>
-            <DialogDescription>
-              Realiza un ajuste manual en la cartera del cliente
-            </DialogDescription>
-          </DialogHeader>
-          {/* Aquí irá el formulario de ajuste */}
+          <BuscarClienteCartera
+            onClienteSeleccionado={(cliente) => {
+              onClienteSeleccionado(cliente); // Pasa el cliente hacia arriba
+              setOpenBuscarModal(false);
+            }}
+          />
         </DialogContent>
       </Dialog>
     </div>

@@ -1,5 +1,7 @@
 import React from "react";
 import { CarteraStats, HeaderCartera } from "./components/HeaderCartera";
+import { ListCartera } from "./components/ListCartera/ListCartera";
+import { WrapperCartera } from "./components/WrapperCartera/WrapperCartera";
 
 export default function CarteraPage() {
   const stats: CarteraStats = {
@@ -9,7 +11,7 @@ export default function CarteraPage() {
   };
   return (
     <div>
-      <HeaderCartera rol="admin" stats={stats} />
+      <WrapperCartera />
     </div>
   );
 }

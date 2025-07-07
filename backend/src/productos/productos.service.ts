@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/actualizar-producto.dto';
@@ -53,19 +57,28 @@ export class ProductosService {
   }
   //Obtener los productos con stock de una empresa y activos
   async findAllforEmpresaActiva(usuario: UsuarioPayload) {
+    if (!usuario) throw new BadRequestException('no permitido');
+    const { empresaId, rol } = usuario;
     try {
       return await this.prisma.producto.findMany({
-        where: {
-          empresaId: usuario.empresaId,
-          estado: 'activo', // Solo productos activos
-          inventario: {
-            some: {
-              stockActual: {
-                gt: 0, // Solo productos con stock actual mayor a 0
+        where:
+          rol === 'admin'
+            ? {
+                empresaId: empresaId,
+                estado: 'activo', // Solo productos activos
+              }
+            : {
+                empresaId: empresaId,
+                estado: 'activo', // Solo productos activos
+                inventario: {
+                  some: {
+                    stockActual: {
+                      gt: 0, // Solo productos con stock actual mayor a 0
+                    },
+                  },
+                },
               },
-            },
-          },
-        },
+
         include: {
           //Incluimos el inventario del producto
           inventario: {
@@ -145,7 +158,7 @@ export class ProductosService {
 
   async createCategoria(
     usuario: UsuarioPayload,
-    data: CreateCategoriaProductoDto,
+    data: CreateCategoriaProductoDto
   ) {
     try {
       return await this.prisma.categoriasProducto.create({
@@ -162,7 +175,7 @@ export class ProductosService {
       }
       // Si no, lanza una InternalServerErrorException
       throw new InternalServerErrorException(
-        'Error al crear la categoría de producto',
+        'Error al crear la categoría de producto'
       );
     }
   }
@@ -184,7 +197,7 @@ export class ProductosService {
       }
       // Si no, lanza una InternalServerErrorException
       throw new InternalServerErrorException(
-        'Error al obtener las categorías de productos',
+        'Error al obtener las categorías de productos'
       );
     }
   }
@@ -206,7 +219,7 @@ export class ProductosService {
       }
       // Si no, lanza una InternalServerErrorException
       throw new InternalServerErrorException(
-        'Error al obtener los productos por categoría',
+        'Error al obtener los productos por categoría'
       );
     }
   }

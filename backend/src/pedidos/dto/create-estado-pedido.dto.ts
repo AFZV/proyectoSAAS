@@ -1,4 +1,4 @@
-import { IsString, IsUUID } from 'class-validator';
+import { IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CrearEstadoPedidoDto {
   @IsUUID()
@@ -6,4 +6,12 @@ export class CrearEstadoPedidoDto {
 
   @IsString()
   estado: string;
+
+  @IsOptional()
+  @IsString()
+  guiaTransporte: string;
+
+  @IsOptional()
+  @IsString()
+  flete: number;
 }

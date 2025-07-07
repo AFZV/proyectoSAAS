@@ -1,57 +1,157 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
   <head>
-    <meta charset="utf-8" />
-    <title>Pedido</title>
+    <meta charset="UTF-8" />
+    <title>Resumen del Pedido</title>
     <style>
       body {
-        font-family: Arial, sans-serif;
+        font-family: "Arial", sans-serif;
         margin: 40px;
+        color: #333;
       }
-      h1 {
-        color: #2c3e50;
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 3px solid #007bff;
+        padding-bottom: 10px;
       }
+
+      .empresa-info {
+        display: flex;
+        gap: 20px;
+      }
+
+      .empresa-info img {
+        height: 60px;
+        object-fit: contain;
+      }
+
+      .empresa-datos h2 {
+        margin: 0;
+        color: #007bff;
+        font-size: 20px;
+      }
+
+      .empresa-datos p {
+        margin: 2px 0;
+        font-size: 14px;
+      }
+
+      .datos-pedido p {
+        margin: 4px 0;
+        font-size: 14px;
+      }
+
+      .section {
+        margin-top: 30px;
+      }
+
+      .section h3 {
+        color: #007bff;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 5px;
+        margin-bottom: 10px;
+      }
+
       table {
-        border-collapse: collapse;
         width: 100%;
-        margin-top: 20px;
+        border-collapse: collapse;
+        font-size: 14px;
       }
-      th,
-      td {
-        border: 1px solid #ccc;
-        padding: 8px;
+
+      th {
+        background-color: #007bff;
+        color: white;
+        padding: 10px;
         text-align: left;
+      }
+
+      td {
+        padding: 8px;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .resumen {
+        margin-top: 20px;
+        text-align: right;
+        font-size: 16px;
+        font-weight: bold;
+      }
+
+      .footer {
+        margin-top: 40px;
+        font-size: 13px;
+        text-align: center;
+        color: #555;
+      }
+
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px 40px;
       }
     </style>
   </head>
   <body>
-    <h1>Resumen del Pedido</h1>
-    <p><strong>ID Pedido:</strong> <%= id %></p>
-    <p><strong>Cliente:</strong> <%= cliente %></p>
-    <p><strong>Fecha:</strong> <%= fecha.toLocaleDateString() %></p>
-    <p><strong>Vendedor:</strong> <%= vendedor %></p>
+    <div class="header">
+      <div class="empresa-info">
+        <img src="<%= logoUrl %>" alt="Logo Empresa" />
+        <div class="empresa-datos">
+          <h2><%= nombreEmpresa %></h2>
+          <p><%= direccionEmpresa %></p>
+          <p>Tel: <%= telefonoEmpresa %></p>
+        </div>
+      </div>
+      <div class="datos-pedido">
+        <p><strong>Pedido:</strong> <%= id %></p>
+        <p><strong>Fecha:</strong> <%= new Date(fecha).toLocaleDateString("es-CO") %></p>
+      </div>
+    </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Producto</th>
-          <th>Cantidad</th>
-          <th>Precio Unitario</th>
-          <th>Subtotal</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% productos.forEach(producto => { %>
+    <div class="section info-grid">
+      <div>
+        <p><strong>Cliente:</strong> <%= cliente %></p>
+        <p><strong>Ciudad:</strong> <%= ciudadCliente %></p>
+      </div>
+      <div>
+        <p><strong>Vendedor:</strong> <%= vendedor %></p>
+        <p><strong>Email Cliente:</strong> <%= emailCliente %></p>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Detalle del Pedido</h3>
+      <table>
+        <thead>
           <tr>
-            <td><%= producto.nombre %></td>
-            <td><%= producto.cantidad %></td>
-            <td>$<%= producto.precio.toFixed(2) %></td>
-            <td>$<%= producto.subtotal.toFixed(2) %></td>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Precio Unitario</th>
+            <th>Subtotal</th>
           </tr>
-        <% }) %>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          <% productos.forEach(producto => { %>
+            <tr>
+              <td><%= producto.nombre %></td>
+              <td><%= producto.cantidad %></td>
+              <td>$<%= producto.precio.toLocaleString("es-CO") %></td>
+              <td>$<%= producto.subtotal.toLocaleString("es-CO") %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
 
-    <p><strong>Total:</strong> $<%= total.toFixed(2) %></p>
+    <div class="resumen">
+      Total Pedido: $<%= total.toLocaleString("es-CO") %>
+    </div>
+
+    <div class="footer">
+      <p><strong>Este documento ha sido generado automáticamente.</strong></p>
+      <p>Gracias por su compra. Estamos atentos a cualquier duda o comentario.</p>
+    </div>
   </body>
 </html>
