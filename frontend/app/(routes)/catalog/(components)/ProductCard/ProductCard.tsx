@@ -96,9 +96,9 @@ function AddToCartModal({
                 className="w-20 text-center focus:ring-blue-500 focus:border-blue-500"
               />
 
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={incrementar}
                 className="hover:bg-blue-50 hover:border-blue-300"
               >
@@ -122,8 +122,8 @@ function AddToCartModal({
             <Button variant="outline" onClick={onClose} className="flex-1">
               Cancelar
             </Button>
-            <Button 
-              onClick={handleConfirm} 
+            <Button
+              onClick={handleConfirm}
               className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-blue-500/25"
             >
               Agregar al Carrito
@@ -160,9 +160,10 @@ export function ProductCard({
         className={`
         group hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden h-full flex flex-col
         ${isOutOfStock ? "opacity-60" : "hover:scale-[1.02]"}
-        ${isInCart 
-          ? "ring-1 ring-emerald-400 ring-offset-1 shadow-md shadow-emerald-500/20 border-emerald-200 bg-emerald-50/30" 
-          : "hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/10"
+        ${
+          isInCart
+            ? "ring-1 ring-emerald-400 ring-offset-1 shadow-md shadow-emerald-500/20 border-emerald-200 bg-emerald-50/30"
+            : "hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/10"
         }
       `}
       >
@@ -197,7 +198,10 @@ export function ProductCard({
 
             {/* Categoría */}
             <div className="absolute top-2 left-2">
-              <Badge variant="secondary" className="text-xs bg-white/90 text-gray-700">
+              <Badge
+                variant="secondary"
+                className="text-xs bg-white/90 text-gray-700"
+              >
                 {producto.categoria}
               </Badge>
             </div>
@@ -229,8 +233,7 @@ export function ProductCard({
             <div className="flex flex-col gap-1.5 mt-auto">
               {!isOutOfStock ? (
                 <>
-                  {/* Botón agregar rápido */}
-                  <Button
+                  {/* <Button
                     size="sm"
                     variant="outline"
                     onClick={handleQuickAdd}
@@ -238,8 +241,7 @@ export function ProductCard({
                   >
                     <Plus className="w-3 h-3 mr-1" />
                     Agregar
-                  </Button>
-
+                  </Button> */}
                   {/* Botón modal para elegir cantidad */}
                   <Button
                     size="sm"
