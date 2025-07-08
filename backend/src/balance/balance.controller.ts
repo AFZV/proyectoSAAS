@@ -1,9 +1,19 @@
-import { Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { BalanceService } from './balance.service';
 import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
+import { CrearAjusteManualDto } from './dto/create-ajuste.dto';
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Roles('admin')
@@ -16,7 +26,7 @@ export class BalanceController {
     const usuario = req.usuario;
     return this.balanceService.ctasPorCobrar(usuario);
   }
-  @Get(':id')
+  @Get('balancePorCliente/:id')
   obtenerSaldoCliente(@Param('id') id: string, @Req() req: UsuarioRequest) {
     const usuario = req.usuario;
     return this.balanceService.saldoPorCliente(id, usuario);
@@ -24,9 +34,20 @@ export class BalanceController {
   @Get('movimientos/:idCliente')
   obtenerMovimientos(
     @Param('idCliente') idCliente: string,
-    @Req() req: UsuarioRequest,
+    @Req() req: UsuarioRequest
   ) {
     const usuario = req.usuario;
     return this.balanceService.movimientosCarteraCliente(idCliente, usuario);
+  }
+
+  @Roles('admin')
+  @Post('ajusteManual')
+  crearAjusteManual(
+    @Body() data: CrearAjusteManualDto,
+    @Req() req: UsuarioRequest
+  ) {
+    if (!req.usuario) throw new UnauthorizedException('no esta autorizado');
+    const usuario = req.usuario;
+    return this.balanceService.ajusteManual(data, usuario);
   }
 }

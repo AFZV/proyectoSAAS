@@ -177,13 +177,13 @@ export class DashboardService {
       where:
         rol === 'admin'
           ? {
-              usuario: { empresaId: empresaId },
+              empresaId,
               Fechacrecion: { gte: inicioDia, lte: finDia },
             }
           : {
+              empresaId,
               usuarioId: dbUserId,
               Fechacrecion: { gte: inicioDia, lte: finDia },
-              usuario: { empresaId: empresaId },
             },
       include: {
         detalleRecibo: true,
@@ -204,10 +204,11 @@ export class DashboardService {
         where:
           rol === 'admin'
             ? {
-                usuario: { empresaId: empresaId },
+                empresaId,
                 fechaPedido: { gte: inicioDia, lte: finDia },
               }
             : {
+                empresaId,
                 usuarioId: dbUserId,
                 fechaPedido: { gte: inicioDia, lte: finDia },
               },

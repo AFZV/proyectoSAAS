@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Catálogo de Productos</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        margin: 40px;
+        color: #333;
+      }
+
+      .pagina {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr); /* 2 columnas por fila */
+        gap: 16px 24px; /* espacio entre filas y columnas */
+        page-break-after: always;
+      }
+
+      .producto {
+        padding: 14px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+      }
+
+      .producto img {
+        max-width: 100%;
+        height: 140px;
+        object-fit: contain;
+        margin-bottom: 10px;
+      }
+
+      .producto h3 {
+        color: #007bff;
+        margin: 5px 0;
+        font-size: 16px;
+        text-align: center;
+      }
+
+      .producto p {
+        margin: 2px 0;
+        font-size: 13px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <% for (let i = 0; i < productos.length; i += 6) { %>
+      <div class="pagina">
+        <% productos.slice(i, i + 6).forEach((p) => { %>
+          <div class="producto">
+            <img src="<%= p.imagenUrl %>" alt="Imagen del producto" />
+            <h3><%= p.nombre %></h3>
+            <p><strong>Categoría:</strong> <%= p.categoria?.nombre ?? "Sin categoría" %></p>
+            <p><strong>Precio:</strong> $<%= p.precioVenta.toLocaleString("es-CO") %></p>
+            <p><strong>Stock:</strong> <%= p.stockDisponible %></p>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </body>
+</html>

@@ -47,6 +47,7 @@ export class CatalogService {
     const categoriasMap = new Map(
       categoriasRes.categorias.map((cat) => [cat.idCategoria, cat.nombre])
     );
+    console.log("productos que llegan :", productosRes.productos.length);
 
     return productosRes.productos.map((producto) => ({
       id: producto.id,

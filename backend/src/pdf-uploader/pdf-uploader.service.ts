@@ -13,21 +13,37 @@ import * as os from 'os';
 import { ResumenPedidoDto } from './dto/resumen-pedido.dto';
 import { ResumenReciboDto } from './dto/resumen-recibo.dto';
 
-type TemplateData = ResumenPedidoDto | ResumenReciboDto;
+type CatalogoProducto = {
+  nombre: string;
+  imagenUrl: string;
+  precioVenta: number;
+  categoria?: { nombre: string };
+  stockDisponible: number;
+};
+
+type TemplateData =
+  | ResumenPedidoDto
+  | ResumenReciboDto
+  | { productos: CatalogoProducto[] };
 
 @Injectable()
 export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PdfUploaderService.name);
   private browser: Browser | null = null;
 
-  private templates: Record<'pedido' | 'recibo', TemplateFunction | null> = {
+  private templates: Record<
+    'pedido' | 'recibo' | 'catalogo',
+    TemplateFunction | null
+  > = {
     pedido: null,
     recibo: null,
+    catalogo: null,
   };
 
   private readonly templatePaths = {
     pedido: join(process.cwd(), 'src', 'templates', 'pedido.ejs'),
     recibo: join(process.cwd(), 'src', 'templates', 'recibo.ejs'),
+    catalogo: join(process.cwd(), 'src', 'templates', 'catalogo.ejs'),
   };
 
   async onModuleInit(): Promise<void> {
@@ -48,13 +64,15 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
         Object.values(this.templatePaths).map((path) => fs.access(path))
       );
 
-      const [pedidoHtml, reciboHtml] = await Promise.all([
+      const [pedidoHtml, reciboHtml, catalogoHtml] = await Promise.all([
         fs.readFile(this.templatePaths.pedido, 'utf8'),
         fs.readFile(this.templatePaths.recibo, 'utf8'),
+        fs.readFile(this.templatePaths.catalogo, 'utf8'),
       ]);
 
       this.templates.pedido = compile(pedidoHtml);
       this.templates.recibo = compile(reciboHtml);
+      this.templates.catalogo = compile(catalogoHtml);
 
       this.logger.log('✅ Templates compiled successfully');
     } catch (error) {
@@ -83,6 +101,16 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  async generarCatalogoPDF(
+    productos: CatalogoProducto[]
+  ): Promise<{ buffer: Buffer; path: string }> {
+    return this.generarPDF({
+      data: { productos },
+      fileName: `catalogo_productos.pdf`,
+      tipo: 'catalogo',
+    });
+  }
+
   private async generarPDF({
     data,
     fileName,
@@ -90,7 +118,7 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   }: {
     data: TemplateData;
     fileName: string;
-    tipo: 'pedido' | 'recibo';
+    tipo: 'pedido' | 'recibo' | 'catalogo';
   }): Promise<{ buffer: Buffer; path: string }> {
     try {
       const html = this.renderTemplate(tipo, data);
@@ -98,6 +126,7 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
 
       try {
         await this.loadContent(page, html);
+
         const buffer = await this.generatePdfBuffer(page);
         const filePath = join(os.tmpdir(), fileName);
 
@@ -111,13 +140,33 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       this.logger.error(`❌ Error generando PDF`, error);
       throw new Error(
-        `Fallo al generar PDF: ${error instanceof Error ? error.message : String(error)}`
+        `Fallo al generar PDF: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       );
     }
   }
 
+  private async loadContent(page: Page, html: string): Promise<void> {
+    await page.setContent(html, {
+      waitUntil: 'domcontentloaded',
+      timeout: 10000,
+    });
+
+    // Esperar que cargue al menos una imagen
+    await page.evaluate(() => {
+      return new Promise<void>((resolve) => {
+        const img = document.querySelector('img');
+        if (!img) return resolve();
+        if (img.complete) return resolve();
+        img.addEventListener('load', () => resolve(), { once: true });
+        img.addEventListener('error', () => resolve(), { once: true });
+      });
+    });
+  }
+
   private renderTemplate(
-    tipo: 'pedido' | 'recibo',
+    tipo: 'pedido' | 'recibo' | 'catalogo',
     data: TemplateData
   ): string {
     const template = this.templates[tipo];
@@ -155,15 +204,8 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     }
 
     const page = await this.browser.newPage();
-    await page.setViewport({ width: 794, height: 1123 });
+    await page.setViewport({ width: 794, height: 1123 }); // A4
     return page;
-  }
-
-  private async loadContent(page: Page, html: string): Promise<void> {
-    await page.setContent(html, {
-      waitUntil: 'domcontentloaded',
-      timeout: 10000,
-    });
   }
 
   private async generatePdfBuffer(page: Page): Promise<Buffer> {
@@ -187,7 +229,8 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
       this.browser &&
         this.browser.isConnected() &&
         this.templates.pedido &&
-        this.templates.recibo
+        this.templates.recibo &&
+        this.templates.catalogo
     );
   }
 

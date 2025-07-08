@@ -269,6 +269,7 @@ model Pedido {
   guiaTransporte String?         @db.Text                        
   empresaId String
   pdfUrl     String?   @db.Text // ← NUEVO CAMPO OPCIONAL
+  detalleAjusteCartera DetalleAjusteCartera[]
 
 
 empresa Empresa @relation(fields: [empresaId],references: [id])
@@ -372,9 +373,26 @@ empresa Empresa @relation(fields: [empresaId],references: [id])
   pedido Pedido? @relation(fields: [idPedido],references: [id])
   recibo Recibo? @relation(fields: [idRecibo],references: [id])
 
+  detalleAjusteCartera DetalleAjusteCartera[]
   @@index([idCliente])
   @@index([idUsuario])
 }
+
+model DetalleAjusteCartera {
+  idDetalleAjuste String   @id @default(uuid())
+  idMovimiento    String?
+  idPedido        String?
+  valor           Float    @db.DoublePrecision
+
+  movimiento      MovimientosCartera? @relation(fields: [idMovimiento], references: [idMovimientoCartera])
+  pedido          Pedido ?            @relation(fields: [idPedido], references: [id])
+
+  @@index([idMovimiento])
+  @@index([idPedido])
+}
+
+
+
 
 
 

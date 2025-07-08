@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -18,7 +17,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { UploadButton } from "@/utils/UploadThing";
 import { FormCrearEmpresaProps } from "./FormCrearEmpresa.types";
 import { useAuth } from "@clerk/nextjs";
 import { getCiudades } from "@/lib/getCiudades";
@@ -47,6 +45,39 @@ interface Ciudad {
   name: string;
 }
 
+async function subirLogoEmpresa(
+  file: File,
+  token: string,
+  onSuccess: (url: string) => void,
+  onError: (error: string) => void
+) {
+  const formData = new FormData();
+  formData.append("imagen", file);
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/cloudinary/upload/producto`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Error al subir imagen");
+    }
+
+    const data = await response.json();
+    onSuccess(data.url);
+  } catch (err: any) {
+    onError(err.message);
+  }
+}
+
 export function FormCrearEmpresa({
   setOpenModalCreate,
   onSuccess,
@@ -62,7 +93,7 @@ export function FormCrearEmpresa({
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    mode: "onChange", // importante para validar en tiempo real
+    mode: "onChange",
     defaultValues: {
       nit: "",
       razonSocial: "",
@@ -75,30 +106,26 @@ export function FormCrearEmpresa({
       logoUrl: "",
     },
   });
+
   useEffect(() => {
     const fetchToken = async () => {
       const token = await getToken();
       if (token) setToken(token);
-      return;
     };
     fetchToken();
   }, []);
 
-  // Cargar departamentos
   useEffect(() => {
     async function fetchDepartamentos() {
       const res = await getDepartamentos();
       const data = await res.json();
       setDepartamentos(data);
     }
-
     fetchDepartamentos();
   }, []);
 
-  // Cargar ciudades por departamento
   useEffect(() => {
     const selectedDptoId = form.watch("departamento");
-
     if (selectedDptoId) {
       const fetchCiudades = async () => {
         const data = await getCiudades(String(selectedDptoId));
@@ -112,13 +139,13 @@ export function FormCrearEmpresa({
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmiting(true);
-    console.log("📤 Enviando al backend:", values);
     try {
       const nombreDpto =
         departamentos.find((d) => d.id.toString() === values.departamento)
           ?.name || "";
       const nombreCiud =
         ciudades.find((c) => c.id.toString() === values.ciudad)?.name || "";
+
       const EmpresaPayload = {
         nit: values.nit,
         razonSocial: values.razonSocial.toUpperCase(),
@@ -130,31 +157,25 @@ export function FormCrearEmpresa({
         correo: values.correo.toUpperCase(),
         logoUrl: values.logoUrl,
       };
-      if (token) {
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/empresa/create`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(EmpresaPayload),
-          }
-        );
 
-        if (response.ok) {
-          console.log("payload enviado el backend:", EmpresaPayload);
-
-          toast({ title: "Empresa creada con éxito", duration: 1000 });
-          onSuccess?.();
-          setOpenModalCreate(false);
-        } else {
-          toast({
-            title: "Error al crear la empresa",
-            variant: "destructive",
-          });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/empresa/create`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(EmpresaPayload),
         }
+      );
+
+      if (response.ok) {
+        toast({ title: "Empresa creada con éxito", duration: 1000 });
+        onSuccess?.();
+        setOpenModalCreate(false);
+      } else {
+        toast({ title: "Error al crear la empresa", variant: "destructive" });
       }
     } catch (error) {
       console.error("❌ Error al crear la empresa:", error);
@@ -167,16 +188,11 @@ export function FormCrearEmpresa({
     <div>
       {isSubmiting && <Loading title="Creando Empresa" />}
       <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit, (err) => {
-            console.log("❌ Errores en el formulario:", err);
-          })}
-          className="space-y-8"
-        >
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <div className="grid grid-cols-3 gap-3">
             <FormField
-              control={form.control}
               name="nit"
+              control={form.control}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>NIT</FormLabel>
@@ -190,8 +206,8 @@ export function FormCrearEmpresa({
             />
 
             <FormField
-              control={form.control}
               name="razonSocial"
+              control={form.control}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Razón Social</FormLabel>
@@ -204,8 +220,8 @@ export function FormCrearEmpresa({
             />
 
             <FormField
-              control={form.control}
               name="nombreComercial"
+              control={form.control}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Nombre Comercial</FormLabel>
@@ -218,8 +234,8 @@ export function FormCrearEmpresa({
             />
 
             <FormField
-              control={form.control}
               name="direccion"
+              control={form.control}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Dirección</FormLabel>
@@ -230,12 +246,13 @@ export function FormCrearEmpresa({
                 </FormItem>
               )}
             />
+
             <FormField
-              control={form.control}
               name="telefono"
+              control={form.control}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Telefono</FormLabel>
+                  <FormLabel>Teléfono</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -245,8 +262,8 @@ export function FormCrearEmpresa({
             />
 
             <FormField
-              control={form.control}
               name="departamento"
+              control={form.control}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Departamento</FormLabel>
@@ -266,8 +283,8 @@ export function FormCrearEmpresa({
             />
 
             <FormField
-              control={form.control}
               name="ciudad"
+              control={form.control}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Ciudad</FormLabel>
@@ -287,8 +304,8 @@ export function FormCrearEmpresa({
             />
 
             <FormField
-              control={form.control}
               name="correo"
+              control={form.control}
               render={({ field }) => (
                 <FormItem className="col-span-2">
                   <FormLabel>Correo</FormLabel>
@@ -301,36 +318,38 @@ export function FormCrearEmpresa({
             />
 
             <FormField
-              control={form.control}
               name="logoUrl"
+              control={form.control}
               render={({ field }) => (
                 <FormItem className="col-span-1">
                   <FormLabel>Logo de la Empresa</FormLabel>
                   <FormControl>
-                    {photoUploaded ? (
-                      <p className="text-sm">✅ Logo cargado</p>
+                    {photoUploaded && field.value ? (
+                      <div className="text-sm">✅ Logo cargado</div>
                     ) : (
-                      <UploadButton
-                        endpoint="productImage"
-                        className="bg-slate-600/20 text-slate-800 rounded-lg outline-dotted outline-3"
-                        onClientUploadComplete={(res) => {
-                          if (res && res.length > 0) {
-                            const url = res[0].url || res[0].ufsUrl;
-                            if (typeof url === "string") {
-                              form.setValue("logoUrl", url, {
-                                shouldValidate: true,
-                              });
-                              setPhotoUploaded(true);
-                              toast({ title: "Logo cargado correctamente" });
-                            }
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file && token) {
+                            subirLogoEmpresa(
+                              file,
+                              token,
+                              (url) => {
+                                field.onChange(url);
+                                setPhotoUploaded(true);
+                                toast({ title: "Logo cargado correctamente" });
+                              },
+                              (errMsg) => {
+                                toast({
+                                  title: "Error al subir logo",
+                                  description: errMsg,
+                                  variant: "destructive",
+                                });
+                              }
+                            );
                           }
-                        }}
-                        onUploadError={(error: Error) => {
-                          toast({
-                            title: "Error al subir logo",
-                            content: error.message,
-                            variant: "destructive",
-                          });
                         }}
                       />
                     )}
@@ -342,7 +361,9 @@ export function FormCrearEmpresa({
           </div>
 
           <div className="flex justify-center">
-            <Button type="submit">Crear Empresa</Button>
+            <Button type="submit" disabled={isSubmiting || !photoUploaded}>
+              Crear Empresa
+            </Button>
           </div>
         </form>
       </Form>

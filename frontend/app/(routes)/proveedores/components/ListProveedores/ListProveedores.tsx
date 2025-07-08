@@ -41,7 +41,6 @@ export async function getProveedores(): Promise<Proveedor[]> {
 
 export default async function ListProveedoresPage() {
   const data = await getProveedores();
-  console.log("clientes que llegan al front:", data);
   return (
     <section className="min-h-screen bg-background text-foreground px-4 py-6">
       <div className="max-w-6xl mx-auto">

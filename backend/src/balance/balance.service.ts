@@ -1,6 +1,12 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
+import { CrearAjusteManualDto } from './dto/create-ajuste.dto';
 
 @Injectable()
 export class BalanceService {
@@ -26,7 +32,7 @@ export class BalanceService {
     });
     const resultado = saldos.map((saldo) => {
       const cliente = clientes.find(
-        (cliente) => cliente.id === saldo.idCliente,
+        (cliente) => cliente.id === saldo.idCliente
       );
       return {
         clienteId: saldo.idCliente,
@@ -42,54 +48,130 @@ export class BalanceService {
   }
   ///obtiene el saldo de cartera de un cliente el saldo total
   async saldoPorCliente(idCliente: string, usuario: UsuarioPayload) {
-    if (!idCliente || !usuario)
+    const { nombre, empresaId } = usuario;
+
+    if (!idCliente || !usuario) {
       throw new BadRequestException(
-        'el id del usuario y el usuario es requerido',
+        'El id del usuario y el usuario son requeridos'
       );
-    const { empresaId } = usuario;
-    const cliente = await this.prisma.cliente.findUnique({
-      where: {
-        id: idCliente,
-      },
-    });
-    if (!cliente)
-      throw new BadRequestException(
-        'El cliente con el id proporcionado no existe',
-      );
-    const saldo = await this.prisma.movimientosCartera.groupBy({
-      by: ['idCliente'],
-      _sum: { valorMovimiento: true },
-      where: { empresaId: empresaId, idCliente: idCliente },
-      having: {
-        valorMovimiento: {
-          _sum: { gt: 0 }, // Solo clientes que deben
-        },
-      },
-    });
-    if (Number(saldo) <= 0) {
-      return {
-        messagge: `El cliente :${cliente.nombre} con nit:${cliente.nit} no tiene deuda actualmente`,
-      };
     }
+
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { id: idCliente },
+    });
+
+    if (!cliente) {
+      throw new BadRequestException(
+        'El cliente con el id proporcionado no existe'
+      );
+    }
+
+    const movimientos = await this.prisma.movimientosCartera.findMany({
+      where: {
+        idCliente,
+        empresaId,
+      },
+      select: {
+        valorMovimiento: true,
+        tipoMovimientoOrigen: true,
+      },
+    });
+
+    // Calcular el balance
+    let total = 0;
+
+    for (const mov of movimientos) {
+      if (mov.tipoMovimientoOrigen === 'PEDIDO') {
+        total += mov.valorMovimiento;
+      } else if (
+        mov.tipoMovimientoOrigen === 'RECIBO' ||
+        mov.tipoMovimientoOrigen === 'AJUSTE_MANUAL'
+      ) {
+        total -= mov.valorMovimiento;
+      }
+    }
+
     return {
-      cliente: cliente,
-      saldo: saldo,
+      cliente,
+      saldo: total,
+      nombre,
     };
   }
 
   async movimientosCarteraCliente(idCliente: string, usuario: UsuarioPayload) {
     if (!usuario || !idCliente)
       throw new BadRequestException(
-        `los datos del cliente y el usuario son requeridos`,
+        `Los datos del cliente y el usuario son requeridos`
       );
+
     const { empresaId } = usuario;
+
     const movimientos = await this.prisma.movimientosCartera.findMany({
-      where: { empresaId: empresaId, idCliente: idCliente },
+      where: { empresaId, idCliente },
       include: {
-        pedido: true,
-        recibo: true,
+        pedido: { select: { id: true } },
+        recibo: { select: { id: true } },
+      },
+      orderBy: {
+        fechaMovimientoCartera: 'desc',
       },
     });
-    return movimientos;
+
+    if (!movimientos.length) {
+      throw new NotFoundException('No hay movimientos para este cliente');
+    }
+
+    const resultado = movimientos.map((m) => ({
+      fecha: m.fechaMovimientoCartera,
+      valorMovimiento: m.valorMovimiento,
+      tipoMovimiento: m.tipoMovimientoOrigen,
+      referencia: m.pedido?.id ?? m.recibo?.id ?? 'Sin referencia',
+    }));
+
+    return { movimientos: resultado };
+  }
+  async ajusteManual(data: CrearAjusteManualDto, usuario: UsuarioPayload) {
+    if (!usuario) {
+      throw new UnauthorizedException('Usuario no autorizado');
+    }
+
+    const { clienteId, pedidos, observacion } = data;
+    const { empresaId, id } = usuario;
+
+    if (!pedidos || pedidos.length === 0) {
+      throw new BadRequestException(
+        'Debes enviar al menos un pedido para ajustar'
+      );
+    }
+
+    const totalAjustado = pedidos.reduce(
+      (acum, pedido) => acum + pedido.valorAplicado,
+      0
+    );
+
+    const movimiento = await this.prisma.movimientosCartera.create({
+      data: {
+        empresaId,
+        idCliente: clienteId,
+        valorMovimiento: totalAjustado,
+        tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+        idUsuario: id,
+        observacion,
+      },
+    });
+
+    // Registrar detalles del ajuste
+    await this.prisma.detalleAjusteCartera.createMany({
+      data: pedidos.map((pedido) => ({
+        idMovimiento: movimiento.idMovimientoCartera,
+        idPedido: pedido.pedidoId,
+        valor: pedido.valorAplicado,
+      })),
+    });
+
+    return {
+      message: 'Ajuste manual registrado correctamente',
+      movimiento,
+    };
   }
 }

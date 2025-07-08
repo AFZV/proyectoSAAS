@@ -35,13 +35,13 @@ export class ComprasController {
   async update(
     @Param('idCompra') idCompra: string,
     @Body() data: UpdateCompraDto,
-    @Req() req: UsuarioRequest,
+    @Req() req: UsuarioRequest
   ) {
     const usuario = req.usuario;
     const compraActualizada = await this.comprasService.updateCompra(
       idCompra,
       usuario,
-      data,
+      data
     );
     return {
       message: `Se ha actualizado la compra ${idCompra}`,

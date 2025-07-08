@@ -10,13 +10,15 @@ import * as fs from 'fs';
 import { unlink, writeFile } from 'fs/promises';
 import * as path from 'path';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { ResendService } from 'src/resend/resend.service';
 
 @Injectable()
 export class PedidosService {
   constructor(
     private prisma: PrismaService,
     private pdfUploaderService: PdfUploaderService,
-    private cloudinaryService: CloudinaryService
+    private cloudinaryService: CloudinaryService,
+    private resend: ResendService
   ) {}
 
   ///crea un pedido en la bdd y sus relaciones
@@ -68,7 +70,8 @@ export class PedidosService {
   async agregarEstado(
     pedidoId: string,
     estado: string,
-    guiaYflete: UpdatePedidoDto
+    guiaTransporte?: string,
+    flete?: number
   ) {
     const estadoNormalizado = estado.toUpperCase();
 
@@ -82,7 +85,7 @@ export class PedidosService {
       );
     }
 
-    if (['SEPARADO', 'ENVIADO', 'CANCELADO'].includes(estadoNormalizado)) {
+    if (['SEPARADO', 'CANCELADO'].includes(estadoNormalizado)) {
       return this.prisma.estadoPedido.create({
         data: { pedidoId, estado: estadoNormalizado },
       });
@@ -108,7 +111,15 @@ export class PedidosService {
               },
             },
             usuario: {
-              select: { nombre: true },
+              select: { nombre: true, telefono: true },
+            },
+            empresa: {
+              select: {
+                telefono: true,
+                logoUrl: true,
+                nombreComercial: true,
+                direccion: true,
+              },
             },
           },
         }),
@@ -170,6 +181,7 @@ export class PedidosService {
           empresaId: pedido.empresaId,
           valorMovimiento: pedido.total,
           idPedido: pedido.id,
+          tipoMovimientoOrigen: 'PEDIDO',
         },
       });
 
@@ -188,12 +200,20 @@ export class PedidosService {
           .then((res) => res[res.length - 1]),
       ]);
 
+      console.log('antes de entrar al setinmediatte');
+
       // Generar y subir el PDF sin bloquear la respuesta
       setImmediate(() => {
+        console.log('entando al setinmediate');
         void (async () => {
           try {
             const resumen: ResumenPedidoDto = {
+              emailCliente: pedido.cliente.email,
+              ciudadCliente: pedido.cliente.ciudad,
               id: pedido.id,
+              nombreEmpresa: pedido.empresa.nombreComercial,
+              direccionEmpresa: pedido.empresa.direccion,
+              telefonoEmpresa: pedido.empresa.telefono,
               cliente:
                 pedido.cliente.rasonZocial ||
                 `${pedido.cliente.nombre}, ${pedido.cliente.apellidos}`,
@@ -205,6 +225,7 @@ export class PedidosService {
                 precio: item.precio,
                 subtotal: item.cantidad * item.precio,
               })),
+              logoUrl: pedido.empresa.logoUrl,
               total: pedido.productos.reduce(
                 (sum, item) => sum + item.cantidad * item.precio,
                 0
@@ -222,6 +243,39 @@ export class PedidosService {
               usuarioNombre: resumen.vendedor,
               tipo: 'pedidos',
             });
+            if (!pedido.cliente?.email)
+              throw new Error('Error al obtener email');
+            const numeroWhatsApp = `+57${pedido.usuario?.telefono?.replace(/\D/g, '')}`;
+            await this.resend.enviarCorreo(
+              pedido.cliente.email,
+              'Confirmación de tu pedido',
+              `
+  <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+    <p>Hola <strong>${pedido.cliente.nombre}</strong>,</p>
+
+    <p>Tu pedido ha sido <strong>facturado exitosamente</strong>. Adjuntamos el comprobante en PDF:</p>
+
+    <p style="margin: 16px 0;">
+      <a href="${url}" target="_blank"
+         style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
+        Ver Comprobante PDF
+      </a>
+    </p>
+
+    <p>¿Tienes alguna duda o deseas hacer otro pedido? Contáctanos:</p>
+
+    <p>
+      <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
+         style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
+        💬 Contactar por WhatsApp
+      </a>
+    </p>
+
+    <p style="margin-top: 30px;">Gracias por tu compra,</p>
+    <p><strong>Equipo de Ventas</strong></p>
+  </div>
+  `
+            );
 
             console.log(`✅ PDF subido a Cloudinary: ${url}`);
           } catch (error) {
@@ -232,6 +286,7 @@ export class PedidosService {
           }
         })();
       });
+      console.log('siliendo del setinmediate');
 
       return estadoCreado;
     }
@@ -243,8 +298,8 @@ export class PedidosService {
           where: { id: pedidoId },
           data: {
             fechaEnvio: fechaEnviado,
-            guiaTransporte: guiaYflete.guiaTransporte,
-            flete: guiaYflete.flete,
+            guiaTransporte: guiaTransporte,
+            flete: flete,
           },
         }),
         this.prisma.estadoPedido.create({
@@ -373,8 +428,9 @@ export class PedidosService {
         },
         cliente: true,
         usuario: {
-          select: { nombre: true },
+          select: { nombre: true, telefono: true },
         },
+        empresa: true,
       },
     });
 
@@ -425,6 +481,7 @@ export class PedidosService {
         empresaId: pedidoActualizado.empresaId,
         valorMovimiento: totalCalculado,
         idPedido: pedidoActualizado.id,
+        tipoMovimientoOrigen: 'PEDIDO',
       },
     });
 
@@ -442,6 +499,12 @@ export class PedidosService {
           const razonSocial = pedidoActualizado.cliente.rasonZocial;
 
           const resumenPedidoDto: ResumenPedidoDto = {
+            emailCliente: pedidoActualizado.cliente.email,
+            ciudadCliente: pedidoActualizado.cliente.ciudad,
+            direccionEmpresa: pedidoActualizado.empresa.direccion,
+            logoUrl: pedidoActualizado.empresa.logoUrl,
+            nombreEmpresa: pedidoActualizado.empresa.nombreComercial,
+            telefonoEmpresa: pedidoActualizado.empresa.telefono,
             id: pedidoActualizado.id,
             cliente: clienteNombres || razonSocial,
             fecha: new Date(),

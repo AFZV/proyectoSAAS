@@ -4,7 +4,7 @@ import { ClienteDataTable } from "./data-table";
 import { Loading } from "@/components/Loading";
 
 export function ListRecaudos({ data }: { data: ReciboConRelaciones[] }) {
-  if (!data || data.length === 0) {
+  if (!data) {
     return <Loading title="Cargando recibos..." />;
   }
   console.log("esto llega en recibos:", data);

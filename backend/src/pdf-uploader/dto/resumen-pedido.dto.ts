@@ -9,10 +9,10 @@ import { Type } from 'class-transformer';
 
 export class ResumenPedidoDto {
   @IsString()
-  id: string; // ID del pedido
+  id: string;
 
   @IsString()
-  cliente: string; // Nombre del cliente
+  cliente: string;
 
   @IsDate()
   @Type(() => Date)
@@ -25,8 +25,25 @@ export class ResumenPedidoDto {
 
   @IsNumber()
   total: number;
+
   @IsString()
   vendedor: string;
+
+  @IsString()
+  logoUrl: string;
+
+  @IsString()
+  nombreEmpresa: string;
+
+  @IsString()
+  direccionEmpresa: string;
+
+  @IsString()
+  telefonoEmpresa: string;
+  @IsString()
+  ciudadCliente: string;
+  @IsString()
+  emailCliente: string;
 }
 
 export class ProductoResumenDto {
