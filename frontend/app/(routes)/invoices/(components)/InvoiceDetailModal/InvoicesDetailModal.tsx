@@ -69,9 +69,6 @@ function InvoiceDetailModal({
   const { getToken } = useAuth();
   const { toast } = useToast();
 
-  
-
-
   // Agregar logs para debug
 
   if (!pedido) return null;
@@ -108,33 +105,53 @@ function InvoiceDetailModal({
       return;
     }
 
+    if (nuevoEstado === "ENVIADO" && !guiaTransporte.trim()) {
+      toast({
+        title: "Error",
+        description: "La guía de transporte es requerida para enviar el pedido",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsUpdating(true);
-      const token = await getToken();
 
-      const datosExtra: any = {};
-      if (nuevoEstado === "ENVIADO") {
-        if (!guiaTransporte.trim()) {
-          toast({
-            title: "Error",
-            description: "La guía de transporte es requerida",
-            variant: "destructive",
-          });
-          return;
-        }
-        datosExtra.guiaTransporte = guiaTransporte;
-        if (flete) {
-          datosExtra.flete = parseFloat(flete);
-        }
+      // ✅ CORRECCIÓN: Verificar que el token existe
+      const token = await getToken();
+      if (!token) {
+        toast({
+          title: "Error de autenticación",
+          description: "No se pudo obtener el token de autenticación",
+          variant: "destructive",
+        });
+        return;
       }
 
-      await invoicesService.actualizarEstadoPedido(
-        token!,
-        pedido.id,
+      console.log("🔄 Iniciando actualización de estado:", {
+        pedidoId: pedido.id,
+        estadoActual,
         nuevoEstado,
-        datosExtra
+        guiaTransporte: guiaTransporte.trim(),
+        flete: flete ? parseFloat(flete) : undefined,
+      });
+
+      // ✅ Preparar datos para enviar
+      const datosActualizacion = {
+        estado: nuevoEstado,
+        // guiaTransporte: guiaTransporte.trim(), // ✅ Enviar string, aunque sea vacío
+        // flete: flete ? parseFloat(flete) : 0, // ✅ Enviar 0 en lugar de undefined
+      };
+
+      // ✅ Llamar al servicio con token verificado
+      await invoicesService.actualizarEstadoPedido(
+        token,
+        pedido.id,
+        datosActualizacion
       );
 
+      // ✅ Crear estados array seguro
+      const estadosActuales = pedido.estados || [];
       const nuevoEstadoObj = {
         id: Date.now().toString(),
         estado: nuevoEstado as any,
@@ -142,41 +159,37 @@ function InvoiceDetailModal({
         pedidoId: pedido.id,
       };
 
-      const pedidoActualizado = {
+      const pedidoActualizado: Pedido = {
         ...pedido,
-        estados: pedido.estados
-          ? [...pedido.estados, nuevoEstadoObj]
-          : [nuevoEstadoObj],
-        ...(nuevoEstado === "ENVIADO" && {
-          guiaTransporte,
-          flete: flete ? parseFloat(flete) : undefined,
-          fechaEnvio: new Date().toISOString(),
-        }),
+        guiaTransporte: guiaTransporte.trim() || pedido.guiaTransporte,
+        flete: flete ? parseFloat(flete) : pedido.flete,
+        fechaEnvio:
+          nuevoEstado === "ENVIADO"
+            ? new Date().toISOString()
+            : pedido.fechaEnvio,
+        estados: [...estadosActuales, nuevoEstadoObj],
       };
 
       onUpdate(pedidoActualizado);
 
+      toast({
+        title: "✅ Estado actualizado",
+        description: `Pedido cambiado a ${ESTADOS_PEDIDO[nuevoEstado as keyof typeof ESTADOS_PEDIDO]?.label}`,
+      });
+
       setShowEstadoForm(false);
       setNuevoEstado("");
-      setGuiaTransporte("");
-      setFlete("");
-
+    } catch (err: any) {
+      console.error("❌ Error al cambiar estado:", err);
       toast({
-        title: "Estado actualizado correctamente",
-        description: `El pedido ahora está en estado: ${ESTADOS_PEDIDO[nuevoEstado as keyof typeof ESTADOS_PEDIDO]?.label}`,
-      });
-    } catch (error: any) {
-      console.error("Error al cambiar estado:", error);
-      toast({
-        title: "Error al cambiar estado",
-        description: error.message || "Ocurrió un error inesperado",
+        title: "Error al actualizar",
+        description: err.message || "No se pudo cambiar el estado del pedido",
         variant: "destructive",
       });
     } finally {
       setIsUpdating(false);
     }
   };
-
   const nombreCliente =
     pedido.cliente?.rasonZocial ||
     `${pedido.cliente?.nombre || "Cliente"} ${pedido.cliente?.apellidos || ""}`.trim();

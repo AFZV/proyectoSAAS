@@ -48,7 +48,7 @@ export class CatalogService {
       precio: producto.precioVenta,
       categoria: categoriasMap.get(producto.categoriaId) || 'Sin categoría',
       imagenUrl: producto.imagenUrl,
-      stock: producto.inventario?.[0]?.stockActual || 0,
+      stock: producto.inventario?.[0]?.stockActual ??0,
     }));
   }
 

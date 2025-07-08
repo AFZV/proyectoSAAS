@@ -1,5 +1,3 @@
-// app/invoices/services/invoices.service.ts - ADAPTADO AL BACKEND EXISTENTE
-
 import type { 
   Pedido, 
   CreatePedidoDto,
@@ -15,6 +13,9 @@ export class InvoicesService {
     token: string,
     options?: RequestInit
   ): Promise<T> {
+    console.log(`🌐 Haciendo request a: ${this.baseUrl}${endpoint}`);
+    console.log('📦 Opciones:', options);
+
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
       headers: {
@@ -24,12 +25,17 @@ export class InvoicesService {
       },
     });
 
+    console.log(`📡 Respuesta: ${response.status} ${response.statusText}`);
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
+      console.error('❌ Error en response:', error);
       throw new Error(error.message || `Error ${response.status}: ${response.statusText}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log('✅ Datos recibidos:', data);
+    return data;
   }
 
   // 📋 OBTENER PEDIDOS
@@ -45,38 +51,67 @@ export class InvoicesService {
     });
   }
 
-  // 🔄 ACTUALIZAR ESTADO DE PEDIDO - USANDO LA RUTA REAL DEL BACKEND
+  // 🔄 ACTUALIZAR ESTADO DE PEDIDO - CORREGIDO PARA /estado
   async actualizarEstadoPedido(
     token: string, 
     pedidoId: string,
-    estado: string,
-    datosExtra?: { guiaTransporte?: string; flete?: number }
+    data: {
+      estado: string;
+      guiaTransporte?: string;
+      flete?: number;
+    }
   ): Promise<any> {
-    // ✅ Usar la ruta que realmente existe en tu backend
-    return this.makeRequest('/pedidos/estado', token, {
-      method: 'POST',
-      body: JSON.stringify({
-        pedidoId,
-        estado,
-        // Incluir datos extra en el mismo objeto
-        ...(datosExtra || {})
-      }),
+    console.log('🔄 Actualizando estado del pedido:');
+    console.log('📋 Datos enviados:', {
+      pedidoId,
+      estado: data.estado,
+      guiaTransporte: data.guiaTransporte,
+      flete: data.flete
     });
+
+    // ✅ PREPARAR PAYLOAD CON CAMPOS OBLIGATORIOS
+    const payload = {
+  pedidoId,
+  estado: data.estado,
+  guiaTransporte: data.guiaTransporte,  // ✅ Siempre incluir
+  flete: data.flete                     // ✅ Siempre incluir
+};
+
+    console.log('📤 Payload final:', payload);
+
+    try {
+      const result = await this.makeRequest(
+        '/pedidos/estado', // ✅ CORREGIDO: Usar /estado en lugar de /estados
+        token,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        }
+      );
+
+      console.log('✅ Estado actualizado exitosamente:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Error al actualizar estado:', error);
+      throw error;
+    }
   }
 
-  // ✏️ ACTUALIZAR PEDIDO COMPLETO (Solo admin)
+  // ✏️ ACTUALIZAR PEDIDO COMPLETO
   async actualizarPedido(
     token: string, 
     pedidoId: string, 
     data: Partial<CreatePedidoDto>
   ): Promise<Pedido> {
+    console.log('📝 Actualizando pedido completo:', { pedidoId, data });
+    
     return this.makeRequest<Pedido>(`/pedidos/${pedidoId}`, token, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
 
-  // 🔍 FILTRAR PEDIDOS - USANDO GET CON BODY (como está en tu backend)
+  // 🔍 FILTRAR PEDIDOS - CORREGIDO PARA USAR QUERY PARAMS
   async filtrarPedidos(
     token: string, 
     filtros: {
@@ -84,17 +119,21 @@ export class InvoicesService {
       tipoFiltro: 'id' | 'clienteId' | 'usuarioId' | 'total' | 'empresaId' | 'fechaPedido';
     }
   ): Promise<Pedido[]> {
-    // Tu backend usa @Get('filtro') pero con @Body(), lo cual es técnicamente incorrecto
-    // pero vamos a hacer que funcione
-    return this.makeRequest<Pedido[]>('/pedidos/filtro', token, {
+    console.log('🔍 Filtrando pedidos:', filtros);
+
+    // ✅ USAR QUERY PARAMETERS EN LUGAR DE BODY
+    const params = new URLSearchParams({
+      filtro: filtros.filtro,
+      tipoFiltro: filtros.tipoFiltro
+    });
+
+    return this.makeRequest<Pedido[]>(`/pedidos/filtro?${params.toString()}`, token, {
       method: 'GET',
-      body: JSON.stringify(filtros),
     });
   }
 
-  // 📊 OBTENER ESTADÍSTICAS - CALCULADAS DESDE LOS PEDIDOS (porque no hay endpoint)
+  // 📊 OBTENER ESTADÍSTICAS
   async obtenerEstadisticasPedidos(token: string): Promise<EstadisticasPedidos> {
-    // Como tu backend no tiene endpoint de estadísticas, las calculamos
     const pedidos = await this.obtenerPedidos(token);
     
     const hoy = new Date();
@@ -110,29 +149,23 @@ export class InvoicesService {
       pedidosHoy: 0,
     };
 
-    // Procesar cada pedido para generar estadísticas
     pedidos.forEach((pedido: any) => {
-      // Tu backend puede no incluir estados, así que manejamos ambos casos
       let estadoActual = 'GENERADO';
       
       if (pedido.estados && Array.isArray(pedido.estados) && pedido.estados.length > 0) {
-        // Si tiene estados, tomar el más reciente
         const estadosOrdenados = pedido.estados.sort((a: any, b: any) => 
           new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime()
         );
         estadoActual = estadosOrdenados[0].estado;
       }
       
-      // Contar por estado
       stats.pedidosPorEstado[estadoActual] = (stats.pedidosPorEstado[estadoActual] || 0) + 1;
       
-      // Contar pedidos de hoy
       const fechaPedido = new Date(pedido.fechaPedido);
       if (fechaPedido >= hoy && fechaPedido < mañana) {
         stats.pedidosHoy++;
       }
       
-      // Sumar ventas (solo pedidos facturados/enviados/entregados)
       if (['FACTURADO', 'ENVIADO', 'ENTREGADO'].includes(estadoActual)) {
         stats.ventasTotal += pedido.total || 0;
         
@@ -145,10 +178,9 @@ export class InvoicesService {
     return stats;
   }
 
-  // 🔍 BUSCAR CLIENTE POR NIT (ajustar según tu backend de clientes)
+  // 🔍 BUSCAR CLIENTE POR NIT
   async buscarClientePorNit(token: string, nit: string): Promise<any> {
     try {
-      // Ajusta esta ruta según tu backend de clientes
       return this.makeRequest(`/clientes/buscar/${nit}`, token);
     } catch (error) {
       throw new Error('Cliente no encontrado');
@@ -156,15 +188,9 @@ export class InvoicesService {
   }
 
   // 📊 OBTENER PEDIDOS CON RELACIONES COMPLETAS
-  // Tu backend obtenerPedidos() básico no incluye relaciones, 
-  // así que necesitamos hacer llamadas adicionales si es necesario
   async obtenerPedidosCompletos(token: string): Promise<Pedido[]> {
     try {
-      // Primero intentamos obtener los pedidos básicos
       const pedidos = await this.obtenerPedidos(token);
-      
-      // Si los pedidos no incluyen las relaciones que necesitamos,
-      // tendremos que trabajar con lo que tenemos
       return pedidos;
     } catch (error) {
       console.error('Error al obtener pedidos:', error);
@@ -173,5 +199,4 @@ export class InvoicesService {
   }
 }
 
-// Instancia singleton
 export const invoicesService = new InvoicesService();
