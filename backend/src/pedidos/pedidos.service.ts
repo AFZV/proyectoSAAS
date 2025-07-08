@@ -439,6 +439,12 @@ export class PedidosService {
       0
     );
 
+    // ACTUALIZAR EL TOTAL EN LA BASE DE DATOS
+    await this.prisma.pedido.update({
+      where: { id: pedidoId },
+      data: { total: totalCalculado },
+    });
+
     const tipoSalida = await this.prisma.tipoMovimientos.findFirst({
       where: { tipo: 'SALIDA' },
     });

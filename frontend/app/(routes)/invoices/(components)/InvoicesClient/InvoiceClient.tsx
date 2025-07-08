@@ -1,8 +1,8 @@
-// app/invoices/(components)/InvoicesClient/InvoiceClient.tsx - SOLUCIÓN COMPLETA
+// app/invoices/(components)/InvoicesClient/InvoiceClient.tsx
 
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,6 +17,7 @@ import {
   Filter,
   Columns,
   RefreshCw,
+  Truck,
 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
@@ -24,11 +25,8 @@ import { formatValue } from "@/utils/FormartValue";
 import { ESTADOS_PEDIDO } from "../../types/invoices.types";
 import { invoicesService } from "../../services/invoices.service";
 import { InvoiceDetailModal } from "../InvoiceDetailModal";
-
-// ✅ Importar el tipo correcto desde types
+import { EditPedidoModal } from "../EditPedidoModal";
 import type { Pedido } from "../../types/invoices.types";
-
-// ✅ Modal de detalle incluido aquí para evitar problemas de import
 import {
   Dialog,
   DialogContent,
@@ -36,17 +34,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import {
-  User,
-  Package,
-  Calendar,
-  MapPin,
-  Phone,
-  Mail,
-  Truck,
-  X,
-} from "lucide-react";
 
 interface InvoicesClientProps {
   pedidos: Pedido[];
@@ -67,10 +54,11 @@ export function InvoicesClient({
   userName,
   estadisticas,
 }: InvoicesClientProps) {
-  // ✅ Estados principales - permitir actualizaciones
+  // Estados principales
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales);
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Estados de filtros
@@ -79,11 +67,11 @@ export function InvoicesClient({
   const [fechaInicio, setFechaInicio] = useState("");
   const [fechaFin, setFechaFin] = useState("");
 
-  // ✅ Paginación con selector de items
+  // Paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // ✅ Columnas visibles
+  // Columnas visibles
   const [visibleColumns, setVisibleColumns] = useState({
     id: true,
     cliente: true,
@@ -92,20 +80,19 @@ export function InvoicesClient({
     estado: true,
     vendedor: true,
     fecha: true,
+    flete: true,
     acciones: true,
   });
 
   const { getToken, userId } = useAuth();
   const { toast } = useToast();
 
-  // ✅ Función para refrescar datos del backend
+  // Función para refrescar datos
   const refreshPedidos = async () => {
     try {
       setIsRefreshing(true);
       const token = await getToken();
-      const pedidosActualizados = (await invoicesService.obtenerPedidos(
-        token!
-      )) as Pedido[];
+      const pedidosActualizados = await invoicesService.obtenerPedidos(token!);
       setPedidos(pedidosActualizados);
 
       toast({
@@ -124,7 +111,7 @@ export function InvoicesClient({
     }
   };
 
-  // ✅ Funciones helper para obtener datos de forma segura
+  // Funciones helper
   const getEstadoActual = (pedido: Pedido): string => {
     if (!pedido.estados || pedido.estados.length === 0) {
       return "GENERADO";
@@ -156,7 +143,7 @@ export function InvoicesClient({
     return `${pedido.usuario.nombre || "Usuario"} ${pedido.usuario.apellidos || ""}`.trim();
   };
 
-  // ✅ Filtrar pedidos
+  // Filtrar pedidos
   const pedidosFiltrados = useMemo(() => {
     let filtered = pedidos;
 
@@ -194,13 +181,13 @@ export function InvoicesClient({
     );
   }, [pedidos, searchTerm, estadoFiltro]);
 
-  // ✅ Paginación
+  // Paginación
   const totalPages = Math.ceil(pedidosFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const pedidosPaginados = pedidosFiltrados.slice(startIndex, endIndex);
 
-  // ✅ Calcular estadísticas
+  // Calcular estadísticas
   const stats = useMemo(() => {
     if (estadisticas) {
       return {
@@ -222,15 +209,13 @@ export function InvoicesClient({
     return { totalPedidos, pedidosActivos, pedidosInactivos };
   }, [pedidosFiltrados, estadisticas]);
 
-  // ✅ Manejar actualización de pedido
+  // Manejar actualización de pedido
   const handleUpdatePedido = async (pedidoActualizado: Pedido) => {
-    // Actualizar localmente primero para UI rápida
     setPedidos((prev) =>
       prev.map((p) => (p.id === pedidoActualizado.id ? pedidoActualizado : p))
     );
     setSelectedPedido(pedidoActualizado);
 
-    // Luego refrescar desde el servidor para asegurar sincronización
     setTimeout(() => {
       refreshPedidos();
     }, 1000);
@@ -241,7 +226,23 @@ export function InvoicesClient({
     setIsDetailModalOpen(true);
   };
 
-  // ✅ Función para eliminar pedido (simulada)
+  const handleEditarPedido = (pedido: Pedido) => {
+    const estadoActual = getEstadoActual(pedido);
+
+    // Verificar si el pedido puede ser editado
+    if (!["GENERADO", "SEPARADO"].includes(estadoActual)) {
+      toast({
+        title: "No se puede editar",
+        description: `Los pedidos en estado ${ESTADOS_PEDIDO[estadoActual as keyof typeof ESTADOS_PEDIDO]?.label} no pueden ser modificados`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedPedido(pedido);
+    setIsEditModalOpen(true);
+  };
+
   const handleEliminarPedido = (pedidoId: string) => {
     if (confirm("¿Estás seguro de que quieres eliminar este pedido?")) {
       toast({
@@ -250,14 +251,6 @@ export function InvoicesClient({
         variant: "destructive",
       });
     }
-  };
-
-  // ✅ Función para editar pedido (simulada)
-  const handleEditarPedido = (pedidoId: string) => {
-    toast({
-      title: "Función no implementada",
-      description: "La edición de pedidos estará disponible próximamente",
-    });
   };
 
   const getEstadoBadge = (estado: string) => {
@@ -293,7 +286,7 @@ export function InvoicesClient({
 
   return (
     <div className="p-6">
-      {/* ✅ Header corregido con diseño más redondeado */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-8 mb-8 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -423,7 +416,7 @@ export function InvoicesClient({
                 ))}
               </select>
 
-              {/* ✅ Botón de columnas funcional */}
+              {/* Botón de columnas */}
               <Dialog>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -458,9 +451,11 @@ export function InvoicesClient({
                             ? "ID"
                             : key === "contacto"
                               ? "Contacto"
-                              : key === "acciones"
-                                ? "Acciones"
-                                : key}
+                              : key === "flete"
+                                ? "Flete"
+                                : key === "acciones"
+                                  ? "Acciones"
+                                  : key}
                         </label>
                       </div>
                     ))}
@@ -511,6 +506,11 @@ export function InvoicesClient({
                     Fecha
                   </th>
                 )}
+                {visibleColumns.flete && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Flete
+                  </th>
+                )}
                 {visibleColumns.acciones && (
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
@@ -552,6 +552,9 @@ export function InvoicesClient({
                   const estadoActual = getEstadoActual(pedido);
                   const nombreCliente = getNombreCliente(pedido);
                   const nombreVendedor = getNombreVendedor(pedido);
+                  const puedeEditar = ["GENERADO", "SEPARADO"].includes(
+                    estadoActual
+                  );
 
                   return (
                     <tr
@@ -620,6 +623,20 @@ export function InvoicesClient({
                           )}
                         </td>
                       )}
+                      {visibleColumns.flete && (
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {pedido.flete ? (
+                            <div className="flex items-center space-x-1">
+                              <Truck className="h-4 w-4 text-orange-500" />
+                              <span className="text-sm font-medium text-orange-600">
+                                {formatValue(pedido.flete)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
+                        </td>
+                      )}
                       {visibleColumns.acciones && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <div className="flex space-x-2">
@@ -637,9 +654,18 @@ export function InvoicesClient({
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleEditarPedido(pedido.id)}
-                                  className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
-                                  title="Editar pedido"
+                                  onClick={() => handleEditarPedido(pedido)}
+                                  className={`${
+                                    puedeEditar
+                                      ? "text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                                      : "text-gray-400 cursor-not-allowed"
+                                  }`}
+                                  title={
+                                    puedeEditar
+                                      ? "Editar pedido"
+                                      : "No se puede editar en este estado"
+                                  }
+                                  disabled={!puedeEditar}
                                 >
                                   <Edit3 className="h-4 w-4" />
                                 </Button>
@@ -675,7 +701,7 @@ export function InvoicesClient({
           </table>
         </div>
 
-        {/* ✅ Paginación corregida */}
+        {/* Paginación */}
         {pedidosFiltrados.length > 0 && (
           <div className="bg-white px-6 py-4 border-t border-gray-200">
             <div className="flex items-center justify-between">
@@ -742,13 +768,19 @@ export function InvoicesClient({
           <AlertCircle className="h-5 w-5 text-blue-400 mr-2" />
           <div>
             <h3 className="text-sm font-medium text-blue-800">
-              Actualizaciones en tiempo real
+              Información importante
             </h3>
-            <p className="text-sm text-blue-700 mt-1">
-              Los cambios de estado se reflejan inmediatamente. Si no ves los
-              cambios, haz clic en "Actualizar" para sincronizar con el
-              servidor.
-            </p>
+            <div className="text-sm text-blue-700 mt-1 space-y-1">
+              <p>
+                • Los pedidos solo pueden editarse en estado GENERADO o SEPARADO
+              </p>
+              <p>
+                • El valor del flete se muestra cuando bodega envía el pedido
+              </p>
+              <p>
+                • Los cambios se sincronizan automáticamente con el servidor
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -763,6 +795,17 @@ export function InvoicesClient({
         }}
         userType={userType}
         onUpdate={handleUpdatePedido}
+      />
+
+      {/* Modal de edición */}
+      <EditPedidoModal
+        pedido={selectedPedido}
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedPedido(null);
+        }}
+        onSuccess={refreshPedidos}
       />
     </div>
   );

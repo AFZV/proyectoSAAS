@@ -24,9 +24,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
 import { UploadButton } from "@/utils/UploadThing";
+import { Plus, Package } from "lucide-react";
 import type { Categoria } from "../../types/catalog.types";
 
 const formSchema = z.object({
@@ -40,8 +49,151 @@ const formSchema = z.object({
   categoriaId: z.string().min(1, "Debe seleccionar una categoría"),
 });
 
+const categoriaSchema = z.object({
+  nombre: z
+    .string()
+    .min(2, "El nombre debe tener al menos 2 caracteres")
+    .max(30, "El nombre no puede exceder 30 caracteres"),
+});
+
 interface FormCreateProductProps {
   onSuccess: () => void;
+}
+
+// Componente para crear nueva categoría
+function CreateCategoriaModal({
+  onCategoriaCreated,
+}: {
+  onCategoriaCreated: (categoria: Categoria) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { getToken } = useAuth();
+  const { toast } = useToast();
+
+  const categoriaForm = useForm<z.infer<typeof categoriaSchema>>({
+    resolver: zodResolver(categoriaSchema),
+    defaultValues: {
+      nombre: "",
+    },
+  });
+
+  const onSubmitCategoria = async (values: z.infer<typeof categoriaSchema>) => {
+    try {
+      setIsSubmitting(true);
+      const token = await getToken();
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/productos/categoria/create`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(values),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Error al crear categoría");
+      }
+
+      const data = await response.json();
+
+      toast({
+        title: "Categoría creada exitosamente",
+        description: `${data.categoria.nombre} ha sido agregada`,
+      });
+
+      onCategoriaCreated(data.categoria);
+      categoriaForm.reset();
+      setIsOpen(false);
+    } catch (error: any) {
+      console.error("Error:", error);
+      toast({
+        title: "Error al crear categoría",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-1 hover:bg-blue-50 hover:border-blue-300"
+        >
+          <Plus className="w-3 h-3" />
+          Nueva Categoría
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-blue-600" />
+            Crear Nueva Categoría
+          </DialogTitle>
+          <DialogDescription>
+            Agrega una nueva categoría para organizar tus productos
+          </DialogDescription>
+        </DialogHeader>
+
+        <Form {...categoriaForm}>
+          <form
+            onSubmit={categoriaForm.handleSubmit(onSubmitCategoria)}
+            className="space-y-4"
+          >
+            <FormField
+              control={categoriaForm.control}
+              name="nombre"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre de la Categoría</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Ej: Papelería, Ferretería, Hogar..."
+                      maxLength={30}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {field.value.length}/30 caracteres
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="flex justify-end space-x-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsOpen(false)}
+                disabled={isSubmitting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+              >
+                {isSubmitting ? "Creando..." : "Crear Categoría"}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
@@ -141,6 +293,17 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
     // Remover todo lo que no sea dígito o punto decimal
     const cleaned = value.replace(/[^\d.]/g, "");
     return cleaned === "" ? 0 : parseFloat(cleaned) || 0;
+  };
+
+  // Callback cuando se crea una nueva categoría
+  const handleCategoriaCreated = (nuevaCategoria: Categoria) => {
+    setCategorias((prev) => [...prev, nuevaCategoria]);
+    // Seleccionar automáticamente la nueva categoría
+    form.setValue("categoriaId", nuevaCategoria.idCategoria);
+    toast({
+      title: "Categoría agregada",
+      description: "La nueva categoría ha sido seleccionada automáticamente",
+    });
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -283,35 +446,41 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
             )}
           />
 
-          {/* Categoría */}
+          {/* Categoría con botón para crear nueva */}
           <FormField
             control={form.control}
             name="categoriaId"
             render={({ field }) => (
               <FormItem className="col-span-full">
                 <FormLabel>Categoría</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona una categoría" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {categorias.map((categoria) => (
-                      <SelectItem
-                        key={categoria.idCategoria}
-                        value={categoria.idCategoria}
-                      >
-                        {categoria.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona una categoría" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {categorias.map((categoria) => (
+                          <SelectItem
+                            key={categoria.idCategoria}
+                            value={categoria.idCategoria}
+                          >
+                            {categoria.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <CreateCategoriaModal
+                    onCategoriaCreated={handleCategoriaCreated}
+                  />
+                </div>
                 <FormDescription>
-                  {categorias.length === 0 && "No hay categorías disponibles"}
+                  {categorias.length === 0
+                    ? "No hay categorías. Crea una nueva categoría primero."
+                    : "Selecciona una categoría existente o crea una nueva"}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

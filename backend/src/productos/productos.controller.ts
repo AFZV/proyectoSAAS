@@ -55,6 +55,7 @@ export class ProductosController {
     const usuario = req.usuario;
     const productos =
       await this.productosService.findAllforEmpresaActiva(usuario);
+      console.log('Productos activos:', productos);
     return { productos };
   }
   //Actualizar el Estado de  un producto (Activo/Inactivo) por su ID
