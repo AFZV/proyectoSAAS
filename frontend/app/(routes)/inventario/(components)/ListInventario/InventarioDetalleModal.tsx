@@ -26,6 +26,7 @@ interface Movimiento {
   fecha: string;
   observacion: string;
   stockActual?: number;
+  stock?: number; // Agregado para mostrar el stock resultante
 }
 
 interface InventarioDetalleModalProps {
@@ -152,8 +153,8 @@ export function InventarioDetalleModal({
       fmt(m.fecha),
       m.tipoMovimiento,
       m.precioCompra,
-      m.cantidadMovimiendo,
-      m.stockActual || 0,
+      m.cantidadMovimiendo,     
+      m.stock || 0,
       m.usuario,
       m.observacion || ''
     ]);
