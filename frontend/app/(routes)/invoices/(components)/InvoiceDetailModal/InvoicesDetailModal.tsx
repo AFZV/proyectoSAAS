@@ -139,8 +139,8 @@ function InvoiceDetailModal({
       // ✅ Preparar datos para enviar
       const datosActualizacion = {
         estado: nuevoEstado,
-        // guiaTransporte: guiaTransporte.trim(), // ✅ Enviar string, aunque sea vacío
-        // flete: flete ? parseFloat(flete) : 0, // ✅ Enviar 0 en lugar de undefined
+        guiaTransporte: guiaTransporte.trim(), // ✅ Enviar string, aunque sea vacío
+        flete: flete ? parseFloat(flete) : 0, // ✅ Enviar 0 en lugar de undefined
       };
 
       // ✅ Llamar al servicio con token verificado
@@ -174,7 +174,9 @@ function InvoiceDetailModal({
 
       toast({
         title: "✅ Estado actualizado",
-        description: `Pedido cambiado a ${ESTADOS_PEDIDO[nuevoEstado as keyof typeof ESTADOS_PEDIDO]?.label}`,
+        description: `Pedido cambiado a ${
+          ESTADOS_PEDIDO[nuevoEstado as keyof typeof ESTADOS_PEDIDO]?.label
+        }`,
       });
 
       setShowEstadoForm(false);
@@ -192,7 +194,9 @@ function InvoiceDetailModal({
   };
   const nombreCliente =
     pedido.cliente?.rasonZocial ||
-    `${pedido.cliente?.nombre || "Cliente"} ${pedido.cliente?.apellidos || ""}`.trim();
+    `${pedido.cliente?.nombre || "Cliente"} ${
+      pedido.cliente?.apellidos || ""
+    }`.trim();
 
   // Calcular total de items
   const totalItems =
@@ -222,16 +226,16 @@ function InvoiceDetailModal({
                     estadoActual === "GENERADO"
                       ? "bg-blue-100 text-blue-800"
                       : estadoActual === "SEPARADO"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : estadoActual === "FACTURADO"
-                          ? "bg-purple-100 text-purple-800"
-                          : estadoActual === "ENVIADO"
-                            ? "bg-orange-100 text-orange-800"
-                            : estadoActual === "ENTREGADO"
-                              ? "bg-green-100 text-green-800"
-                              : estadoActual === "CANCELADO"
-                                ? "bg-red-100 text-red-800"
-                                : "bg-gray-100 text-gray-800"
+                      ? "bg-yellow-100 text-yellow-800"
+                      : estadoActual === "FACTURADO"
+                      ? "bg-purple-100 text-purple-800"
+                      : estadoActual === "ENVIADO"
+                      ? "bg-orange-100 text-orange-800"
+                      : estadoActual === "ENTREGADO"
+                      ? "bg-green-100 text-green-800"
+                      : estadoActual === "CANCELADO"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-gray-100 text-gray-800"
                   }`}
                 >
                   {ESTADOS_PEDIDO[estadoActual as keyof typeof ESTADOS_PEDIDO]
@@ -602,16 +606,16 @@ function InvoiceDetailModal({
                                       estado.estado === "GENERADO"
                                         ? "bg-blue-100 text-blue-800"
                                         : estado.estado === "SEPARADO"
-                                          ? "bg-yellow-100 text-yellow-800"
-                                          : estado.estado === "FACTURADO"
-                                            ? "bg-purple-100 text-purple-800"
-                                            : estado.estado === "ENVIADO"
-                                              ? "bg-orange-100 text-orange-800"
-                                              : estado.estado === "ENTREGADO"
-                                                ? "bg-green-100 text-green-800"
-                                                : estado.estado === "CANCELADO"
-                                                  ? "bg-red-100 text-red-800"
-                                                  : "bg-gray-100 text-gray-800"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : estado.estado === "FACTURADO"
+                                        ? "bg-purple-100 text-purple-800"
+                                        : estado.estado === "ENVIADO"
+                                        ? "bg-orange-100 text-orange-800"
+                                        : estado.estado === "ENTREGADO"
+                                        ? "bg-green-100 text-green-800"
+                                        : estado.estado === "CANCELADO"
+                                        ? "bg-red-100 text-red-800"
+                                        : "bg-gray-100 text-gray-800"
                                     }`}
                                   >
                                     {estadoInfo?.label || estado.estado}

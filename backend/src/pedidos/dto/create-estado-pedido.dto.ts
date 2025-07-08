@@ -1,4 +1,5 @@
 import { IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CrearEstadoPedidoDto {
   @IsUUID()
