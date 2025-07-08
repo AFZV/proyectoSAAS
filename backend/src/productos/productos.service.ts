@@ -2,15 +2,20 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/actualizar-producto.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CreateCategoriaProductoDto } from './dto/create-categoria-producto.dto';
+import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 @Injectable()
 export class ProductosService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private pdfUploaderService: PdfUploaderService
+  ) {}
 
   async create(usuario: UsuarioPayload, data: CreateProductoDto) {
     try {
@@ -94,6 +99,58 @@ export class ProductosService {
     } catch (error) {
       throw new InternalServerErrorException('Error al obtener los productos');
     }
+  }
+
+  /////productos para pdf de catalogo
+  async findAllforCatalog(usuario: UsuarioPayload): Promise<Buffer> {
+    if (!usuario) throw new BadRequestException('no permitido');
+    const { empresaId, rol } = usuario;
+
+    if (rol !== 'admin') {
+      throw new UnauthorizedException('usuario no autorizado');
+    }
+
+    const productos = await this.prisma.producto.findMany({
+      where: {
+        empresaId: empresaId,
+        estado: 'activo',
+        inventario: {
+          some: {
+            stockActual: { gt: 0 },
+          },
+        },
+      },
+      include: {
+        inventario: {
+          where: { idEmpresa: usuario.empresaId },
+          select: {
+            stockActual: true,
+          },
+        },
+        categoria: {
+          select: {
+            nombre: true,
+          },
+        },
+      },
+    });
+    if (!productos) throw new BadRequestException('no hay productos');
+
+    const productosFormateados = productos.map((p) => ({
+      nombre: p.nombre,
+      imagenUrl: p.imagenUrl,
+      precioVenta: p.precioVenta,
+      categoria: p.categoria ?? undefined,
+      stockDisponible: p.inventario.reduce(
+        (acc, inv) => acc + (inv.stockActual || 0),
+        0
+      ),
+    }));
+
+    const { buffer } =
+      await this.pdfUploaderService.generarCatalogoPDF(productosFormateados);
+
+    return buffer;
   }
 
   async UpdateEstadoProduct(productoId: string) {
