@@ -33,11 +33,6 @@ export const dataFacturacionSidebar = [
     label: "Catálogo",
     href: "/catalog",
   },
-  {
-    icon: CreditCard,
-    label: "Compras",
-    href: "/compras",
-  },
 ];
 
 export const dataCuentasPorCobrarSideBar = [
@@ -58,6 +53,11 @@ export const dataInventarioSideBar = [
     icon: Package,
     label: "Inventario",
     href: "/inventario",
+  },
+  {
+    icon: CreditCard,
+    label: "Compras",
+    href: "/compras",
   },
 ];
 

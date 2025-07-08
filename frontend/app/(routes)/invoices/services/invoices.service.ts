@@ -1,5 +1,5 @@
-import type { 
-  Pedido, 
+import type {
+  Pedido,
   CreatePedidoDto,
   FilterPedidoOptions,
   EstadisticasPedidos,
@@ -14,7 +14,7 @@ export class InvoicesService {
     options?: RequestInit
   ): Promise<T> {
     console.log(`🌐 Haciendo request a: ${this.baseUrl}${endpoint}`);
-    console.log('📦 Opciones:', options);
+    console.log("📦 Opciones:", options);
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
@@ -29,12 +29,14 @@ export class InvoicesService {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      console.error('❌ Error en response:', error);
-      throw new Error(error.message || `Error ${response.status}: ${response.statusText}`);
+      console.error("❌ Error en response:", error);
+      throw new Error(
+        error.message || `Error ${response.status}: ${response.statusText}`
+      );
     }
 
     const data = await response.json();
-    console.log('✅ Datos recibidos:', data);
+    console.log("✅ Datos recibidos:", data);
     return data;
   }
 
@@ -61,38 +63,38 @@ export class InvoicesService {
       flete?: number;
     }
   ): Promise<any> {
-    console.log('🔄 Actualizando estado del pedido:');
-    console.log('📋 Datos enviados:', {
+    console.log("🔄 Actualizando estado del pedido:");
+    console.log("📋 Datos enviados:", {
       pedidoId,
       estado: data.estado,
       guiaTransporte: data.guiaTransporte,
-      flete: data.flete
+      flete: data.flete,
     });
 
     // ✅ PREPARAR PAYLOAD CON CAMPOS OBLIGATORIOS
     const payload = {
-  pedidoId,
-  estado: data.estado,
-  guiaTransporte: data.guiaTransporte,  // ✅ Siempre incluir
-  flete: data.flete                     // ✅ Siempre incluir
-};
+      pedidoId,
+      estado: data.estado,
+      guiaTransporte: data.guiaTransporte, // ✅ Siempre incluir
+      flete: data.flete, // ✅ Siempre incluir
+    };
 
-    console.log('📤 Payload final:', payload);
+    console.log("📤 Payload final:", payload);
 
     try {
       const result = await this.makeRequest(
-        '/pedidos/estado', // ✅ CORREGIDO: Usar /estado en lugar de /estados
+        "/pedidos/estado", // ✅ CORREGIDO: Usar /estado en lugar de /estados
         token,
         {
-          method: 'POST',
+          method: "POST",
           body: JSON.stringify(payload),
         }
       );
 
-      console.log('✅ Estado actualizado exitosamente:', result);
+      console.log("✅ Estado actualizado exitosamente:", result);
       return result;
     } catch (error) {
-      console.error('❌ Error al actualizar estado:', error);
+      console.error("❌ Error al actualizar estado:", error);
       throw error;
     }
   }
@@ -103,8 +105,8 @@ export class InvoicesService {
     pedidoId: string,
     data: Partial<CreatePedidoDto>
   ): Promise<Pedido> {
-    console.log('📝 Actualizando pedido completo:', { pedidoId, data });
-    
+    console.log("📝 Actualizando pedido completo:", { pedidoId, data });
+
     return this.makeRequest<Pedido>(`/pedidos/${pedidoId}`, token, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -125,21 +127,27 @@ export class InvoicesService {
         | "fechaPedido";
     }
   ): Promise<Pedido[]> {
-    console.log('🔍 Filtrando pedidos:', filtros);
+    console.log("🔍 Filtrando pedidos:", filtros);
 
     // ✅ USAR QUERY PARAMETERS EN LUGAR DE BODY
     const params = new URLSearchParams({
       filtro: filtros.filtro,
-      tipoFiltro: filtros.tipoFiltro
+      tipoFiltro: filtros.tipoFiltro,
     });
 
-    return this.makeRequest<Pedido[]>(`/pedidos/filtro?${params.toString()}`, token, {
-      method: 'GET',
-    });
+    return this.makeRequest<Pedido[]>(
+      `/pedidos/filtro?${params.toString()}`,
+      token,
+      {
+        method: "GET",
+      }
+    );
   }
 
   // 📊 OBTENER ESTADÍSTICAS
-  async obtenerEstadisticasPedidos(token: string): Promise<EstadisticasPedidos> {
+  async obtenerEstadisticasPedidos(
+    token: string
+  ): Promise<EstadisticasPedidos> {
     const pedidos = await this.obtenerPedidos(token);
 
     const hoy = new Date();
@@ -156,23 +164,30 @@ export class InvoicesService {
     };
 
     pedidos.forEach((pedido: any) => {
-      let estadoActual = 'GENERADO';
-      
-      if (pedido.estados && Array.isArray(pedido.estados) && pedido.estados.length > 0) {
-        const estadosOrdenados = pedido.estados.sort((a: any, b: any) => 
-          new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime()
+      let estadoActual = "GENERADO";
+
+      if (
+        pedido.estados &&
+        Array.isArray(pedido.estados) &&
+        pedido.estados.length > 0
+      ) {
+        const estadosOrdenados = pedido.estados.sort(
+          (a: any, b: any) =>
+            new Date(b.fechaEstado).getTime() -
+            new Date(a.fechaEstado).getTime()
         );
         estadoActual = estadosOrdenados[0].estado;
       }
-      
-      stats.pedidosPorEstado[estadoActual] = (stats.pedidosPorEstado[estadoActual] || 0) + 1;
-      
+
+      stats.pedidosPorEstado[estadoActual] =
+        (stats.pedidosPorEstado[estadoActual] || 0) + 1;
+
       const fechaPedido = new Date(pedido.fechaPedido);
       if (fechaPedido >= hoy && fechaPedido < mañana) {
         stats.pedidosHoy++;
       }
-      
-      if (['FACTURADO', 'ENVIADO', 'ENTREGADO'].includes(estadoActual)) {
+
+      if (["FACTURADO", "ENVIADO", "ENTREGADO"].includes(estadoActual)) {
         stats.ventasTotal += pedido.total || 0;
 
         if (fechaPedido >= hoy && fechaPedido < mañana) {

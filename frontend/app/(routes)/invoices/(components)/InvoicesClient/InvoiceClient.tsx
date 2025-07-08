@@ -81,12 +81,25 @@ export function InvoicesClient({
     vendedor: true,
     fecha: true,
     flete: true,
+    guiaTransporte: true,
     acciones: true,
   });
 
   const { getToken, userId } = useAuth();
   const { toast } = useToast();
 
+  // ✅ CAMBIO 2: Debug para verificar datos
+  console.log(
+    "🔍 Verificando pedidos con flete/guía:",
+    pedidos
+      .filter((p) => p.flete || p.guiaTransporte)
+      .map((p) => ({
+        id: p.id.slice(-8),
+        flete: p.flete,
+        guiaTransporte: p.guiaTransporte,
+        fechaEnvio: p.fechaEnvio,
+      }))
+  );
   // Función para refrescar datos
   const refreshPedidos = async () => {
     try {
@@ -131,7 +144,9 @@ export function InvoicesClient({
 
     return (
       pedido.cliente.rasonZocial ||
-      `${pedido.cliente.nombre || "Cliente"} ${pedido.cliente.apellidos || ""}`.trim()
+      `${pedido.cliente.nombre || "Cliente"} ${
+        pedido.cliente.apellidos || ""
+      }`.trim()
     );
   };
 
@@ -140,7 +155,9 @@ export function InvoicesClient({
       return `Usuario ID: ${pedido.usuarioId.slice(-8)}`;
     }
 
-    return `${pedido.usuario.nombre || "Usuario"} ${pedido.usuario.apellidos || ""}`.trim();
+    return `${pedido.usuario.nombre || "Usuario"} ${
+      pedido.usuario.apellidos || ""
+    }`.trim();
   };
 
   // Filtrar pedidos
@@ -233,7 +250,9 @@ export function InvoicesClient({
     if (!["GENERADO", "SEPARADO"].includes(estadoActual)) {
       toast({
         title: "No se puede editar",
-        description: `Los pedidos en estado ${ESTADOS_PEDIDO[estadoActual as keyof typeof ESTADOS_PEDIDO]?.label} no pueden ser modificados`,
+        description: `Los pedidos en estado ${
+          ESTADOS_PEDIDO[estadoActual as keyof typeof ESTADOS_PEDIDO]?.label
+        } no pueden ser modificados`,
         variant: "destructive",
       });
       return;
@@ -450,12 +469,15 @@ export function InvoicesClient({
                           {key === "id"
                             ? "ID"
                             : key === "contacto"
-                              ? "Contacto"
-                              : key === "flete"
-                                ? "Flete"
-                                : key === "acciones"
-                                  ? "Acciones"
-                                  : key}
+                            ? "Contacto"
+                            : key === "flete"
+                            ? "Flete"
+                            : key === "guiaTransporte" // ✅ CAMBIO 3: Agregar en dialog
+                            ? "Guía de Transporte"
+                            : key === "acciones"
+                            ? "Acciones"
+                            : key}
+                                  
                         </label>
                       </div>
                     ))}
@@ -509,6 +531,12 @@ export function InvoicesClient({
                 {visibleColumns.flete && (
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Flete
+                  </th>
+                )}
+
+                {visibleColumns.guiaTransporte && ( // ✅ CAMBIO 4: Agregar header
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Guía
                   </th>
                 )}
                 {visibleColumns.acciones && (
@@ -637,6 +665,18 @@ export function InvoicesClient({
                           )}
                         </td>
                       )}
+                      {visibleColumns.guiaTransporte && ( // ✅ CAMBIO 5: Agregar celda
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {pedido.guiaTransporte ? (
+                            <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
+                              {pedido.guiaTransporte}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
+                        </td>
+                      )}
+
                       {visibleColumns.acciones && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <div className="flex space-x-2">
