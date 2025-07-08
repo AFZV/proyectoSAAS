@@ -71,7 +71,7 @@ export function InvoicesClient({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Columnas visibles
+  // ✅ CAMBIO 1: Columnas visibles - AGREGAR guiaTransporte
   const [visibleColumns, setVisibleColumns] = useState({
     id: true,
     cliente: true,
@@ -81,11 +81,25 @@ export function InvoicesClient({
     vendedor: true,
     fecha: true,
     flete: true,
+    guiaTransporte: true, // ✅ AGREGADO
     acciones: true,
   });
 
   const { getToken, userId } = useAuth();
   const { toast } = useToast();
+
+  // ✅ CAMBIO 2: Debug para verificar datos
+  console.log(
+    "🔍 Verificando pedidos con flete/guía:",
+    pedidos
+      .filter((p) => p.flete || p.guiaTransporte)
+      .map((p) => ({
+        id: p.id.slice(-8),
+        flete: p.flete,
+        guiaTransporte: p.guiaTransporte,
+        fechaEnvio: p.fechaEnvio,
+      }))
+  );
 
   // Función para refrescar datos
   const refreshPedidos = async () => {
@@ -453,9 +467,11 @@ export function InvoicesClient({
                               ? "Contacto"
                               : key === "flete"
                                 ? "Flete"
-                                : key === "acciones"
-                                  ? "Acciones"
-                                  : key}
+                                : key === "guiaTransporte" // ✅ CAMBIO 3: Agregar en dialog
+                                  ? "Guía de Transporte"
+                                  : key === "acciones"
+                                    ? "Acciones"
+                                    : key}
                         </label>
                       </div>
                     ))}
@@ -509,6 +525,11 @@ export function InvoicesClient({
                 {visibleColumns.flete && (
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Flete
+                  </th>
+                )}
+                {visibleColumns.guiaTransporte && ( // ✅ CAMBIO 4: Agregar header
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Guía
                   </th>
                 )}
                 {visibleColumns.acciones && (
@@ -632,6 +653,17 @@ export function InvoicesClient({
                                 {formatValue(pedido.flete)}
                               </span>
                             </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
+                        </td>
+                      )}
+                      {visibleColumns.guiaTransporte && ( // ✅ CAMBIO 5: Agregar celda
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {pedido.guiaTransporte ? (
+                            <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
+                              {pedido.guiaTransporte}
+                            </span>
                           ) : (
                             <span className="text-sm text-gray-400">-</span>
                           )}

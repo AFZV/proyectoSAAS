@@ -64,9 +64,9 @@ export class PedidosService {
     });
     return pedido;
   }
+
   ///// cambia el estado del pedido y verifica si esta facturado lo descuenta del stock
   ///// se le debe enviar el id del pedido
-
   async agregarEstado(
     pedidoId: string,
     estado: string,
@@ -216,7 +216,7 @@ export class PedidosService {
               telefonoEmpresa: pedido.empresa.telefono,
               cliente:
                 pedido.cliente.rasonZocial ||
-                `${pedido.cliente.nombre}, ${pedido.cliente.apellidos}`,
+                `${pedido.cliente.nombre} ${pedido.cliente.apellidos}`,
               fecha: new Date(),
               vendedor: pedido.usuario.nombre,
               productos: pedido.productos.map((item) => ({
@@ -293,13 +293,22 @@ export class PedidosService {
 
     if (estadoNormalizado === 'ENVIADO') {
       const fechaEnviado = new Date();
+      
+      // ✅ Agregar logs para debug
+      console.log('📦 Datos recibidos para ENVIADO:', {
+        pedidoId,
+        guiaTransporte,
+        flete,
+        tipoFlete: typeof flete
+      });
+
       const [, estadoNuevo] = await this.prisma.$transaction([
         this.prisma.pedido.update({
           where: { id: pedidoId },
           data: {
             fechaEnvio: fechaEnviado,
-            guiaTransporte: guiaTransporte,
-            flete: flete,
+            guiaTransporte: guiaTransporte || null,
+            flete: flete || null,
           },
         }),
         this.prisma.estadoPedido.create({
@@ -307,6 +316,7 @@ export class PedidosService {
         }),
       ]);
 
+      console.log('✅ Estado ENVIADO creado exitosamente');
       return estadoNuevo;
     }
 
@@ -349,8 +359,19 @@ export class PedidosService {
       },
     });
 
+    // ✅ Agregar log para verificar datos
+    console.log('📋 Pedidos obtenidos:');
+    pedidos.slice(0, 3).forEach(pedido => {
+      console.log(`Pedido ${pedido.id.slice(-8)}:`, {
+        flete: pedido.flete,
+        guiaTransporte: pedido.guiaTransporte,
+        fechaEnvio: pedido.fechaEnvio
+      });
+    });
+
     return pedidos;
   }
+
   ////////////////////////////////////////////////////////////////
   //actualizar un pedido con el update
   async actualizarPedido(
@@ -501,7 +522,7 @@ export class PedidosService {
     setImmediate(() => {
       void (async () => {
         try {
-          const clienteNombres = `${pedidoActualizado.cliente.nombre}, ${pedidoActualizado.cliente.apellidos}`;
+          const clienteNombres = `${pedidoActualizado.cliente.nombre} ${pedidoActualizado.cliente.apellidos}`;
           const razonSocial = pedidoActualizado.cliente.rasonZocial;
 
           const resumenPedidoDto: ResumenPedidoDto = {
