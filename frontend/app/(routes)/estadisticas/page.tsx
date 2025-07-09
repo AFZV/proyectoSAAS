@@ -20,8 +20,6 @@ export default async function EstadisticasPage() {
   if (!stats.ok) return "NO TIENE ACCESO";
   const resultStats = await stats.json();
 
-  console.log("estadisticas:", resultStats);
-
   return (
     <div className="flex flex-col space-y-4 px-5">
       <HeaderEstadisticas />

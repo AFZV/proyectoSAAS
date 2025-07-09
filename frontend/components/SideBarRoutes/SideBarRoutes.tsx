@@ -5,6 +5,7 @@ import {
   dataFacturacionSidebar,
   dataGeneralSideBar,
   dataInventarioSideBar,
+  dataRespaldoSideBar,
   dataSupportSideBar,
   dataToolsSideBar,
 } from "./SideBar.data";
@@ -40,38 +41,49 @@ export function SideBarRoutes({ rol }: { rol: string }) {
         </div>
 
         {/* Cuentas por Cobrar */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
-            Cuentas Por Cobrar
-          </h3>
-          <nav className="space-y-1">
-            {dataCuentasPorCobrarSideBar.map((item) => (
-              <SideBarItem key={item.label} item={item} />
-            ))}
-          </nav>
-        </div>
+        {(rol === "admin" || rol === "vendedor") && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
+              Cuentas Por Cobrar
+            </h3>
+            <nav className="space-y-1">
+              {dataCuentasPorCobrarSideBar
+                .filter(
+                  (item) => !(item.label === "Cartera" && rol !== "admin")
+                )
+                .map((item) => (
+                  <SideBarItem key={item.label} item={item} />
+                ))}
+            </nav>
+          </div>
+        )}
 
         {/* Inventario */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
-            Inventario
-          </h3>
-          <nav className="space-y-1">
-            {dataInventarioSideBar.map((item) => (
-              <SideBarItem key={item.label} item={item} />
-            ))}
-          </nav>
-        </div>
-
+        {rol === "admin" && (
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
+              Inventario
+            </h3>
+            <nav className="space-y-1">
+              {dataInventarioSideBar.map((item) => (
+                <SideBarItem key={item.label} item={item} />
+              ))}
+            </nav>
+          </div>
+        )}
         {/* Clientes */}
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
             Clientes
           </h3>
           <nav className="space-y-1">
-            {dataClienteSideBar.map((item) => (
-              <SideBarItem key={item.label} item={item} />
-            ))}
+            {dataClienteSideBar
+              .filter(
+                (item) => !(item.label === "Proveedores" && rol !== "admin")
+              )
+              .map((item) => (
+                <SideBarItem key={item.label} item={item} />
+              ))}
           </nav>
         </div>
 
@@ -101,6 +113,18 @@ export function SideBarRoutes({ rol }: { rol: string }) {
           </div>
         )}
       </div>
+      {rol === "admin" && (
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
+            Copias de seguridad
+          </h3>
+          <nav className="space-y-1">
+            {dataRespaldoSideBar.map((item) => (
+              <SideBarItem key={item.label} item={item} />
+            ))}
+          </nav>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="px-4 py-4 border-t bg-muted/30">

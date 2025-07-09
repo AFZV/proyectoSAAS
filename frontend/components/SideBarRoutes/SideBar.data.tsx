@@ -12,6 +12,8 @@ import {
   Wallet,
   BanknoteIcon,
   WarehouseIcon,
+  DownloadCloud,
+  UploadCloud,
 } from "lucide-react";
 
 export const dataGeneralSideBar = [
@@ -79,6 +81,19 @@ export const dataClienteSideBar = [
     icon: WarehouseIcon,
     label: "Proveedores",
     href: "proveedores",
+  },
+];
+
+export const dataRespaldoSideBar = [
+  {
+    icon: DownloadCloud,
+    label: "Respaldos",
+    href: "/respaldo",
+  },
+  {
+    icon: UploadCloud,
+    label: "Restaurar",
+    href: "restaurar",
   },
 ];
 

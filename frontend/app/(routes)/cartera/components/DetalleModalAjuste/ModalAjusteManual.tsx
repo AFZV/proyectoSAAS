@@ -25,6 +25,10 @@ const schema = z.object({
   ),
 });
 
+interface PedidoConSaldoPendiente {
+  id: string;
+  saldoPendiente: number;
+}
 export function ModalAjusteManual({
   open,
   onClose,
@@ -38,7 +42,7 @@ export function ModalAjusteManual({
   token: string;
   onSuccess?: () => void;
 }) {
-  const [pedidos, setPedidos] = useState([]);
+  const [pedidos, setPedidos] = useState<PedidoConSaldoPendiente[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const form = useForm({
@@ -55,18 +59,38 @@ export function ModalAjusteManual({
   });
 
   useEffect(() => {
-    setLoading(true);
-    if (!open || !cliente?.id) return;
-    fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/recibos/PedidosSaldoPendiente/${cliente.id}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
+    const cargarPedidos = async () => {
+      try {
+        setLoading(true);
+        if (!open || !cliente?.id) return;
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/recibos/PedidosSaldoPendiente/${cliente.id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (!response.ok) throw new Error("El cliente no presenta deuda");
+
+        const pedidosResponse = await response.json();
+
+        // Validar que sea un array
+        if (Array.isArray(pedidosResponse)) {
+          setPedidos(pedidosResponse);
+        } else {
+          setPedidos([]);
+          console.error("Respuesta inválida:", pedidosResponse);
+        }
+      } catch (error) {
+        console.error("Error al cargar pedidos:", error);
+        setPedidos([]);
+      } finally {
+        setLoading(false);
       }
-    )
-      .then((res) => res.json())
-      .then(setPedidos)
-      .catch(() => setPedidos([]));
-    setLoading(false);
+    };
+
+    cargarPedidos();
   }, [open, cliente?.id, token]);
 
   const agregarPedido = (pedido: any) => {
@@ -101,7 +125,13 @@ export function ModalAjusteManual({
     onSuccess?.();
     onClose();
   };
-  if (isSubmitting) return <Loading title="Creanndo ajuste" />;
+  if (isSubmitting)
+    return (
+      <Loading
+        title="Crean
+  ndo ajuste"
+      />
+    );
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
