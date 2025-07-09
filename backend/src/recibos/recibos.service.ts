@@ -751,6 +751,7 @@ export class RecibosService {
         };
       })
       .filter((p) => p.saldoPendiente > 0);
+    console.log('respondiendo al front con :', pedidosConSaldo);
 
     return pedidosConSaldo;
   }
