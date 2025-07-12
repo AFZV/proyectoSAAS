@@ -1,3 +1,4 @@
+// reportes.service.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
@@ -5,41 +6,81 @@ import { CrearReporteInvDto } from './dto/crear-reporte-inventario.dto';
 
 @Injectable()
 export class ReportesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  //Reporte de compras por producto y total
-  async inventarioValor(usuario: UsuarioPayload, data: CrearReporteInvDto) {
-    //Parsear las fechas por si llegan en formato string
-    const inicio = new Date(data.fechaInicio);
-    const fin = new Date(data.fechaFin);
-
-    //Buscar los productos de la empresa a la cual pertenece el usuario
+  async inventarioValor(
+    usuario: UsuarioPayload,
+    data: CrearReporteInvDto
+  ): Promise<
+    Array<{ nombre: string; cantidades: number; precio: number; total: number }>
+  > {
+    const { fechaInicio, fechaFin } = data;
     const productos = await this.prisma.producto.findMany({
       where: {
         empresaId: usuario.empresaId,
-        //Filtramos por fechas de creacion del producto
         fechaCreado: {
-          gte: inicio,
-          lte: fin,
+          gte: new Date(fechaInicio),
+          lte: new Date(fechaFin),
         },
       },
+      include: { inventario: { select: { stockActual: true } } },
+    });
+
+    return productos.map(({ nombre, precioCompra, inventario }) => {
+      const stock = inventario?.[0]?.stockActual ?? 0;
+      return {
+        nombre,
+        cantidades: stock,
+        precio: precioCompra,
+        total: stock * precioCompra,
+      };
+    });
+  }
+
+  //Reporte de clientes
+  async clientesAll(usuario: UsuarioPayload): Promise<
+    Array<{
+      id: string;
+      nit: string;
+      nombre: string;
+      email: string;
+      telefono: string;
+      direccion: string;
+      departamento: string;
+      ciudad: string;
+      rasonZocial: string;
+    }>
+  > {
+    const raw = await this.prisma.clienteEmpresa.findMany({
+      where: { empresaId: usuario.empresaId },
       include: {
-        inventario: {
-          select: { stockActual: true },
+        cliente: {
+          select: {
+            id: true,
+            nit: true,
+            nombre: true,
+            email: true,
+            telefono: true,
+            rasonZocial: true,
+            direccion: true,
+            departamento: true,
+            ciudad: true,
+          },
         },
       },
     });
 
-    //Mapeamos los productos para incluir el stock y el valor total
-    return productos.map((p) => {
-      const stock = p.inventario.length > 0 ? p.inventario[0].stockActual : 0;
-      const total = stock * p.precioCompra;
-      return {
-        nombre: p.nombre,
-        cantidades: stock,
-        precio: p.precioCompra,
-        total,
-      };
-    });
+    // “Aplanamos” el nested `cliente` al nivel superior
+    return raw.map((item) => ({
+      id: item.cliente.id,
+      nit: item.cliente.nit,
+      nombre: item.cliente.nombre,
+      email: item.cliente.email,
+      telefono: item.cliente.telefono,
+      direccion: item.cliente.direccion,
+      departamento: item.cliente.departamento,
+      ciudad: item.cliente.ciudad,
+      rasonZocial: item.cliente.rasonZocial,
+    }));
   }
 }
