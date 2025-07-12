@@ -1,8 +1,8 @@
-// InvoiceDetailModal.tsx - ADAPTADO AL BACKEND EXISTENTE
+// InvoiceDetailModal.tsx - ACTUALIZADO PARA EL NUEVO BACKEND
 
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,7 @@ import {
   FileText,
   Truck,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +30,7 @@ import { formatValue } from "@/utils/FormartValue";
 import { invoicesService } from "../../services/invoices.service";
 import type { Pedido } from "../../types/invoices.types";
 import { ESTADOS_PEDIDO } from "../../types/invoices.types";
+import { getEstadosSiguientes } from "../../types/invoices.types";
 
 interface InvoiceDetailModalProps {
   pedido: Pedido | null;
@@ -38,28 +40,23 @@ interface InvoiceDetailModalProps {
   onUpdate: (pedidoActualizado: Pedido) => void;
 }
 
+// ✅ ESTADOS SIGUIENTES ACTUALIZADOS SEGÚN TU BACKEND
 const ESTADOS_SIGUIENTES = {
-  GENERADO: ["SEPARADO", "CANCELADO"],
+  GENERADO: ["SEPARADO"],
   SEPARADO: ["FACTURADO", "CANCELADO"],
-  FACTURADO: ["ENVIADO"],
+  FACTURADO: ["ENVIADO", "CANCELADO"], // ✅ Ahora puede cancelarse después de facturado
   ENVIADO: ["ENTREGADO"],
   ENTREGADO: [],
   CANCELADO: [],
 };
 
-function InvoiceDetailModal({
+export function InvoiceDetailModal({
   pedido,
   isOpen,
   onClose,
   userType,
   onUpdate,
-}: {
-  pedido: Pedido | null;
-  isOpen: boolean;
-  onClose: () => void;
-  userType: string;
-  onUpdate: (pedidoActualizado: Pedido) => void;
-}) {
+}: InvoiceDetailModalProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showEstadoForm, setShowEstadoForm] = useState(false);
   const [nuevoEstado, setNuevoEstado] = useState("");
@@ -68,8 +65,6 @@ function InvoiceDetailModal({
 
   const { getToken } = useAuth();
   const { toast } = useToast();
-
-  // Agregar logs para debug
 
   if (!pedido) return null;
 
@@ -85,15 +80,7 @@ function InvoiceDetailModal({
   };
 
   const estadoActual = getEstadoActual(pedido);
-  const estadosSiguientes =
-    {
-      GENERADO: ["SEPARADO", "CANCELADO"],
-      SEPARADO: ["FACTURADO", "CANCELADO"],
-      FACTURADO: ["ENVIADO"],
-      ENVIADO: ["ENTREGADO"],
-      ENTREGADO: [],
-      CANCELADO: [],
-    }[estadoActual as keyof typeof ESTADOS_PEDIDO] || [];
+  const estadosSiguientes = getEstadosSiguientes(estadoActual as any) || [];
 
   const handleCambiarEstado = async () => {
     if (!nuevoEstado) {
@@ -105,6 +92,7 @@ function InvoiceDetailModal({
       return;
     }
 
+    // ✅ VALIDACIONES SEGÚN TU BACKEND
     if (nuevoEstado === "ENVIADO" && !guiaTransporte.trim()) {
       toast({
         title: "Error",
@@ -114,10 +102,24 @@ function InvoiceDetailModal({
       return;
     }
 
+    // ✅ CONFIRMACIÓN ESPECIAL PARA CANCELADO
+    if (nuevoEstado === "CANCELADO") {
+      const confirmacion = window.confirm(
+        "⚠️ ¿Estás seguro de cancelar este pedido?\n\n" +
+          "Esta acción:\n" +
+          "• Cambiará el estado a CANCELADO\n" +
+          "• Retornará la mercancía al inventario\n" +
+          "• Eliminará los movimientos de cartera\n" +
+          "• NO se puede deshacer\n\n" +
+          "¿Continuar?"
+      );
+
+      if (!confirmacion) return;
+    }
+
     try {
       setIsUpdating(true);
 
-      // ✅ CORRECCIÓN: Verificar que el token existe
       const token = await getToken();
       if (!token) {
         toast({
@@ -128,7 +130,7 @@ function InvoiceDetailModal({
         return;
       }
 
-      console.log("🔄 Iniciando actualización de estado:", {
+      console.log("🔄 Actualizando estado:", {
         pedidoId: pedido.id,
         estadoActual,
         nuevoEstado,
@@ -136,21 +138,22 @@ function InvoiceDetailModal({
         flete: flete ? parseFloat(flete) : undefined,
       });
 
-      // ✅ Preparar datos para enviar
+      // ✅ DATOS SEGÚN TU DTO CrearEstadoPedidoDto
       const datosActualizacion = {
+        pedidoId: pedido.id,
         estado: nuevoEstado,
-        guiaTransporte: guiaTransporte.trim(), // ✅ Enviar string, aunque sea vacío
-        flete: flete ? parseFloat(flete) : 0, // ✅ Enviar 0 en lugar de undefined
+        guiaTransporte: guiaTransporte.trim() || undefined,
+        flete: flete ? parseFloat(flete) : undefined,
       };
 
-      // ✅ Llamar al servicio con token verificado
+      // ✅ USAR EL ENDPOINT CORRECTO /pedidos/estado
       await invoicesService.actualizarEstadoPedido(
         token,
         pedido.id,
         datosActualizacion
       );
 
-      // ✅ Crear estados array seguro
+      // ✅ CREAR NUEVO ESTADO PARA ACTUALIZACIÓN LOCAL
       const estadosActuales = pedido.estados || [];
       const nuevoEstadoObj = {
         id: Date.now().toString(),
@@ -159,28 +162,51 @@ function InvoiceDetailModal({
         pedidoId: pedido.id,
       };
 
+      // ✅ ACTUALIZAR PEDIDO LOCAL
       const pedidoActualizado: Pedido = {
         ...pedido,
-        guiaTransporte: guiaTransporte.trim() || pedido.guiaTransporte,
-        flete: flete ? parseFloat(flete) : pedido.flete,
+        guiaTransporte:
+          nuevoEstado === "ENVIADO"
+            ? guiaTransporte.trim() || pedido.guiaTransporte
+            : pedido.guiaTransporte,
+        flete:
+          nuevoEstado === "ENVIADO"
+            ? flete
+              ? parseFloat(flete)
+              : pedido.flete
+            : pedido.flete,
         fechaEnvio:
           nuevoEstado === "ENVIADO"
             ? new Date().toISOString()
             : pedido.fechaEnvio,
+        total: nuevoEstado === "CANCELADO" ? 0 : pedido.total, // ✅ El backend pone total en 0 al cancelar
         estados: [...estadosActuales, nuevoEstadoObj],
       };
 
       onUpdate(pedidoActualizado);
 
+      // ✅ MENSAJES ESPECÍFICOS POR ESTADO
+      let mensaje = `Pedido cambiado a ${
+        ESTADOS_PEDIDO[nuevoEstado as keyof typeof ESTADOS_PEDIDO]?.label
+      }`;
+
+      if (nuevoEstado === "FACTURADO") {
+        mensaje += ". Stock descontado del inventario.";
+      } else if (nuevoEstado === "CANCELADO") {
+        mensaje += ". Mercancía retornada al inventario.";
+      } else if (nuevoEstado === "ENVIADO") {
+        mensaje += `. Guía: ${guiaTransporte}`;
+      }
+
       toast({
         title: "✅ Estado actualizado",
-        description: `Pedido cambiado a ${
-          ESTADOS_PEDIDO[nuevoEstado as keyof typeof ESTADOS_PEDIDO]?.label
-        }`,
+        description: mensaje,
       });
 
       setShowEstadoForm(false);
       setNuevoEstado("");
+      setGuiaTransporte("");
+      setFlete("");
     } catch (err: any) {
       console.error("❌ Error al cambiar estado:", err);
       toast({
@@ -192,15 +218,12 @@ function InvoiceDetailModal({
       setIsUpdating(false);
     }
   };
+
   const nombreCliente =
     pedido.cliente?.rasonZocial ||
     `${pedido.cliente?.nombre || "Cliente"} ${
       pedido.cliente?.apellidos || ""
     }`.trim();
-
-  // Calcular total de items
-  const totalItems =
-    pedido.productos?.reduce((sum, item) => sum + (item.cantidad || 0), 0) || 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -241,6 +264,13 @@ function InvoiceDetailModal({
                   {ESTADOS_PEDIDO[estadoActual as keyof typeof ESTADOS_PEDIDO]
                     ?.label || estadoActual}
                 </span>
+
+                {/* ✅ INDICADOR ESPECIAL PARA CANCELADO */}
+                {estadoActual === "CANCELADO" && (
+                  <span className="text-sm text-red-600 font-medium">
+                    Inventario restaurado
+                  </span>
+                )}
               </div>
 
               {userType === "admin" &&
@@ -284,6 +314,26 @@ function InvoiceDetailModal({
                   </select>
                 </div>
 
+                {/* ✅ ADVERTENCIA PARA CANCELADO */}
+                {nuevoEstado === "CANCELADO" && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <div className="flex">
+                      <AlertTriangle className="h-5 w-5 text-red-400 mr-2 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-sm font-medium text-red-800">
+                          ⚠️ Cancelación de Pedido
+                        </h4>
+                        <div className="text-sm text-red-700 mt-1 space-y-1">
+                          <p>• Se retornará toda la mercancía al inventario</p>
+                          <p>• Se eliminarán los movimientos de cartera</p>
+                          <p>• El total del pedido se pondrá en $0</p>
+                          <p>• Esta acción NO se puede deshacer</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {nuevoEstado === "ENVIADO" && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -310,13 +360,26 @@ function InvoiceDetailModal({
                   <Button
                     onClick={handleCambiarEstado}
                     disabled={isUpdating || !nuevoEstado}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className={
+                      nuevoEstado === "CANCELADO"
+                        ? "bg-red-600 hover:bg-red-700 text-white"
+                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                    }
                   >
-                    {isUpdating ? "Actualizando..." : "Confirmar"}
+                    {isUpdating
+                      ? "Actualizando..."
+                      : nuevoEstado === "CANCELADO"
+                      ? "🗑️ Confirmar Cancelación"
+                      : "Confirmar"}
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => setShowEstadoForm(false)}
+                    onClick={() => {
+                      setShowEstadoForm(false);
+                      setNuevoEstado("");
+                      setGuiaTransporte("");
+                      setFlete("");
+                    }}
                   >
                     Cancelar
                   </Button>
@@ -381,7 +444,7 @@ function InvoiceDetailModal({
                     VENDEDOR
                   </p>
                   <p className="text-sm">
-                    {pedido.usuario?.nombre || "softverse root root softverse"}
+                    {pedido.usuario?.nombre || "No especificado"}
                   </p>
                 </div>
                 <div>
@@ -396,13 +459,23 @@ function InvoiceDetailModal({
                   <p className="text-xs text-gray-500 uppercase tracking-wide">
                     TOTAL
                   </p>
-                  <p className="text-lg font-semibold text-green-600">
+                  <p
+                    className={`text-lg font-semibold ${
+                      estadoActual === "CANCELADO"
+                        ? "text-red-600"
+                        : "text-green-600"
+                    }`}
+                  >
                     {formatValue(pedido.total || 0)}
+                    {estadoActual === "CANCELADO" && (
+                      <span className="text-sm text-red-500 ml-2">
+                        (Cancelado)
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
 
-              {/* OBSERVACIONES - AGREGADO */}
               {pedido.observaciones && (
                 <div className="mt-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
@@ -456,11 +529,16 @@ function InvoiceDetailModal({
             </div>
           </div>
 
-          {/* Productos del pedido - CORREGIDO */}
+          {/* Productos del pedido */}
           <div className="bg-white border border-gray-200 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <Package className="h-5 w-5 text-orange-600 mr-2" />
               Productos del Pedido ({pedido.productos?.length || 0})
+              {estadoActual === "CANCELADO" && (
+                <span className="ml-2 text-sm text-red-600">
+                  (Inventario restaurado)
+                </span>
+              )}
             </h3>
 
             {pedido.productos && pedido.productos.length > 0 ? (
@@ -535,7 +613,13 @@ function InvoiceDetailModal({
                       >
                         Total:
                       </td>
-                      <td className="py-4 px-4 text-right text-lg font-semibold text-green-600">
+                      <td
+                        className={`py-4 px-4 text-right text-lg font-semibold ${
+                          estadoActual === "CANCELADO"
+                            ? "text-red-600"
+                            : "text-green-600"
+                        }`}
+                      >
                         {formatValue(pedido.total || 0)}
                       </td>
                     </tr>
@@ -550,7 +634,7 @@ function InvoiceDetailModal({
             )}
           </div>
 
-          {/* Historial de estados - CORREGIDO */}
+          {/* Historial de estados */}
           {pedido.estados && pedido.estados.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -559,7 +643,6 @@ function InvoiceDetailModal({
               </h3>
 
               <div className="relative">
-                {/* Línea vertical */}
                 <div className="absolute left-4 top-8 bottom-0 w-0.5 bg-gray-200"></div>
 
                 <div className="space-y-4">
@@ -581,21 +664,23 @@ function InvoiceDetailModal({
                           key={estado.id}
                           className="relative flex items-start"
                         >
-                          {/* Dot */}
                           <div
                             className={`absolute left-2.5 w-3 h-3 rounded-full border-2 ${
                               esActual
-                                ? "bg-blue-600 border-blue-600"
+                                ? estado.estado === "CANCELADO"
+                                  ? "bg-red-600 border-red-600"
+                                  : "bg-blue-600 border-blue-600"
                                 : "bg-white border-gray-400"
                             }`}
                           ></div>
 
-                          {/* Content */}
                           <div className="ml-10 flex-1">
                             <div
                               className={`p-4 rounded-lg ${
                                 esActual
-                                  ? "bg-blue-50 border border-blue-200"
+                                  ? estado.estado === "CANCELADO"
+                                    ? "bg-red-50 border border-red-200"
+                                    : "bg-blue-50 border border-blue-200"
                                   : "bg-gray-50 border border-gray-200"
                               }`}
                             >
@@ -621,7 +706,13 @@ function InvoiceDetailModal({
                                     {estadoInfo?.label || estado.estado}
                                   </span>
                                   {esActual && (
-                                    <span className="text-xs text-blue-600 font-medium">
+                                    <span
+                                      className={`text-xs font-medium ${
+                                        estado.estado === "CANCELADO"
+                                          ? "text-red-600"
+                                          : "text-blue-600"
+                                      }`}
+                                    >
                                       Estado actual
                                     </span>
                                   )}
@@ -642,6 +733,8 @@ function InvoiceDetailModal({
                               {estadoInfo?.description && (
                                 <p className="text-sm text-gray-600 mt-2">
                                   {estadoInfo.description}
+                                  {estado.estado === "CANCELADO" &&
+                                    " - Inventario restaurado"}
                                 </p>
                               )}
                             </div>
@@ -658,5 +751,3 @@ function InvoiceDetailModal({
     </Dialog>
   );
 }
-
-export { InvoiceDetailModal };

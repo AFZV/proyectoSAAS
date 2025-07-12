@@ -21,7 +21,7 @@ export class PedidosService {
     private pdfUploaderService: PdfUploaderService,
     private cloudinaryService: CloudinaryService,
     private resend: ResendService
-  ) {}
+  ) { }
 
   ///crea un pedido en la bdd y sus relaciones
   async crearPedido(data: CreatePedidoDto, usuario: UsuarioPayload) {
@@ -317,7 +317,7 @@ export class PedidosService {
 
     if (estadoNormalizado === 'ENVIADO') {
       const fechaEnviado = new Date();
-      
+
       // ✅ Agregar logs para debug
       console.log('📦 Datos recibidos para ENVIADO:', {
         pedidoId,
@@ -408,6 +408,14 @@ export class PedidosService {
           where: { idPedido: pedidoExistente.id },
         })
       );
+      accionesReversibles.push(
+        this.prisma.estadoPedido.create({
+          data: {
+            pedidoId,
+            estado: estadoNormalizado
+          },
+        })
+      );
 
       await this.prisma.$transaction(accionesReversibles);
 
@@ -432,12 +440,12 @@ export class PedidosService {
       where:
         rol === 'admin'
           ? {
-              empresaId: empresaId,
-            }
+            empresaId: empresaId,
+          }
           : {
-              empresaId,
-              usuarioId,
-            },
+            empresaId,
+            usuarioId,
+          },
       include: {
         cliente: true,
         usuario: true,

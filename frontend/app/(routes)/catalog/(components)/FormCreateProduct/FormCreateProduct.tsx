@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
-import { UploadButton } from "@/utils/UploadThing";
+// import { UploadButton } from "@/utils/UploadButton";
 import { Plus, Package } from "lucide-react";
 import type { Categoria } from "../../types/catalog.types";
 

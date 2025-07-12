@@ -1,9 +1,13 @@
+// services/catalog.services.ts
 import type {
   ProductoBackend,
   Producto,
   Categoria,
   Cliente,
   CreatePedidoDto,
+  CreateProductoDto,
+  UpdateProductoDto,
+  CreateCategoriaProductoDto,
 } from "../types/catalog.types";
 
 export class CatalogService {
@@ -55,8 +59,65 @@ export class CatalogService {
       precio: producto.precioVenta,
       categoria: categoriasMap.get(producto.categoriaId) || "Sin categoría",
       imagenUrl: producto.imagenUrl,
-      stock: producto.inventario?.[0]?.stockActual ??0,
+      stock: producto.inventario?.[0]?.stockActual ?? 0,
     }));
+  }
+
+  // 🛠️ GESTIÓN DE PRODUCTOS - NUEVO
+
+  // Obtener todos los productos de la empresa (para administración)
+  async getAllProductosEmpresa(token: string): Promise<ProductoBackend[]> {
+    const response = await this.makeRequest<{ productos: ProductoBackend[] }>(
+      "/productos/empresa",
+      token
+    );
+    return response.productos;
+  }
+
+  // Crear nuevo producto
+  async createProducto(token: string, productoData: CreateProductoDto): Promise<any> {
+    return this.makeRequest("/productos/create", token, {
+      method: "POST",
+      body: JSON.stringify(productoData),
+    });
+  }
+
+  // Actualizar producto
+  async updateProducto(
+    token: string,
+    productoId: string,
+    productoData: UpdateProductoDto
+  ): Promise<any> {
+    return this.makeRequest(`/productos/update/${productoId}`, token, {
+      method: "PUT",
+      body: JSON.stringify(productoData),
+    });
+  }
+
+  // Cambiar estado del producto (activo/inactivo)
+  async toggleProductoEstado(token: string, productoId: string): Promise<any> {
+    return this.makeRequest(`/productos/update/${productoId}`, token, {
+      method: "PATCH",
+    });
+  }
+
+  // Crear nueva categoría
+  async createCategoria(
+    token: string,
+    categoriaData: CreateCategoriaProductoDto
+  ): Promise<any> {
+    return this.makeRequest("/productos/categoria/create", token, {
+      method: "POST",
+      body: JSON.stringify(categoriaData),
+    });
+  }
+
+  // Obtener productos por categoría
+  async getProductosPorCategoria(
+    token: string,
+    categoriaId: string
+  ): Promise<ProductoBackend[]> {
+    return this.makeRequest(`/productos/categoria/${categoriaId}`, token);
   }
 
   // 📂 CATEGORÍAS

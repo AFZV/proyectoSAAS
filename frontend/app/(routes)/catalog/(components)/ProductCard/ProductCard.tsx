@@ -1,10 +1,18 @@
+// ProductCard/ProductCard.tsx
 "use client";
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Minus, ShoppingCart, Package, AlertCircle } from "lucide-react";
+import {
+  Plus,
+  Minus,
+  ShoppingCart,
+  Package,
+  AlertCircle,
+  Eye,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +27,7 @@ import type {
   AddToCartModalProps,
 } from "./ProductCard.types";
 
-// Modal para agregar al carrito
+// Modal para agregar al carrito (simplificado)
 function AddToCartModal({
   producto,
   isOpen,
@@ -89,9 +97,15 @@ function AddToCartModal({
               <Input
                 type="number"
                 min="1"
+                max={producto.stock}
                 value={cantidad}
                 onChange={(e) =>
-                  setCantidad(Math.max(1, parseInt(e.target.value) || 1))
+                  setCantidad(
+                    Math.max(
+                      1,
+                      Math.min(producto.stock, parseInt(e.target.value) || 1)
+                    )
+                  )
                 }
                 className="w-20 text-center focus:ring-blue-500 focus:border-blue-500"
               />
@@ -100,6 +114,7 @@ function AddToCartModal({
                 variant="outline"
                 size="sm"
                 onClick={incrementar}
+                disabled={cantidad >= producto.stock}
                 className="hover:bg-blue-50 hover:border-blue-300"
               >
                 <Plus className="w-4 h-4" />
@@ -135,18 +150,15 @@ function AddToCartModal({
   );
 }
 
-// Componente principal ProductCard
+// Componente principal ProductCard actualizado
 export function ProductCard({
   producto,
   onAgregarAlCarrito,
+  onVerDetalles, // NUEVA PROP para abrir el modal de detalles
   isInCart = false,
   cantidadEnCarrito = 0,
-}: ProductCardProps) {
+}: ProductCardProps & { onVerDetalles?: (producto: any) => void }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const handleQuickAdd = () => {
-    onAgregarAlCarrito(producto, 1);
-  };
 
   const handleModalAdd = (cantidad: number) => {
     onAgregarAlCarrito(producto, cantidad);
@@ -154,11 +166,18 @@ export function ProductCard({
 
   const isOutOfStock = producto.stock === 0;
 
+  // Handler para hacer clic en la imagen
+  const handleImageClick = () => {
+    if (onVerDetalles) {
+      onVerDetalles(producto);
+    }
+  };
+
   return (
     <>
       <Card
         className={`
-        group hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden h-full flex flex-col
+        group hover:shadow-xl transition-all duration-300 overflow-hidden h-full flex flex-col
         ${isOutOfStock ? "opacity-60" : "hover:scale-[1.02]"}
         ${
           isInCart
@@ -168,13 +187,23 @@ export function ProductCard({
       `}
       >
         <CardContent className="p-0 flex flex-col h-full">
-          {/* Imagen del producto */}
-          <div className="relative aspect-square overflow-hidden bg-muted flex-shrink-0">
+          {/* Imagen del producto - ACTUALIZADA CON CLICK */}
+          <div
+            className="relative aspect-square overflow-hidden bg-muted flex-shrink-0 cursor-pointer"
+            onClick={handleImageClick}
+          >
             <img
               src={producto.imagenUrl || "/placeholder-product.png"}
               alt={producto.nombre}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
+
+            {/* Overlay hover para indicar que es clickeable */}
+            <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors duration-300 flex items-center justify-center opacity-0 hover:opacity-100">
+              <div className="bg-white/90 rounded-full p-2 transform scale-75 hover:scale-100 transition-transform">
+                <Eye className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
 
             {/* Badge de stock */}
             {isOutOfStock && (
@@ -186,7 +215,7 @@ export function ProductCard({
               </div>
             )}
 
-            {/* Badge de en carrito - Más sutil */}
+            {/* Badge de en carrito */}
             {isInCart && !isOutOfStock && (
               <div className="absolute top-2 right-2">
                 <Badge className="bg-emerald-500 text-white shadow-md text-xs">
@@ -210,7 +239,10 @@ export function ProductCard({
           {/* Información del producto */}
           <div className="p-3 space-y-2 flex-1 flex flex-col">
             {/* Nombre */}
-            <h3 className="font-semibold text-sm leading-tight line-clamp-2 min-h-[2.5rem]">
+            <h3
+              className="font-semibold text-sm leading-tight line-clamp-2 min-h-[2.5rem] cursor-pointer hover:text-blue-600 transition-colors"
+              onClick={handleImageClick}
+            >
               {producto.nombre}
             </h3>
 
@@ -229,27 +261,29 @@ export function ProductCard({
               </span>
             </div>
 
-            {/* Botones de acción - MEJORADO RESPONSIVE */}
+            {/* Botones de acción */}
             <div className="flex flex-col gap-1.5 mt-auto">
               {!isOutOfStock ? (
                 <>
-                  {/* <Button
+                  {/* Botón para ver detalles */}
+                  <Button
                     size="sm"
                     variant="outline"
-                    onClick={handleQuickAdd}
+                    onClick={handleImageClick}
                     className="w-full text-xs py-1.5 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
                   >
-                    <Plus className="w-3 h-3 mr-1" />
-                    Agregar
-                  </Button> */}
-                  {/* Botón modal para elegir cantidad */}
+                    <Eye className="w-3 h-3 mr-1" />
+                    Ver Detalles
+                  </Button>
+
+                  {/* Botón para agregar al carrito */}
                   <Button
                     size="sm"
                     onClick={() => setIsModalOpen(true)}
                     className="w-full text-xs py-1.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-blue-500/25"
                   >
                     <ShoppingCart className="w-3 h-3 mr-1" />
-                    Seleccionar
+                    Agregar
                   </Button>
                 </>
               ) : (

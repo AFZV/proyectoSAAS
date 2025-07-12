@@ -71,7 +71,7 @@ export function InvoicesClient({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // ✅ CAMBIO 1: Columnas visibles - AGREGAR guiaTransporte
+  // Columnas visibles
   const [visibleColumns, setVisibleColumns] = useState({
     id: true,
     cliente: true,
@@ -88,7 +88,7 @@ export function InvoicesClient({
   const { getToken, userId } = useAuth();
   const { toast } = useToast();
 
-  // ✅ CAMBIO 2: Debug para verificar datos
+  // Debug para verificar datos
   console.log(
     "🔍 Verificando pedidos con flete/guía:",
     pedidos
@@ -100,6 +100,62 @@ export function InvoicesClient({
         fechaEnvio: p.fechaEnvio,
       }))
   );
+
+  // ✅ NUEVA: Función para descargar PDF
+  const handleDescargarPdf = async (pedidoId: string) => {
+    try {
+      const token = await getToken();
+
+      // Opción 1: Si existe pdfUrl, abrir directamente
+      const pedidoSeleccionado = pedidos.find((p) => p.id === pedidoId);
+      if (pedidoSeleccionado?.pdfUrl) {
+        window.open(pedidoSeleccionado.pdfUrl, "_blank");
+        toast({
+          title: "PDF abierto",
+          description: "El comprobante se ha abierto en una nueva pestaña",
+        });
+        return;
+      }
+
+      // Opción 2: Si no existe pdfUrl, generar desde el backend
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/pedidos/${pedidoId}/pdf`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Error al generar PDF");
+      }
+
+      // Crear blob y descargar
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `pedido_${pedidoId.slice(-8)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "PDF descargado",
+        description: "El comprobante ha sido descargado exitosamente",
+      });
+    } catch (error) {
+      console.error("Error:", error);
+      toast({
+        title: "Error al descargar",
+        description: "No se pudo generar el PDF del pedido",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Función para refrescar datos
   const refreshPedidos = async () => {
     try {
@@ -260,16 +316,6 @@ export function InvoicesClient({
 
     setSelectedPedido(pedido);
     setIsEditModalOpen(true);
-  };
-
-  const handleEliminarPedido = (pedidoId: string) => {
-    if (confirm("¿Estás seguro de que quieres eliminar este pedido?")) {
-      toast({
-        title: "Función no implementada",
-        description: "La eliminación de pedidos estará disponible próximamente",
-        variant: "destructive",
-      });
-    }
   };
 
   const getEstadoBadge = (estado: string) => {
@@ -472,12 +518,11 @@ export function InvoicesClient({
                             ? "Contacto"
                             : key === "flete"
                             ? "Flete"
-                            : key === "guiaTransporte" // ✅ CAMBIO 3: Agregar en dialog
+                            : key === "guiaTransporte"
                             ? "Guía de Transporte"
                             : key === "acciones"
                             ? "Acciones"
                             : key}
-                                  
                         </label>
                       </div>
                     ))}
@@ -533,8 +578,7 @@ export function InvoicesClient({
                     Flete
                   </th>
                 )}
-
-                {visibleColumns.guiaTransporte && ( // ✅ CAMBIO 4: Agregar header
+                {visibleColumns.guiaTransporte && (
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Guía
                   </th>
@@ -619,8 +663,21 @@ export function InvoicesClient({
                         </td>
                       )}
                       {visibleColumns.total && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {formatValue(pedido.total || 0)}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div
+                            className={`${
+                              estadoActual === "CANCELADO"
+                                ? "text-red-600 line-through"
+                                : "text-gray-900"
+                            }`}
+                          >
+                            {formatValue(pedido.total || 0)}
+                            {estadoActual === "CANCELADO" && (
+                              <span className="ml-2 text-xs text-red-500 bg-red-100 px-1 py-0.5 rounded">
+                                CANCELADO
+                              </span>
+                            )}
+                          </div>
                         </td>
                       )}
                       {visibleColumns.estado && (
@@ -665,7 +722,7 @@ export function InvoicesClient({
                           )}
                         </td>
                       )}
-                      {visibleColumns.guiaTransporte && ( // ✅ CAMBIO 5: Agregar celda
+                      {visibleColumns.guiaTransporte && (
                         <td className="px-6 py-4 whitespace-nowrap">
                           {pedido.guiaTransporte ? (
                             <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
@@ -680,6 +737,7 @@ export function InvoicesClient({
                       {visibleColumns.acciones && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <div className="flex space-x-2">
+                            {/* ✅ Ver detalles - siempre disponible */}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -689,8 +747,10 @@ export function InvoicesClient({
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+
                             {userType === "admin" && (
                               <>
+                                {/* ✅ Editar - solo en GENERADO y SEPARADO */}
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -709,19 +769,27 @@ export function InvoicesClient({
                                 >
                                   <Edit3 className="h-4 w-4" />
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleEliminarPedido(pedido.id)
-                                  }
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  title="Eliminar pedido"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+
+                                {/* ✅ PDF - solo cuando está FACTURADO, ENVIADO o ENTREGADO */}
+                                {["FACTURADO", "ENVIADO", "ENTREGADO"].includes(
+                                  estadoActual
+                                ) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleDescargarPdf(pedido.id)
+                                    }
+                                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    title="Descargar comprobante PDF"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </>
                             )}
+
+                            {/* ✅ Más opciones */}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -816,6 +884,10 @@ export function InvoicesClient({
               </p>
               <p>
                 • El valor del flete se muestra cuando bodega envía el pedido
+              </p>
+              <p>
+                • El PDF está disponible para pedidos FACTURADOS, ENVIADOS y
+                ENTREGADOS
               </p>
               <p>
                 • Los cambios se sincronizan automáticamente con el servidor

@@ -1,3 +1,5 @@
+// services/invoices.service.ts - ACTUALIZADO PARA CANCELACIÓN
+
 import type {
   Pedido,
   CreatePedidoDto,
@@ -53,7 +55,7 @@ export class InvoicesService {
     });
   }
 
-  // 🔄 ACTUALIZAR ESTADO DE PEDIDO - CORREGIDO PARA /estado
+  // 🔄 ACTUALIZAR ESTADO DE PEDIDO - MEJORADO PARA CANCELACIÓN
   async actualizarEstadoPedido(
     token: string,
     pedidoId: string,
@@ -71,19 +73,19 @@ export class InvoicesService {
       flete: data.flete,
     });
 
-    // ✅ PREPARAR PAYLOAD CON CAMPOS OBLIGATORIOS
+    // ✅ PREPARAR PAYLOAD SEGÚN EL BACKEND
     const payload = {
       pedidoId,
       estado: data.estado,
-      guiaTransporte: data.guiaTransporte, // ✅ Siempre incluir
-      flete: data.flete, // ✅ Siempre incluir
+      guiaTransporte: data.guiaTransporte || "", // ✅ Backend espera string
+      flete: data.flete || 0, // ✅ Backend espera number
     };
 
     console.log("📤 Payload final:", payload);
 
     try {
       const result = await this.makeRequest(
-        "/pedidos/estado", // ✅ CORREGIDO: Usar /estado en lugar de /estados
+        "/pedidos/estado", // ✅ Endpoint correcto según tu controller
         token,
         {
           method: "POST",
@@ -113,38 +115,54 @@ export class InvoicesService {
     });
   }
 
+  // 🚫 CANCELAR PEDIDO - NUEVA FUNCIÓN ESPECÍFICA
+  async cancelarPedido(token: string, pedidoId: string): Promise<any> {
+    console.log("🚫 Cancelando pedido:", pedidoId);
+
+    try {
+      const result = await this.actualizarEstadoPedido(token, pedidoId, {
+        estado: "CANCELADO",
+        guiaTransporte: "",
+        flete: 0,
+      });
+
+      console.log("✅ Pedido cancelado exitosamente:", result);
+      return result;
+    } catch (error) {
+      console.error("❌ Error al cancelar pedido:", error);
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo cancelar el pedido"
+      );
+    }
+  }
+
   // 🔍 FILTRAR PEDIDOS - CORREGIDO PARA USAR QUERY PARAMS
   async filtrarPedidos(
     token: string,
     filtros: {
       filtro: string;
       tipoFiltro:
-        | "id"
-        | "clienteId"
-        | "usuarioId"
-        | "total"
-        | "empresaId"
-        | "fechaPedido";
+      | "id"
+      | "clienteId"
+      | "usuarioId"
+      | "total"
+      | "empresaId"
+      | "fechaPedido";
     }
   ): Promise<Pedido[]> {
     console.log("🔍 Filtrando pedidos:", filtros);
 
-    // ✅ USAR QUERY PARAMETERS EN LUGAR DE BODY
-    const params = new URLSearchParams({
-      filtro: filtros.filtro,
-      tipoFiltro: filtros.tipoFiltro,
+    // ✅ USAR QUERY PARAMETERS - PERO VERIFICAR SI BACKEND ESPERA BODY
+    // Según tu controller, usa @Body(), así que enviamos en el body
+    return this.makeRequest<Pedido[]>("/pedidos/filtro", token, {
+      method: "GET", // ✅ Cambiar a POST si tu backend espera body
+      body: JSON.stringify(filtros),
     });
-
-    return this.makeRequest<Pedido[]>(
-      `/pedidos/filtro?${params.toString()}`,
-      token,
-      {
-        method: "GET",
-      }
-    );
   }
 
-  // 📊 OBTENER ESTADÍSTICAS
+  // 📊 OBTENER ESTADÍSTICAS - MEJORADO PARA INCLUIR CANCELADOS
   async obtenerEstadisticasPedidos(
     token: string
   ): Promise<EstadisticasPedidos> {
@@ -161,6 +179,8 @@ export class InvoicesService {
       ventasTotal: 0,
       ventasHoy: 0,
       pedidosHoy: 0,
+      pedidosCancelados: 0, // ✅ Nuevo campo
+      ventasPerdidas: 0, // ✅ Nuevo campo para ventas canceladas
     };
 
     pedidos.forEach((pedido: any) => {
@@ -179,20 +199,31 @@ export class InvoicesService {
         estadoActual = estadosOrdenados[0].estado;
       }
 
+      // ✅ Contar por estado
       stats.pedidosPorEstado[estadoActual] =
         (stats.pedidosPorEstado[estadoActual] || 0) + 1;
 
       const fechaPedido = new Date(pedido.fechaPedido);
+
+      // ✅ Pedidos de hoy
       if (fechaPedido >= hoy && fechaPedido < mañana) {
         stats.pedidosHoy++;
       }
 
+      // ✅ Estadísticas de ventas (solo pedidos no cancelados)
       if (["FACTURADO", "ENVIADO", "ENTREGADO"].includes(estadoActual)) {
         stats.ventasTotal += pedido.total || 0;
 
         if (fechaPedido >= hoy && fechaPedido < mañana) {
           stats.ventasHoy += pedido.total || 0;
         }
+      }
+
+      // ✅ Estadísticas de cancelaciones
+      if (estadoActual === "CANCELADO") {
+        stats.pedidosCancelados++;
+        // Nota: pedido.total ya debería ser 0 según el backend,
+        // pero podríamos necesitar el total original para estadísticas
       }
     });
 
@@ -216,6 +247,64 @@ export class InvoicesService {
     } catch (error) {
       console.error("Error al obtener pedidos:", error);
       throw error;
+    }
+  }
+
+  // 🔍 VERIFICAR SI PEDIDO PUEDE SER CANCELADO
+  verificarPuedeCancelar(pedido: Pedido): { puede: boolean; razon?: string } {
+    if (!pedido.estados || pedido.estados.length === 0) {
+      return { puede: true }; // GENERADO puede cancelarse
+    }
+
+    const estadoActual = pedido.estados
+      .sort((a, b) =>
+        new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime()
+      )[0].estado;
+
+    switch (estadoActual) {
+      case "GENERADO":
+      case "SEPARADO":
+      case "FACTURADO":
+        return { puede: true };
+
+      case "ENVIADO":
+        return {
+          puede: false,
+          razon: "No se puede cancelar un pedido que ya fue enviado"
+        };
+
+      case "ENTREGADO":
+        return {
+          puede: false,
+          razon: "No se puede cancelar un pedido que ya fue entregado"
+        };
+
+      case "CANCELADO":
+        return {
+          puede: false,
+          razon: "El pedido ya está cancelado"
+        };
+
+      default:
+        return {
+          puede: false,
+          razon: "Estado no reconocido"
+        };
+    }
+  }
+
+  // 📊 OBTENER RESUMEN DE MOVIMIENTOS POR CANCELACIÓN
+  async obtenerMovimientosCancelacion(
+    token: string,
+    pedidoId: string
+  ): Promise<any> {
+    // Esta función podrías implementarla si el backend 
+    // proporciona detalles de los movimientos revertidos
+    try {
+      return this.makeRequest(`/pedidos/${pedidoId}/movimientos`, token);
+    } catch (error) {
+      console.warn("No se pudieron obtener detalles de movimientos:", error);
+      return null;
     }
   }
 }

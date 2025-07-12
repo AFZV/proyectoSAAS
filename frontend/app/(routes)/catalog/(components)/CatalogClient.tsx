@@ -1,3 +1,4 @@
+// CatalogClient.tsx
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -13,6 +14,7 @@ import {
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
 import { ProductCard } from "./ProductCard/ProductCard";
+import { ProductDetailModal } from "./ProductDetailModal/ProductDetailModal";
 import { CategoryFilter } from "./CategoryFilter/CategoryFilter";
 import { SearchBar } from "./SearchBar/SearchBar";
 import { CartSidebar } from "./CartSidebar/CartSidebar";
@@ -47,6 +49,10 @@ export function CatalogClient({
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // NUEVOS ESTADOS PARA EL MODAL DE DETALLES
+  const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const { getToken } = useAuth();
   const { toast } = useToast();
@@ -113,6 +119,18 @@ export function CatalogClient({
     return counts;
   }, [productos, categorias]);
 
+  // NUEVA FUNCIÓN: Abrir modal de detalles
+  const handleVerDetalles = (producto: Producto) => {
+    setSelectedProduct(producto);
+    setIsDetailModalOpen(true);
+  };
+
+  // NUEVA FUNCIÓN: Cerrar modal de detalles
+  const handleCloseDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedProduct(null);
+  };
+
   // Funciones del carrito
   const agregarAlCarrito = (producto: Producto, cantidad: number = 1) => {
     setCarrito((prevCarrito) => {
@@ -135,9 +153,6 @@ export function CatalogClient({
       title: "Producto agregado",
       description: `${producto.nombre} (${cantidad}) agregado al carrito`,
     });
-
-    // ❌ REMOVIDO: No auto-abrir carrito
-    // Solo mostrar el toast de confirmación
   };
 
   const actualizarCantidadCarrito = (
@@ -207,6 +222,42 @@ export function CatalogClient({
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
+      {/* Bienvenida sutil para usuarios */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 text-sm text-blue-700">
+            <span>
+              <strong>Bienvenido:</strong>{" "}
+              <span className="text-blue-800 font-semibold">{userName}</span>
+            </span>
+            <span className="text-blue-400">•</span>
+            <span>
+              <strong>Rol:</strong>{" "}
+              <span className="capitalize bg-blue-100 px-2 py-1 rounded-full text-blue-800 font-medium">
+                {userType}
+              </span>
+            </span>
+          </div>
+
+          {/* Estadísticas para usuarios no admin */}
+          {userType !== "admin" && (
+            <div className="hidden sm:flex items-center gap-6">
+              <div className="text-center">
+                <div className="text-lg font-bold text-blue-600">
+                  {productos.length}
+                </div>
+                <div className="text-xs text-blue-600">Productos</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-green-600">
+                  {productos.filter((p) => p.stock > 0).length}
+                </div>
+                <div className="text-xs text-green-600">En Stock</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
       {/* Controles superiores */}
       <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
         {/* Búsqueda */}
@@ -284,7 +335,7 @@ export function CatalogClient({
               </CardContent>
             </Card>
           ) : (
-            /* Grid de productos - MEJORADO RESPONSIVE */
+            /* Grid de productos - MEJORADO CON NUEVA FUNCIONALIDAD */
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 auto-rows-fr">
               {productosFiltrados.map((producto) => {
                 const enCarrito = getProductoEnCarrito(producto.id);
@@ -293,6 +344,7 @@ export function CatalogClient({
                     key={producto.id}
                     producto={producto}
                     onAgregarAlCarrito={agregarAlCarrito}
+                    onVerDetalles={handleVerDetalles} // NUEVA PROP
                     isInCart={!!enCarrito}
                     cantidadEnCarrito={enCarrito?.cantidad || 0}
                   />
@@ -384,6 +436,18 @@ export function CatalogClient({
         onOpenChange={setIsCheckoutOpen}
         carrito={carrito}
         onPedidoCreado={handlePedidoCreado}
+      />
+
+      {/* NUEVO: Modal de detalles del producto */}
+      <ProductDetailModal
+        producto={selectedProduct}
+        isOpen={isDetailModalOpen}
+        onClose={handleCloseDetailModal}
+        onAgregarAlCarrito={agregarAlCarrito}
+        isInCart={!!getProductoEnCarrito(selectedProduct?.id || "")}
+        cantidadEnCarrito={
+          getProductoEnCarrito(selectedProduct?.id || "")?.cantidad || 0
+        }
       />
     </div>
   );

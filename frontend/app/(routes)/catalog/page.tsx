@@ -1,8 +1,9 @@
+// page.tsx
 import { auth } from "@clerk/nextjs";
 import { getToken } from "@/lib/getToken";
 import { catalogService } from "./services/catalog.services";
 import { CatalogClient } from "./(components)/CatalogClient";
-import { HeaderCatalog } from "./(components)/HeaderCatalog";
+import { HeaderCatalog } from "./(components)/HeaderCatalog/HeaderCatalog";
 
 export default async function CatalogPage() {
   const { userId } = auth();
@@ -11,8 +12,13 @@ export default async function CatalogPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">
-          <h2 className="text-xl font-semibold">Acceso no autorizado</h2>
-          <p className="text-muted-foreground">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+            <span className="text-red-600 text-2xl">🔒</span>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">
+            Acceso no autorizado
+          </h2>
+          <p className="text-gray-600 max-w-md">
             Debes iniciar sesión para acceder al catálogo
           </p>
         </div>
@@ -43,33 +49,20 @@ export default async function CatalogPage() {
     const productos = await catalogService.getProductosParaCatalogo(token);
 
     return (
-      <div className="min-h-screen bg-background">
-        {/* Header con botón crear producto (solo admin) */}
-        {usuario.rol === "admin" && <HeaderCatalog />}
-
-        {/* Información del usuario */}
-        <div className="border-b bg-card/50">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="text-center space-y-1">
-              <h1 className="text-2xl font-bold">Catálogo de Productos</h1>
-              <p className="text-sm text-muted-foreground">
-                Bienvenido:{" "}
-                <span className="font-medium">
-                  {usuario.nombre} {usuario.apellidos || ""}
-                </span>
-                <span className="mx-2">•</span>
-                Rol:{" "}
-                <span className="font-medium capitalize">{usuario.rol}</span>
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="space-y-6">
+        {/* Header con botones de administración y estadísticas (solo admin) */}
+        {usuario.rol === "admin" && (
+          <HeaderCatalog
+            totalProductos={productos.length}
+            productosEnStock={productos.filter((p) => p.stock > 0).length}
+          />
+        )}
 
         {/* Componente cliente con toda la funcionalidad */}
         <CatalogClient
           productos={productos}
           userType={usuario.rol}
-          userName={`${usuario.nombre} ${usuario.apellidos || ""}`.trim()}
+          userName={`${usuario.nombre} ${usuario.apellidos || ""}`}
         />
       </div>
     );
@@ -77,16 +70,19 @@ export default async function CatalogPage() {
     console.error("Error en CatalogPage:", error);
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center space-y-4">
-          <h2 className="text-xl font-semibold text-destructive">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+            <span className="text-red-600 text-2xl">⚠️</span>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">
             Error al cargar el catálogo
           </h2>
-          <p className="text-muted-foreground">
+          <p className="text-gray-600">
             No se pudieron cargar los productos. Inténtalo de nuevo más tarde.
           </p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
           >
             Reintentar
           </button>

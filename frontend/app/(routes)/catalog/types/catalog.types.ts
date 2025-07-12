@@ -1,9 +1,10 @@
+// types/catalog.types.ts
 export interface Categoria {
   idCategoria: string;
   nombre: string;
 }
 
-// Producto como viene del backend
+// Producto como viene del backend - ACTUALIZADO
 export interface ProductoBackend {
   id: string;
   nombre: string;
@@ -34,7 +35,7 @@ export interface CarritoItem extends Producto {
   cantidad: number;
 }
 
-// 🔧 Cliente actualizado según tu backend
+// Cliente actualizado según tu backend
 export interface Cliente {
   id: string;
   nit: string;              // Obligatorio según tu DTO
@@ -58,4 +59,24 @@ export interface CreatePedidoDto {
     cantidad: number;
     precio: number;
   }[];
+}
+
+// NUEVOS DTOs para gestión de productos
+export interface CreateProductoDto {
+  nombre: string;
+  precioCompra: number;
+  precioVenta: number;
+  imagenUrl: string;
+  categoriaId: string;
+}
+
+export interface UpdateProductoDto {
+  nombre: string;
+  precioCompra: number;
+  precioVenta: number;
+  categoriaId: string;
+}
+
+export interface CreateCategoriaProductoDto {
+  nombre: string;
 }
