@@ -14,14 +14,13 @@ export function WrapperCartera() {
   const [movimientos, setMovimientos] = useState<MovimientoCartera[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const { getToken } = useAuth();
-
-  const stats: CarteraStats = {
+  const [stats, setStats] = useState<CarteraStats>({
     totalSaldo: 0,
     totalPositivos: 0,
     totalNegativos: 0,
-  };
+  });
+
+  const { getToken } = useAuth();
 
   // Fetch movimientos al seleccionar un cliente
   useEffect(() => {
@@ -32,20 +31,38 @@ export function WrapperCartera() {
       setError(null);
       try {
         const token = await getToken();
-        const res = await fetch(
+
+        // Fetch movimientos
+        const resMov = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/balance/movimientos/${clienteSeleccionado.id}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
-        if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`);
+        if (!resMov.ok)
+          throw new Error(`Error ${resMov.status}: ${resMov.statusText}`);
+        const dataMov = await resMov.json();
+        setMovimientos(dataMov.movimientos || []);
 
-        const data = await res.json();
-        console.log("esto llega  al front en movimientos :", movimientos);
-        setMovimientos(data.movimientos || []);
+        // Fetch stats
+        const resStats = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/balance/stats/${clienteSeleccionado.id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        if (!resStats.ok)
+          throw new Error(`Error ${resStats.status}: ${resStats.statusText}`);
+        const dataStats = await resStats.json();
+        setStats({
+          totalSaldo: dataStats.totalSaldo || 0,
+          totalPositivos: dataStats.totalPositivos || 0,
+          totalNegativos: dataStats.totalNegativos || 0,
+        });
       } catch (e: any) {
         setError(e.message || "Error desconocido");
         setMovimientos([]);
+        setStats({ totalSaldo: 0, totalPositivos: 0, totalNegativos: 0 });
       } finally {
         setLoading(false);
       }
@@ -53,6 +70,7 @@ export function WrapperCartera() {
 
     fetchMovimientos();
   }, [clienteSeleccionado]);
+  console.log("stats en el frontend:", stats);
 
   return (
     <div>

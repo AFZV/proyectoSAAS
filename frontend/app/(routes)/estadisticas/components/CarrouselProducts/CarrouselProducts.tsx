@@ -48,8 +48,11 @@ export function CarrouselProducts({
 
       <Carousel setApi={setApi} className="w-full">
         <CarouselContent>
-          {productos.map((producto) => (
-            <CarouselItem key={producto.id} className="basis-full">
+          {productos.map((producto, index) => (
+            <CarouselItem
+              key={`${producto.id}-${index}`}
+              className="basis-full"
+            >
               <Card className="h-full shadow-lg border-none rounded-2xl transition hover:scale-[1.01]">
                 <CardContent className="flex flex-col items-center justify-between p-6 space-y-4 min-h-[380px]">
                   <div className="w-full h-48 overflow-hidden rounded-xl bg-gray-100">

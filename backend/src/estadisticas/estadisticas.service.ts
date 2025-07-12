@@ -28,23 +28,24 @@ export class EstadisticasService {
 `;
 
     const productos = await this.prisma.$queryRaw`
-    SELECT 
-      p.id,
-      p.nombre,
-      p."imagenUrl",
-      p."precioCompra",
-      COALESCE(i."stockActual", 0) AS "stockActual"
-    FROM "Producto" p
-    LEFT JOIN "Inventario" i ON i."idProducto" = p.id AND i."idEmpresa" = ${empresaId}
-    LEFT JOIN "DetallePedido" dp ON dp."productoId" = p.id
-    LEFT JOIN "Pedido" pe ON pe.id = dp."pedidoId"
-    WHERE 
-      i."idEmpresa" = ${empresaId}
-      AND (
-        pe."fechaPedido" IS NULL OR pe."fechaPedido" < NOW() - INTERVAL '30 days'
-      )
-    ORDER BY "stockActual" ASC
-  `;
+  SELECT DISTINCT ON (p.id)
+    p.id,
+    p.nombre,
+    p."imagenUrl",
+    p."precioCompra",
+    COALESCE(i."stockActual", 0) AS "stockActual"
+  FROM "Producto" p
+  LEFT JOIN "Inventario" i ON i."idProducto" = p.id AND i."idEmpresa" = ${empresaId}
+  LEFT JOIN "DetallePedido" dp ON dp."productoId" = p.id
+  LEFT JOIN "Pedido" pe ON pe.id = dp."pedidoId"
+  WHERE 
+    i."idEmpresa" = ${empresaId}
+    AND (
+      pe."fechaPedido" IS NULL OR pe."fechaPedido" < NOW() - INTERVAL '30 days'
+    )
+  ORDER BY p.id, "stockActual" ASC
+`;
+
     const clientes = await this.prisma.$queryRaw`
   SELECT 
     cli.id,

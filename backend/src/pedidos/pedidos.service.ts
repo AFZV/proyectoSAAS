@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
@@ -6,9 +10,7 @@ import { UpdatePedidoDto } from './dto/update-pedido.dto';
 import { FilterPedidoDto } from './dto/filter-pedido.dto';
 import { ResumenPedidoDto } from 'src/pdf-uploader/dto/resumen-pedido.dto';
 import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
-import * as fs from 'fs';
-import { unlink, writeFile } from 'fs/promises';
-import * as path from 'path';
+
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { ResendService } from 'src/resend/resend.service';
 
@@ -23,7 +25,7 @@ export class PedidosService {
 
   ///crea un pedido en la bdd y sus relaciones
   async crearPedido(data: CreatePedidoDto, usuario: UsuarioPayload) {
-    //  Validación: no permitir productos duplicados
+    // Validar que no haya productos duplicados
     const ids = data.productos.map((p) => p.productoId);
     const set = new Set(ids);
     if (set.size !== ids.length) {
@@ -31,38 +33,60 @@ export class PedidosService {
         'No se permiten productos duplicados en el pedido'
       );
     }
-    //se calcula el total del pedido antes de crear el pedido
-    const totalCalculado = data.productos.reduce((sum, p) => {
-      return sum + p.cantidad * p.precio;
-    }, 0);
-    const { empresaId, id } = usuario;
 
-    //console.log('est es la empresa logueada :', empresaId);
-    const pedido = await this.prisma.pedido.create({
-      data: {
-        ...data,
-        empresaId: empresaId,
-        usuarioId: id,
-        estados: {
-          create: {
-            estado: 'GENERADO',
+    const { empresaId, id: usuarioId } = usuario;
+
+    const totalCalculado = data.productos.reduce(
+      (sum, p) => sum + p.cantidad * p.precio,
+      0
+    );
+
+    return await this.prisma.$transaction(async (tx) => {
+      // Paso 1: Crear el pedido sin productos aún
+      const pedido = await tx.pedido.create({
+        data: {
+          clienteId: data.clienteId,
+          observaciones: data.observaciones,
+          empresaId,
+          usuarioId,
+          total: totalCalculado,
+        },
+      });
+
+      // Paso 2: Insertar los productos (DetallePedido)
+      await tx.detallePedido.createMany({
+        data: data.productos.map((p) => ({
+          pedidoId: pedido.id,
+          productoId: p.productoId,
+          cantidad: p.cantidad,
+          precio: p.precio,
+        })),
+      });
+
+      // Paso 3: Registrar el estado 'GENERADO'
+      await tx.estadoPedido.create({
+        data: {
+          pedidoId: pedido.id,
+          estado: 'GENERADO',
+        },
+      });
+
+      // Paso 4: Retornar el pedido completo con relaciones
+      return tx.pedido.findUnique({
+        where: { id: pedido.id },
+        include: {
+          productos: {
+            include: { producto: true },
+          },
+          cliente: true,
+          usuario: true,
+          empresa: true,
+          estados: {
+            orderBy: { fechaEstado: 'desc' },
           },
         },
-
-        productos: {
-          create: data.productos.map((p) => ({
-            productoId: p.productoId,
-            cantidad: p.cantidad,
-            precio: p.precio,
-          })),
-        },
-        total: totalCalculado,
-      },
-      include: {
-        productos: true,
-      },
+      });
     });
-    return pedido;
   }
 
   ///// cambia el estado del pedido y verifica si esta facturado lo descuenta del stock
@@ -85,7 +109,7 @@ export class PedidosService {
       );
     }
 
-    if (['SEPARADO', 'CANCELADO'].includes(estadoNormalizado)) {
+    if (['SEPARADO'].includes(estadoNormalizado)) {
       return this.prisma.estadoPedido.create({
         data: { pedidoId, estado: estadoNormalizado },
       });
@@ -319,6 +343,80 @@ export class PedidosService {
       console.log('✅ Estado ENVIADO creado exitosamente');
       return estadoNuevo;
     }
+    const accionesReversibles: any[] = [];
+
+    if (estadoNormalizado === 'CANCELADO') {
+      const pedidoExistente = await this.prisma.pedido.findUnique({
+        where: { id: pedidoId },
+        include: {
+          productos: {
+            include: {
+              producto: { select: { nombre: true } },
+            },
+          },
+          cliente: {
+            select: {
+              nombre: true,
+              apellidos: true,
+              rasonZocial: true,
+              ciudad: true,
+              email: true,
+            },
+          },
+          usuario: {
+            select: { nombre: true, telefono: true },
+          },
+          empresa: {
+            select: {
+              telefono: true,
+              logoUrl: true,
+              nombreComercial: true,
+              direccion: true,
+            },
+          },
+        },
+      });
+      if (!pedidoExistente) throw new Error('no se encontro pedido');
+      for (const item of pedidoExistente.productos) {
+        accionesReversibles.push(
+          this.prisma.inventario.updateMany({
+            where: {
+              idProducto: item.productoId,
+              idEmpresa: pedidoExistente.empresaId,
+            },
+            data: {
+              stockActual: { increment: item.cantidad },
+            },
+          })
+        );
+
+        accionesReversibles.push(
+          this.prisma.movimientoInventario.deleteMany({
+            where: { IdPedido: pedidoExistente.id },
+          })
+        );
+      }
+
+      accionesReversibles.push(
+        this.prisma.detallePedido.deleteMany({
+          where: { pedidoId },
+        })
+      );
+
+      accionesReversibles.push(
+        this.prisma.movimientosCartera.deleteMany({
+          where: { idPedido: pedidoExistente.id },
+        })
+      );
+
+      await this.prisma.$transaction(accionesReversibles);
+
+      const pedidoActualizado = await this.prisma.pedido.update({
+        where: { id: pedidoExistente.id },
+        data: { guiaTransporte: '', flete: 0, total: 0 },
+      });
+      return pedidoActualizado;
+    }
 
     return this.prisma.estadoPedido.create({
       data: { pedidoId, estado: estadoNormalizado },
@@ -379,6 +477,8 @@ export class PedidosService {
     data: UpdatePedidoDto,
     usuario: UsuarioPayload
   ) {
+    const { rol } = usuario;
+    if (rol !== 'admin') throw new UnauthorizedException('no esta autorizado ');
     const pedidoExistente = await this.prisma.pedido.findUnique({
       where: { id: pedidoId },
       include: {
@@ -392,39 +492,6 @@ export class PedidosService {
 
     if (!pedidoExistente) {
       throw new BadRequestException('Pedido no encontrado');
-    }
-
-    const ultimoEstado = pedidoExistente.estados[0]?.estado;
-    const accionesReversibles: any[] = [];
-
-    if (ultimoEstado === 'FACTURADO') {
-      for (const item of pedidoExistente.productos) {
-        accionesReversibles.push(
-          this.prisma.inventario.updateMany({
-            where: {
-              idProducto: item.productoId,
-              idEmpresa: pedidoExistente.empresaId,
-            },
-            data: {
-              stockActual: { increment: item.cantidad },
-            },
-          })
-        );
-
-        accionesReversibles.push(
-          this.prisma.movimientoInventario.deleteMany({
-            where: { IdPedido: pedidoExistente.id },
-          })
-        );
-      }
-
-      accionesReversibles.push(
-        this.prisma.movimientosCartera.deleteMany({
-          where: { idPedido: pedidoExistente.id },
-        })
-      );
-
-      await this.prisma.$transaction(accionesReversibles);
     }
 
     await this.prisma.detallePedido.deleteMany({
@@ -476,99 +543,6 @@ export class PedidosService {
       );
     }
 
-    const actualizacionesStock = pedidoActualizado.productos.map((item) =>
-      this.prisma.inventario.updateMany({
-        where: {
-          idProducto: item.productoId,
-          idEmpresa: pedidoActualizado.empresaId,
-        },
-        data: {
-          stockActual: { decrement: item.cantidad },
-        },
-      })
-    );
-
-    const movimientos = pedidoActualizado.productos.map((item) =>
-      this.prisma.movimientoInventario.create({
-        data: {
-          idEmpresa: pedidoActualizado.empresaId,
-          idProducto: item.productoId,
-          cantidadMovimiendo: item.cantidad,
-          idTipoMovimiento: tipoSalida.idTipoMovimiento,
-          IdUsuario: usuario.id,
-          IdPedido: pedidoActualizado.id,
-        },
-      })
-    );
-
-    const movimientoCartera = this.prisma.movimientosCartera.create({
-      data: {
-        idCliente: pedidoActualizado.clienteId,
-        idUsuario: usuario.id,
-        empresaId: pedidoActualizado.empresaId,
-        valorMovimiento: totalCalculado,
-        idPedido: pedidoActualizado.id,
-        tipoMovimientoOrigen: 'PEDIDO',
-      },
-    });
-
-    await this.prisma.$transaction([
-      ...actualizacionesStock,
-      ...movimientos,
-      movimientoCartera,
-    ]);
-
-    // ✅ Generar PDF en segundo plano
-    setImmediate(() => {
-      void (async () => {
-        try {
-          const clienteNombres = `${pedidoActualizado.cliente.nombre} ${pedidoActualizado.cliente.apellidos}`;
-          const razonSocial = pedidoActualizado.cliente.rasonZocial;
-
-          const resumenPedidoDto: ResumenPedidoDto = {
-            emailCliente: pedidoActualizado.cliente.email,
-            ciudadCliente: pedidoActualizado.cliente.ciudad,
-            direccionEmpresa: pedidoActualizado.empresa.direccion,
-            logoUrl: pedidoActualizado.empresa.logoUrl,
-            nombreEmpresa: pedidoActualizado.empresa.nombreComercial,
-            telefonoEmpresa: pedidoActualizado.empresa.telefono,
-            id: pedidoActualizado.id,
-            cliente: clienteNombres || razonSocial,
-            fecha: new Date(),
-            vendedor: pedidoActualizado.usuario.nombre,
-            productos: pedidoActualizado.productos.map((item) => ({
-              nombre: item.producto.nombre,
-              cantidad: item.cantidad,
-              precio: item.precio,
-              subtotal: item.cantidad * item.precio,
-            })),
-            total: totalCalculado,
-          };
-
-          const pdfBuffer =
-            await this.pdfUploaderService.generarPedidoPDF(resumenPedidoDto);
-
-          const outputPath = path.join(
-            'C:',
-            'Users',
-            'USUARIO',
-            'Desktop',
-            'pdfs',
-            `pedido_${resumenPedidoDto.id}.pdf`
-          );
-
-          if (fs.existsSync(outputPath)) {
-            await unlink(outputPath);
-          }
-
-          await writeFile(outputPath, pdfBuffer.buffer);
-          console.log(`✅ PDF generado: ${outputPath}`);
-        } catch (error) {
-          console.error('❌ Error al generar PDF:', error);
-        }
-      })();
-    });
-    console.log('📤 Enviando respuesta al cliente');
     return pedidoActualizado;
   }
 
