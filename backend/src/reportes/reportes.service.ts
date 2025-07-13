@@ -83,4 +83,80 @@ export class ReportesService {
       rasonZocial: item.cliente.rasonZocial,
     }));
   }
+
+  //Reporte de todos los pedidos por fecha
+async pedidosAll(
+    usuario: UsuarioPayload,
+    data: CrearReporteInvDto
+  ): Promise<Array<{
+    id: string;
+    cliente: string;
+    fecha: Date;
+    total: number;
+  }>> {
+    const { fechaInicio, fechaFin } = data;
+
+    const pedidos = await this.prisma.pedido.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+        fechaPedido: {
+          gte: new Date(fechaInicio),
+          lte: new Date(fechaFin),
+        },
+      },
+      // incluimos la relación para obtener el nombre del cliente
+      include: {
+        cliente: {
+          select: { nombre: true },
+        },
+      },
+      // puedes omitir el `select` y confiar en include si no hay otros campos que explotar
+    });
+
+    return pedidos.map((p) => ({
+      id: p.id,
+      cliente: p.cliente.nombre,
+      fecha: p.fechaPedido,
+      total: p.total,
+    }));
+  }
+
+  //Reporte de pedidos por vendedor
+  async pedidosPorVendedor(
+    usuario: UsuarioPayload,
+    vendedorId: string,
+    data: CrearReporteInvDto
+  ): Promise<
+    Array<{
+      id: string;
+      cliente: string;
+      fecha: Date;
+      total: number;
+    }>
+  > {
+    const { fechaInicio, fechaFin } = data;
+
+    const pedidos = await this.prisma.pedido.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+        usuarioId: vendedorId,
+        fechaPedido: {
+          gte: new Date(fechaInicio),
+          lte: new Date(fechaFin),
+        },
+      },
+      include: {
+        cliente: {
+          select: { nombre: true },
+        },
+      },
+    });
+
+    return pedidos.map((p) => ({
+      id: p.id,
+      cliente: p.cliente.nombre,
+      fecha: p.fechaPedido,
+      total: p.total,
+    }));
+  }
 }

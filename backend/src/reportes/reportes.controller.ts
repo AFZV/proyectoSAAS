@@ -69,12 +69,14 @@ export class ReportesController {
   @Roles('admin')
   @Post('clientes/:format')
   async createClientesReport(
- 
+    @Req() req: UsuarioRequest,
+    @Param('format') format: 'excel' | 'pdf',
+    @Res() res: Response
   ) {
     const usuario = req.usuario;
-      const rows = await this.reportesService.clientesAll(usuario);
+    const rows = await this.reportesService.clientesAll(usuario);
 
-      const columns: ColumnDef<(typeof rows)[0]>[] = [
+    const columns: ColumnDef<(typeof rows)[0]>[] = [
         { header: 'ID', key: 'id', width: 35 },
         { header: 'Nit', key: 'nit', width: 25 },
         { header: 'Nombre', key: 'nombre', width: 30 },
@@ -102,20 +104,24 @@ export class ReportesController {
   @Roles('admin')
   @Post('pedidos/:format')
   async createPedidosReport(
-       @Req() req: UsuarioRequest,
+    @Req() req: UsuarioRequest,
+    @Body() data: CrearReporteInvDto,
     @Param('format') format: 'excel' | 'pdf',
     @Res() res: Response
   ) {
     const usuario = req.usuario;
-    const rows = await this.reportesService.pedidosAll(usuario);
+    const rows = await this.reportesService.pedidosAll(usuario, data);
 
     const columns: ColumnDef<(typeof rows)[0]>[] = [
       { header: 'ID', key: 'id', width: 35 },
       { header: 'Cliente', key: 'cliente', width: 30 },
       { header: 'Fecha', key: 'fecha', width: 25 },
-      { header: 'Total', key: 'total', width: 20 },
-      { header: 'Estado', key: 'estado', width: 20 },
-      {header: 'Vendedor', key: 'vendedor', width: 30},
+      {
+        header: 'Total',
+        key: 'total',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
     ];
 
     if (format === 'excel') {
@@ -129,3 +135,46 @@ export class ReportesController {
       return res.end();
     }
   }
+
+  //Reporte de pedidos por vendedor
+  @Roles('admin')
+  @Post('pedidos/:format/:id')
+  async createPedidosPorVendedorReport(
+    @Req() req: UsuarioRequest,
+    @Param('format') format: 'excel' | 'pdf',
+    @Param('id') vendedorId: string,
+    @Body() data: CrearReporteInvDto,
+    @Res() res: Response
+  ) {
+    const usuario = req.usuario;
+    const rows = await this.reportesService.pedidosPorVendedor(
+      usuario,
+      vendedorId,
+      data
+    );
+
+    const columns: ColumnDef<(typeof rows)[0]>[] = [
+      { header: 'ID', key: 'id', width: 35 },
+      { header: 'Cliente', key: 'cliente', width: 30 },
+      { header: 'Fecha', key: 'fecha', width: 25 },
+      {
+        header: 'Total',
+        key: 'total',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
+    ];
+
+    if (format === 'excel') {
+      const wb = buildExcel('Reporte de Pedidos por Vendedor', columns, rows);
+      res.status(HttpStatus.OK).set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition':
+          'attachment; filename="reporte-pedidos-vendedor.xlsx"',
+      });
+      await wb.xlsx.write(res);
+      return res.end();
+    }
+  }
+}
