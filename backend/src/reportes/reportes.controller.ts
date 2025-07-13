@@ -79,12 +79,26 @@ export class ReportesController {
     const columns: ColumnDef<(typeof rows)[0]>[] = [
       { header: 'Nombre', key: 'nombre', width: 40 },
       { header: 'Cantidad', key: 'cantidades', width: 12, numFmt: '#,##0' },
-      { header: 'Valor Unitario', key: 'precio', width: 14, numFmt: '[$$-en-US]#,##0.00' },
-      { header: 'Total',           key: 'total',   width: 20, numFmt: '[$$-en-US]#,##0.00' },
+      {
+        header: 'Valor Unitario',
+        key: 'precio',
+        width: 14,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
+      {
+        header: 'Total',
+        key: 'total',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
     ];
 
     if (format === 'excel') {
-      const wb = buildExcel(`Inventario ${data.inicio}-${data.fin}`, columns, rows);
+      const wb = buildExcel(
+        `Inventario ${data.inicio}-${data.fin}`,
+        columns,
+        rows
+      );
       res.status(HttpStatus.OK).set({
         'Content-Type':
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

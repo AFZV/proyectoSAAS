@@ -49,39 +49,47 @@ export class ReportesService {
     const { inicio, fin } = data;
 
     // 1) Generamos el array de letras entre inicio y fin
-    const startCode = inicio.toUpperCase().charCodeAt(0);
-    const endCode = fin.toUpperCase().charCodeAt(0);
+    const start = inicio.toUpperCase().charCodeAt(0);
+    const end = fin.toUpperCase().charCodeAt(0);
     const letras: string[] = [];
-    for (let c = startCode; c <= endCode; c++) {
-      letras.push(String.fromCharCode(c));
+    for (let code = start; code <= end; code++) {
+      letras.push(String.fromCharCode(code));
     }
 
-    // 2) Hacemos la consulta solo por empresaId + inicial de nombre
-    const productos = await this.prisma.producto.findMany({
-      where: {
-        empresaId: usuario.empresaId,
-        OR: letras.map((letter) => ({
-          nombre: {
-            startsWith: letter,
-            mode: 'insensitive',
-          },
-        })),
-      },
+    // 2) Traemos todos los productos de la empresa
+    const productosRaw = await this.prisma.producto.findMany({
+      where: { empresaId: usuario.empresaId },
       include: { inventario: { select: { stockActual: true } } },
-      orderBy: { nombre: 'asc' },
     });
 
-    // 3) Mapeamos al formato esperado por el excel
-    return productos.map(({ nombre, precioCompra, inventario }) => {
-      const stock = inventario?.[0]?.stockActual ?? 0;
-      return {
-        nombre,
-        cantidades: stock,
-        precio: precioCompra,
-        total: stock * precioCompra,
-      };
-    });
+    // 3) Normalizamos (trimStart), filtramos por inicial y ordenamos
+    const productosFiltrados = productosRaw
+      .map(p => ({
+        // quitamos espacios al inicio del nombre
+        nombre: p.nombre.trimStart(),
+        precioCompra: p.precioCompra,
+        stock: p.inventario?.[0]?.stockActual ?? 0,
+      }))
+      .filter(p =>
+        // comparamos contra cada letra, ignorando mayúsculas/minúsculas
+        letras.some(letter =>
+          p.nombre.toUpperCase().startsWith(letter)
+        )
+      )
+      .sort((a, b) =>
+        // ordenamos alfabéticamente, sin diferenciar acentos o mayúsculas
+        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+      );
+
+    // 4) Mapeamos al formato esperado por el Excel
+    return productosFiltrados.map(p => ({
+      nombre: p.nombre,
+      cantidades: p.stock,
+      precio: p.precioCompra,
+      total: p.stock * p.precioCompra,
+    }));
   }
+
 
   //Reporte de clientes
   async clientesAll(usuario: UsuarioPayload): Promise<
