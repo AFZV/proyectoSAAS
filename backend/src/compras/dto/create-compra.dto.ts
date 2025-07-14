@@ -15,6 +15,10 @@ class ProductosCompra {
   @IsNumber()
   @Min(1)
   cantidad: number;
+
+  @IsNumber()
+  @Min(0)
+  precio: number;
 }
 
 export class CreateCompraDto {

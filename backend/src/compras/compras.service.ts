@@ -12,27 +12,37 @@ export class ComprasService {
    * Crea una compra + su detalle + actualiza/inicializa Inventario.
    */
   async create(usuario: UsuarioPayload, data: CreateCompraDto) {
-    // Abrimos una transacción para que todo se ejecute de forma atómica
     try {
       return await this.prisma.$transaction(async (tx) => {
-        //1 Creamos la cabecera de la compra
+        // 1. Creamos la cabecera de la compra
         const nuevaCompra = await tx.compras.create({
           data: {
             proveedor: { connect: { idProveedor: data.idProveedor } },
             empresa: { connect: { id: usuario.empresaId } },
           },
         });
-        //crear el detalle para cada producto en  la compra
+
+        // 2. Crear el detalle para cada producto en la compra
         for (const item of data.ProductosCompras) {
+          // 🔥 ACTUALIZAR EL PRECIO DE COMPRA DEL PRODUCTO
+          await tx.producto.update({
+            where: { id: item.idProducto },
+            data: {
+              precioCompra: item.precio, // 👈 ACTUALIZAR PRECIO BASE DEL PRODUCTO
+            },
+          });
+
+          // Crear detalle de compra (sin precio, ya que se actualiza en el producto)
           await tx.detalleCompra.create({
             data: {
               idCompra: nuevaCompra.idCompra,
               idProducto: item.idProducto,
               cantidad: item.cantidad,
+              // No guardamos precio aquí, porque se actualiza en el producto
             },
           });
 
-          //3Actualizar o crear el inventario del producto
+          // 3. Actualizar o crear el inventario del producto
           const inv = await tx.inventario.findFirst({
             where: {
               idProducto: item.idProducto,
@@ -41,7 +51,7 @@ export class ComprasService {
           });
 
           if (inv) {
-            //Si ya existe el inventario, sumamos la cantidad
+            // Si ya existe el inventario, sumamos la cantidad
             await tx.inventario.update({
               where: { idInventario: inv.idInventario },
               data: {
@@ -52,7 +62,7 @@ export class ComprasService {
               },
             });
           } else {
-            //Si no existe, creamos el registro de inventario
+            // Si no existe, creamos el registro de inventario
             await tx.inventario.create({
               data: {
                 idProducto: item.idProducto,
@@ -62,11 +72,14 @@ export class ComprasService {
               },
             });
           }
+
+          // 4. Crear movimiento de inventario
           const tipoMovimiento = await tx.tipoMovimientos.findFirst({
             where: {
               tipo: 'ENTRADA',
             },
           });
+
           if (tipoMovimiento) {
             await tx.movimientoInventario.create({
               data: {
@@ -76,17 +89,28 @@ export class ComprasService {
                 cantidadMovimiendo: item.cantidad,
                 idTipoMovimiento: tipoMovimiento.idTipoMovimiento,
                 idCompra: nuevaCompra.idCompra,
-                observacion: `Compra realizada por ${usuario.nombre}`,
+                observacion: `Compra realizada por ${usuario.nombre}. Precio actualizado a $${item.precio}`,
               },
             });
           }
         }
-        //Retornamos la compra creada
-        return nuevaCompra;
+
+        // 5. Retornar la compra creada con información del total
+        const totalCompra = data.ProductosCompras.reduce(
+          (sum, item) => sum + (item.cantidad * item.precio), 
+          0
+        );
+
+        return {
+          ...nuevaCompra,
+          total: totalCompra,
+          cantidadItems: data.ProductosCompras.length,
+          productosActualizados: data.ProductosCompras.length,
+        };
       });
     } catch (error: any) {
       console.error('Error en transacción de compra:', error);
-      throw new Error('Error al crear la compra');
+      throw new Error('Error al crear la compra y actualizar precios');
     }
   }
 
@@ -96,133 +120,155 @@ export class ComprasService {
    * - Inserta de nuevo los detalleCompra según el array enviado
    * - Ajusta el inventario y crea nuevos movimientos de inventario ENTRADA
    */
-  async updateCompra(
-    compraId: string,
-    usuario: UsuarioPayload,
-    data: UpdateCompraDto,
-  ) {
-    // Verificamos que la compra exista
-    const compraExistente = await this.prisma.compras.findUnique({
-      where: { idCompra: compraId },
-    });
+async updateCompra(
+  compraId: string,
+  usuario: UsuarioPayload,
+  data: UpdateCompraDto
+) {
+  // Verificamos que la compra exista
+  const compraExistente = await this.prisma.compras.findUnique({
+    where: { idCompra: compraId },
+  });
 
-    if (!compraExistente) {
-      throw new Error('Compra no encontrada');
-    }
-
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        // 1. PRIMERO obtenemos los productos antes de borrar los detalles
-        const productosEliminados = await tx.detalleCompra.findMany({
-          where: { idCompra: compraId },
-          select: { idProducto: true, cantidad: true },
-        });
-
-        // 2. Borrar los detalles de la compra
-        await tx.detalleCompra.deleteMany({
-          where: { idCompra: compraId },
-        });
-
-        // 3. Borrar los movimientos de inventario asociados a la compra
-        await tx.movimientoInventario.deleteMany({
-          where: { idCompra: compraId },
-        });
-
-        // 4. Reducir el inventario de los productos eliminados
-        if (productosEliminados.length > 0) {
-          for (const producto of productosEliminados) {
-            await tx.inventario.updateMany({
-              where: {
-                idProducto: producto.idProducto,
-                idEmpresa: usuario.empresaId,
-              },
-              data: {
-                stockActual: {
-                  decrement: producto.cantidad,
-                },
-                stockReferenciaOinicial: {
-                  decrement: producto.cantidad,
-                },
-              },
-            });
-          }
-        }
-
-        // 5. Obtener el tipo de movimiento
-        const tipoMov = await tx.tipoMovimientos.findFirst({
-          where: { tipo: 'ENTRADA' },
-        });
-        if (!tipoMov) {
-          throw new Error('Tipo de movimiento no encontrado');
-        }
-
-        // 6. Crear nuevamente cada línea en detalleCompra y los movimientos de inventario
-        for (const item of data.ProductosCompras || []) {
-          // Crear el detalle de la compra
-          await tx.detalleCompra.create({
-            data: {
-              idCompra: compraId,
-              idProducto: item.idProducto,
-              cantidad: item.cantidad,
-            },
-          });
-
-          // Actualizar o crear el inventario del producto
-          const inv = await tx.inventario.findFirst({
-            where: {
-              idProducto: item.idProducto,
-              idEmpresa: usuario.empresaId,
-            },
-          });
-
-          if (inv) {
-            await tx.inventario.update({
-              where: { idInventario: inv.idInventario },
-              data: {
-                stockActual: {
-                  increment: item.cantidad,
-                },
-                stockReferenciaOinicial: {
-                  increment: item.cantidad,
-                },
-              },
-            });
-          } else {
-            await tx.inventario.create({
-              data: {
-                idProducto: item.idProducto,
-                idEmpresa: usuario.empresaId,
-                stockReferenciaOinicial: item.cantidad,
-                stockActual: item.cantidad,
-              },
-            });
-          }
-
-          // Crear el movimiento de inventario de tipo ENTRADA
-          await tx.movimientoInventario.create({
-            data: {
-              IdUsuario: usuario.id,
-              idProducto: item.idProducto,
-              idEmpresa: usuario.empresaId,
-              cantidadMovimiendo: item.cantidad,
-              idTipoMovimiento: tipoMov.idTipoMovimiento,
-              idCompra: compraId,
-              observacion: 'Compra actualizada por ' + usuario.nombre,
-            },
-          });
-        }
-
-        // 7. Retornar la compra actualizada
-        return tx.compras.findUnique({
-          where: { idCompra: compraId },
-          include: { detalleCompra: true },
-        });
-      });
-    } catch (error: any) {
-      console.error('Error en transacción de compra:', error);
-      throw new Error('Error al actualizar la compra');
-    }
+  if (!compraExistente) {
+    throw new Error('Compra no encontrada');
   }
+
+  try {
+    return await this.prisma.$transaction(async (tx) => {
+      // 1. PRIMERO obtenemos los productos antes de borrar los detalles
+      const productosEliminados = await tx.detalleCompra.findMany({
+        where: { idCompra: compraId },
+        select: { idProducto: true, cantidad: true },
+      });
+
+      // 2. Borrar los detalles de la compra
+      await tx.detalleCompra.deleteMany({
+        where: { idCompra: compraId },
+      });
+
+      // 3. Borrar los movimientos de inventario asociados a la compra
+      await tx.movimientoInventario.deleteMany({
+        where: { idCompra: compraId },
+      });
+
+      // 4. Reducir el inventario de los productos eliminados
+      if (productosEliminados.length > 0) {
+        for (const producto of productosEliminados) {
+          await tx.inventario.updateMany({
+            where: {
+              idProducto: producto.idProducto,
+              idEmpresa: usuario.empresaId,
+            },
+            data: {
+              stockActual: {
+                decrement: producto.cantidad,
+              },
+              stockReferenciaOinicial: {
+                decrement: producto.cantidad,
+              },
+            },
+          });
+        }
+      }
+
+      // 5. Obtener el tipo de movimiento
+      const tipoMov = await tx.tipoMovimientos.findFirst({
+        where: { tipo: 'ENTRADA' },
+      });
+      if (!tipoMov) {
+        throw new Error('Tipo de movimiento no encontrado');
+      }
+
+      // 6. Crear nuevamente cada línea en detalleCompra y los movimientos de inventario
+      for (const item of data.ProductosCompras || []) {
+        // 🔥 ACTUALIZAR EL PRECIO DE COMPRA DEL PRODUCTO
+        await tx.producto.update({
+          where: { id: item.idProducto },
+          data: {
+            precioCompra: item.precio, // 👈 ACTUALIZAR PRECIO BASE DEL PRODUCTO
+          },
+        });
+
+        // Crear el detalle de la compra (sin precio, ya que se actualiza en el producto)
+        await tx.detalleCompra.create({
+          data: {
+            idCompra: compraId,
+            idProducto: item.idProducto,
+            cantidad: item.cantidad,
+            // No guardamos precio aquí porque se actualiza en el producto
+          },
+        });
+
+        // Actualizar o crear el inventario del producto
+        const inv = await tx.inventario.findFirst({
+          where: {
+            idProducto: item.idProducto,
+            idEmpresa: usuario.empresaId,
+          },
+        });
+
+        if (inv) {
+          await tx.inventario.update({
+            where: { idInventario: inv.idInventario },
+            data: {
+              stockActual: {
+                increment: item.cantidad,
+              },
+              stockReferenciaOinicial: {
+                increment: item.cantidad,
+              },
+            },
+          });
+        } else {
+          await tx.inventario.create({
+            data: {
+              idProducto: item.idProducto,
+              idEmpresa: usuario.empresaId,
+              stockReferenciaOinicial: item.cantidad,
+              stockActual: item.cantidad,
+            },
+          });
+        }
+
+        // Crear el movimiento de inventario de tipo ENTRADA
+        await tx.movimientoInventario.create({
+          data: {
+            IdUsuario: usuario.id,
+            idProducto: item.idProducto,
+            idEmpresa: usuario.empresaId,
+            cantidadMovimiendo: item.cantidad,
+            idTipoMovimiento: tipoMov.idTipoMovimiento,
+            idCompra: compraId,
+            observacion: `Compra actualizada por ${usuario.nombre}. Precio actualizado a $${item.precio}`, // 👈 OBSERVACIÓN MEJORADA
+          },
+        });
+      }
+
+      // 7. Retornar la compra actualizada con información del total
+      const compraActualizada = await tx.compras.findUnique({
+        where: { idCompra: compraId },
+        include: { detalleCompra: true },
+      });
+
+      // 8. Calcular total actualizado
+      const totalCompra = (data.ProductosCompras || []).reduce(
+        (sum, item) => sum + (item.cantidad * item.precio), 
+        0
+      );
+
+      return {
+        ...compraActualizada,
+        total: totalCompra,
+        cantidadItems: data.ProductosCompras?.length || 0,
+        productosActualizados: data.ProductosCompras?.length || 0,
+      };
+    });
+  } catch (error: any) {
+    console.error('Error en transacción de compra:', error);
+    throw new Error('Error al actualizar la compra y precios de productos');
+  }
+}
 
   // Obtener todas las compras de una empresa
   async findAll(usuario: UsuarioPayload) {
@@ -324,6 +370,7 @@ export class ComprasService {
     const TipoEntrada = await this.prisma.tipoMovimientos.findFirst({
       where: { tipo: 'ENTRADA' },
     });
+
     const detalle = await this.prisma.detalleCompra.findMany({
       where: {
         idCompra: idCompra,
@@ -334,11 +381,14 @@ export class ComprasService {
       select: {
         cantidad: true,
         producto: {
-          select: { nombre: true, id: true },
+          select: { 
+            nombre: true, 
+            id: true,
+            precioCompra: true, // 👈 AGREGAR PRECIO DE COMPRA DEL PRODUCTO
+            precioVenta: true,  // 👈 OPCIONAL: precio de venta también
+          },
         },
         compra: {
-          // Traemos la compra completa para obtener idCompra y FechaCompra
-          // y los movimientos de inventario asociados a esta compra
           select: {
             idCompra: true,
             FechaCompra: true,
@@ -360,17 +410,39 @@ export class ComprasService {
 
     // Agrupamos por idCompra
     const first = detalle[0].compra;
-    const resultado = {
-      idCompra: first.idCompra,
-      FechaCompra: first.FechaCompra,
-      productos: detalle.map((dc) => ({
+
+    // 🔥 CALCULAR TOTALES
+    const productos = detalle.map((dc) => {
+      // Usar precio del detalle si existe, sino el precioCompra del producto
+      const precioUnitario = dc.producto.precioCompra || 0;
+      const subtotal = dc.cantidad * precioUnitario;
+
+      return {
         id: dc.producto.id,
         nombre: dc.producto.nombre,
         cantidad: dc.cantidad,
-        cantidadMovimiendo:
-          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0,
-      })),
+        precio: precioUnitario, // 👈 PRECIO UNITARIO
+        subtotal: subtotal, // 👈 SUBTOTAL CALCULADO
+        cantidadMovimiendo: dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0,
+      };
+    });
+
+    // 🔥 CALCULAR TOTAL GENERAL
+    const totalCompra = productos.reduce((sum, prod) => sum + prod.subtotal, 0);
+    const totalUnidades = productos.reduce((sum, prod) => sum + prod.cantidad, 0);
+
+    const resultado = {
+      idCompra: first.idCompra,
+      FechaCompra: first.FechaCompra,
+      productos: productos,
+      // 👈 AGREGAR TOTALES AL RESULTADO
+      resumen: {
+        cantidadProductos: productos.length,
+        totalUnidades: totalUnidades,
+        totalCompra: totalCompra,
+      },
     };
+
     return resultado;
   }
 }

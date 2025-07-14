@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, X, DollarSign } from "lucide-react";
 
 interface CompraDetalleModalProps {
   open: boolean;
@@ -16,8 +16,10 @@ interface Producto {
   nombre: string;
   cantidad: number;
   cantidadMovimiendo: number;
-  id?: string; // Cambiar de idProducto a id
-  idProducto?: string; // Mantener compatibilidad
+  precio?: number; // 👈 AGREGAR PRECIO
+  precioCompra?: number; // 👈 PRECIO DE COMPRA ALTERNATIVO
+  id?: string;
+  idProducto?: string;
 }
 
 interface CompraDetalle {
@@ -31,8 +33,17 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editingProducts, setEditingProducts] = useState<Array<{idProducto: string, cantidad: number, nombre?: string}>>([]);
-  const [availableProducts, setAvailableProducts] = useState<Array<{idProducto: string, nombre: string}>>([]);
+  const [editingProducts, setEditingProducts] = useState<Array<{
+    idProducto: string, 
+    cantidad: number, 
+    precio: number, // 👈 AGREGAR PRECIO
+    nombre?: string
+  }>>([]);
+  const [availableProducts, setAvailableProducts] = useState<Array<{
+    idProducto: string, 
+    nombre: string,
+    precioCompra: number // 👈 PRECIO DE COMPRA
+  }>>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -45,7 +56,7 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
       return;
     }
 
-    // Si tenemos datos directos, usarlos (evita problemas de token)
+    // Si tenemos datos directos, usarlos
     if (compraData) {
       console.log("Using direct data:", compraData);
       setCompra(compraData);
@@ -54,6 +65,7 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
         setEditingProducts(compraData.productos.map(p => ({
           idProducto: p.id || p.idProducto || '',
           cantidad: p.cantidad || 0,
+          precio: p.precio || p.precioCompra || 0, // 👈 USAR PRECIO
           nombre: p.nombre
         })));
       }
@@ -73,7 +85,7 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
       try {
         console.log("Fetching compra with ID:", idCompra);
         
-        // Intentar obtener el token de diferentes maneras
+        // Intentar obtener el token
         let token;
         try {
           token = await getToken();
@@ -125,6 +137,7 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
             setEditingProducts(data.compra.productos.map(p => ({
               idProducto: p.id || p.idProducto || '',
               cantidad: p.cantidad || 0,
+              precio: p.precio || p.precioCompra || 0, // 👈 USAR PRECIO
               nombre: p.nombre
             })));
           }
@@ -136,6 +149,7 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
             setEditingProducts(data.productos.map(p => ({
               idProducto: p.id || p.idProducto || '',
               cantidad: p.cantidad || 0,
+              precio: p.precio || p.precioCompra || 0, // 👈 USAR PRECIO
               nombre: p.nombre
             })));
           }
@@ -187,7 +201,8 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
         const products = data.productos || data || [];
         setAvailableProducts(products.map(p => ({
           idProducto: p.id || p.idProducto,
-          nombre: p.nombre
+          nombre: p.nombre,
+          precioCompra: p.precioCompra || 0 // 👈 INCLUIR PRECIO DE COMPRA
         })));
       }
     } catch (error) {
@@ -207,7 +222,8 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
           .filter(p => p.cantidad > 0) // Solo productos con cantidad > 0
           .map(p => ({
             idProducto: p.idProducto,
-            cantidad: p.cantidad
+            cantidad: p.cantidad,
+            precio: p.precio // 👈 INCLUIR PRECIO
           }))
       };
 
@@ -226,10 +242,8 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
         // Recargar datos después de actualizar
         setIsEditing(false);
         if (compraData) {
-          // Si usamos datos directos, necesitaríamos refrescar la página o notificar al padre
           window.location.reload(); // Temporal - mejor sería usar un callback
         } else {
-          // Recargar desde la API
           window.location.reload();
         }
       } else {
@@ -251,6 +265,13 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
     setEditingProducts(updated);
   };
 
+  // 👈 NUEVA FUNCIÓN PARA ACTUALIZAR PRECIO
+  const updateProductPrice = (index: number, newPrice: number) => {
+    const updated = [...editingProducts];
+    updated[index].precio = Math.max(0, newPrice);
+    setEditingProducts(updated);
+  };
+
   const removeProduct = (index: number) => {
     const updated = editingProducts.filter((_, i) => i !== index);
     setEditingProducts(updated);
@@ -262,6 +283,7 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
       setEditingProducts([...editingProducts, {
         idProducto: product.idProducto,
         cantidad: 1,
+        precio: product.precioCompra, // 👈 USAR PRECIO DE COMPRA
         nombre: product.nombre
       }]);
       // Limpiar búsqueda
@@ -291,6 +313,7 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
       setEditingProducts(compra.productos.map(p => ({
         idProducto: p.id || p.idProducto || '',
         cantidad: p.cantidad || 0,
+        precio: p.precio || p.precioCompra || 0, // 👈 USAR PRECIO
         nombre: p.nombre
       })));
     }
@@ -305,9 +328,35 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
     onClose();
   };
 
+  // 🔥 FUNCIONES PARA CÁLCULOS DE TOTALES - NÚMEROS COMPLETOS CON $
+  const formatCurrency = (amount: number) => {
+    try {
+      // Formateo colombiano estándar con puntos como separadores Y símbolo $
+      return `${amount.toLocaleString("es-CO", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      })}`;
+    } catch (error) {
+      // Fallback manual si hay problemas con toLocaleString
+      return `${amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+    }
+  };
+
+  const calculateSubtotal = (cantidad: number, precio: number) => {
+    return cantidad * precio;
+  };
+
+  const calculateTotal = (productos: Array<{cantidad: number, precio: number}>) => {
+    return productos.reduce((sum, p) => sum + calculateSubtotal(p.cantidad, p.precio), 0);
+  };
+
+  const getTotalItems = (productos: Array<{cantidad: number}>) => {
+    return productos.reduce((sum, p) => sum + p.cantidad, 0);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Detalle de Compra</DialogTitle>
         </DialogHeader>
@@ -374,35 +423,66 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
                     <>
                       {editingProducts.map((producto, index) => (
                         <div key={index} className="bg-gray-50 rounded-lg p-4 border">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
                               <h5 className="font-medium text-gray-900">{producto.nombre}</h5>
                               <p className="text-sm text-gray-600">ID: {producto.idProducto}</p>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                <label className="text-sm text-gray-600">Cantidad:</label>
+                            <button
+                              onClick={() => removeProduct(index)}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="Eliminar producto"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          
+                          {/* 🔥 CONTROLES DE CANTIDAD Y PRECIO */}
+                          <div className="grid grid-cols-4 gap-3 items-center">
+                            <div>
+                              <label className="text-xs text-gray-600 block mb-1">Cantidad</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={producto.cantidad}
+                                onChange={(e) => updateProductQuantity(index, parseInt(e.target.value) || 0)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-center text-sm"
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="text-xs text-gray-600 block mb-1">Precio Unit.</label>
+                              <div className="relative">
+                                <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">$</span>
                                 <input
                                   type="number"
                                   min="0"
-                                  value={producto.cantidad}
-                                  onChange={(e) => updateProductQuantity(index, parseInt(e.target.value) || 0)}
-                                  className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
+                                  step="0.01"
+                                  value={producto.precio}
+                                  onChange={(e) => updateProductPrice(index, parseFloat(e.target.value) || 0)}
+                                  className="w-full pl-6 px-2 py-1 border border-gray-300 rounded text-sm"
                                 />
                               </div>
-                              <button
-                                onClick={() => removeProduct(index)}
-                                className="text-red-600 hover:text-red-800 p-1"
-                                title="Eliminar producto"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
+                            </div>
+                            
+                            <div className="text-center">
+                              <label className="text-xs text-gray-600 block mb-1">Subtotal</label>
+                              <div className="font-semibold text-green-600 text-sm">
+                                {formatCurrency(calculateSubtotal(producto.cantidad, producto.precio))}
+                              </div>
+                            </div>
+                            
+                            <div className="text-center">
+                              <label className="text-xs text-gray-600 block mb-1">Detalle</label>
+                              <div className="text-xs text-gray-500">
+                                {producto.cantidad} × {formatCurrency(producto.precio)}
+                              </div>
                             </div>
                           </div>
                         </div>
                       ))}
 
-                      {/* Agregar nuevo producto con autocompletado */}
+                      {/* Agregar nuevo producto */}
                       <div className="bg-blue-50 rounded-lg p-4 border-2 border-dashed border-blue-200">
                         <div className="relative autocomplete-container">
                           <input
@@ -423,10 +503,15 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
                                 <button
                                   key={product.idProducto}
                                   onClick={() => addNewProduct(product.idProducto)}
-                                  className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
+                                  className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-b-0 flex justify-between"
                                 >
-                                  <div className="font-medium text-gray-900">{product.nombre}</div>
-                                  <div className="text-xs text-gray-500">ID: {product.idProducto}</div>
+                                  <div>
+                                    <div className="font-medium text-gray-900">{product.nombre}</div>
+                                    <div className="text-xs text-gray-500">ID: {product.idProducto}</div>
+                                  </div>
+                                  <div className="text-sm text-green-600">
+                                    {formatCurrency(product.precioCompra)}
+                                  </div>
                                 </button>
                               ))}
                             </div>
@@ -438,12 +523,6 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
                             </div>
                           )}
                         </div>
-                        
-                        {availableProducts.length === 0 && (
-                          <div className="text-sm text-gray-500 mt-2">
-                            Cargando productos disponibles...
-                          </div>
-                        )}
                       </div>
 
                       {/* Botones de acción para modo edición */}
@@ -465,18 +544,39 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
                       </div>
                     </>
                   ) : (
-                    // Modo vista
+                    // 🔥 MODO VISTA CON PRECIOS Y SUBTOTALES
                     compra.productos.map((prod: Producto, index: number) => (
                       <div key={index} className="border rounded-lg p-4 bg-gray-50">
-                        <div className="flex justify-between items-start">
+                        <div className="flex justify-between items-start mb-2">
                           <div className="flex-1">
                             <h5 className="font-medium text-gray-900">{prod.nombre}</h5>
                             <p className="text-sm text-gray-600">ID: {prod.id || prod.idProducto}</p>
                           </div>
-                          <div className="text-right">
-                            <div className="text-sm text-gray-600">
-                              <span className="font-medium">Cantidad:</span> {prod.cantidad?.toLocaleString() || 0}
-                            </div>                            
+                        </div>
+                        
+                        {/* 🔥 INFORMACIÓN DE PRECIOS */}
+                        <div className="grid grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Cantidad:</span>
+                            <div className="font-medium">{prod.cantidad?.toLocaleString() || 0}</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Precio Unit.:</span>
+                            <div className="font-medium text-blue-600">
+                              {formatCurrency(prod.precio || prod.precioCompra || 0)}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Subtotal:</span>
+                            <div className="font-bold text-green-600">
+                              {formatCurrency(calculateSubtotal(
+                                prod.cantidad || 0, 
+                                prod.precio || prod.precioCompra || 0
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {prod.cantidad} × {formatCurrency(prod.precio || prod.precioCompra || 0)}
                           </div>
                         </div>
                       </div>
@@ -486,17 +586,43 @@ export function CompraDetalleModal({ open, onClose, idCompra, compraData }: Comp
               )}
             </div>
 
+            {/* 🔥 RESUMEN DE TOTALES */}
             {compra.productos && compra.productos.length > 0 && (
-              <div className="mt-6 pt-4 border-t">
-                <div className="flex justify-between text-sm font-medium">
-                  <span>Total Cantidades Compradas:</span>
-                  <span>
-                    {isEditing 
-                      ? editingProducts.reduce((sum, p) => sum + p.cantidad, 0).toLocaleString()
-                      : compra.productos.reduce((sum, p) => sum + (p.cantidad || 0), 0).toLocaleString()
-                    }
-                  </span>
-                </div>                
+              <div className="mt-6 pt-4 border-t bg-blue-50 rounded-lg p-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Productos diferentes:</span>
+                    <span className="font-medium">
+                      {isEditing ? editingProducts.length : compra.productos.length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Unidades totales:</span>
+                    <span className="font-medium">
+                      {isEditing 
+                        ? getTotalItems(editingProducts).toLocaleString()
+                        : getTotalItems(compra.productos.map(p => ({cantidad: p.cantidad || 0}))).toLocaleString()
+                      }
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-lg font-bold border-t pt-2">
+                    <span className="flex items-center gap-1">
+                      <DollarSign className="w-5 h-5" />
+                      Total Compra:
+                    </span>
+                    <span className="text-green-600">
+                      {isEditing 
+                        ? formatCurrency(calculateTotal(editingProducts))
+                        : formatCurrency(calculateTotal(
+                            compra.productos.map(p => ({
+                              cantidad: p.cantidad || 0,
+                              precio: p.precio || p.precioCompra || 0
+                            }))
+                          ))
+                      }
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
