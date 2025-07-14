@@ -297,4 +297,108 @@ export class ReportesController {
       return res.end();
     }
   }
+
+  //Pedidos con saldo pendiente
+  @Roles('admin')
+  @Post('cartera/:format')
+  async exportarCartera(
+    @Req() req: UsuarioRequest,
+    @Param('format') format: 'excel' | 'pdf',
+    @Body() dto: CrearReporteInvDto,
+    @Res() res: Response
+  ) {
+    const usuario = req.usuario;
+    const rows = await this.reportesService.saldosPendientesPorPedido(
+      usuario,
+      dto
+    );
+
+    // Si piden Excel, construyo el workbook
+    if (format === 'excel') {
+      const columns: ColumnDef<(typeof rows)[0]>[] = [
+        { header: 'ID Pedido', key: 'id', width: 36 },
+        { header: 'Cliente', key: 'cliente', width: 40 },
+        {
+          header: 'Fecha Pedido',
+          key: 'fecha',
+          width: 20,
+          numFmt: 'dd/mm/yyyy',
+        },
+        {
+          header: 'Saldo Pendiente',
+          key: 'saldoPendiente',
+          width: 18,
+          numFmt: '#,##0.00',
+        },
+      ];
+      const wb = buildExcel('Cartera Pendiente', columns, rows);
+
+      res.status(HttpStatus.OK).set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename="cartera-pendiente.xlsx"',
+      });
+      await wb.xlsx.write(res);
+      return res.end();
+    }
+
+    // Si no es excel, simplemente devolvemos JSON
+    return res.status(HttpStatus.OK).json({
+      message: 'Cartera pendiente',
+      data: rows,
+    });
+  }
+
+  //Reporte de pedidos con saldo pendiente por vendedor
+  @Roles('admin')
+  @Post('cartera/:format/vendedor/:vendedorId')
+  async exportarCarteraPorVendedor(
+    @Req() req: UsuarioRequest,
+    @Param('format') format: 'excel' | 'pdf',
+    @Param('vendedorId') vendedorId: string,
+    @Body() dto: CrearReporteInvDto,
+    @Res() res: Response
+  ) {
+    const usuario = req.usuario;
+    const rows = await this.reportesService.saldosPendientesPorPedidoVendedor(
+      usuario,
+      vendedorId,
+      dto
+    );
+
+    // Excel
+    if (format === 'excel') {
+      const columns: ColumnDef<(typeof rows)[0]>[] = [
+        { header: 'ID Pedido', key: 'id', width: 36 },
+        { header: 'Cliente', key: 'cliente', width: 40 },
+        {
+          header: 'Fecha Pedido',
+          key: 'fecha',
+          width: 20,
+          numFmt: 'dd/mm/yyyy',
+        },
+        {
+          header: 'Saldo Pendiente',
+          key: 'saldoPendiente',
+          width: 18,
+          numFmt: '#,##0.00',
+        },
+      ];
+      const wb = buildExcel('Cartera Pendiente por Vendedor', columns, rows);
+      res.status(HttpStatus.OK).set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition':
+          'attachment; filename="cartera-pendiente-vendedor.xlsx"',
+      });
+      await wb.xlsx.write(res);
+      return res.end();
+    }
+
+    // JSON fallback
+    return res.status(HttpStatus.OK).json({
+      message: 'Cartera pendiente para vendedor',
+      data: rows,
+    });
+  }
 }

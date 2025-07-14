@@ -64,17 +64,15 @@ export class ReportesService {
 
     // 3) Normalizamos (trimStart), filtramos por inicial y ordenamos
     const productosFiltrados = productosRaw
-      .map(p => ({
+      .map((p) => ({
         // quitamos espacios al inicio del nombre
         nombre: p.nombre.trimStart(),
         precioCompra: p.precioCompra,
         stock: p.inventario?.[0]?.stockActual ?? 0,
       }))
-      .filter(p =>
+      .filter((p) =>
         // comparamos contra cada letra, ignorando mayúsculas/minúsculas
-        letras.some(letter =>
-          p.nombre.toUpperCase().startsWith(letter)
-        )
+        letras.some((letter) => p.nombre.toUpperCase().startsWith(letter))
       )
       .sort((a, b) =>
         // ordenamos alfabéticamente, sin diferenciar acentos o mayúsculas
@@ -82,14 +80,13 @@ export class ReportesService {
       );
 
     // 4) Mapeamos al formato esperado por el Excel
-    return productosFiltrados.map(p => ({
+    return productosFiltrados.map((p) => ({
       nombre: p.nombre,
       cantidades: p.stock,
       precio: p.precioCompra,
       total: p.stock * p.precioCompra,
     }));
   }
-
 
   //Reporte de clientes
   async clientesAll(usuario: UsuarioPayload): Promise<
@@ -327,5 +324,142 @@ export class ReportesService {
       fecha: p.fechaPedido,
       total: p.total,
     }));
+  }
+
+  //Reporte de pedidos con saldo pendiente por fecha
+  async saldosPendientesPorPedido(
+    usuario: UsuarioPayload,
+    dto: CrearReporteInvDto
+  ): Promise<
+    Array<{
+      id: string;
+      cliente: string;
+      fecha: Date;
+      saldoPendiente: number;
+    }>
+  > {
+    const { empresaId } = usuario;
+    const { fechaInicio, fechaFin } = dto;
+
+    // 1) Traer todos los pedidos de la empresa en el rango de fechas
+    const pedidos = await this.prisma.pedido.findMany({
+      where: {
+        empresaId,
+        fechaPedido: {
+          gte: fechaInicio,
+          lte: fechaFin,
+        },
+      },
+      include: {
+        cliente: { select: { nombre: true } },
+        detalleRecibo: { select: { valorTotal: true } },
+      },
+      orderBy: { fechaPedido: 'asc' },
+    });
+
+    // 2) Traer los ajustes manuales de cartera de la empresa
+    const detallesAjuste = await this.prisma.detalleAjusteCartera.findMany({
+      where: {
+        movimiento: {
+          tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+          empresaId,
+        },
+      },
+      select: { idPedido: true, valor: true },
+    });
+
+    // 3) Agregar valores por pedido
+    const ajustesPorPedido = detallesAjuste.reduce<Record<string, number>>(
+      (acc, aj) => {
+        if (!aj.idPedido) return acc;
+        acc[aj.idPedido] = (acc[aj.idPedido] || 0) + aj.valor;
+        return acc;
+      },
+      {}
+    );
+
+    // 4) Calcular saldo pendiente y filtrar sólo saldo>0
+    return pedidos
+      .map((pedido) => {
+        const totalAbonado = pedido.detalleRecibo
+          .reduce((s, d) => s + d.valorTotal, 0);
+        const ajusteManual = ajustesPorPedido[pedido.id] || 0;
+        const saldoPendiente = pedido.total - totalAbonado - ajusteManual;
+
+        return {
+          id: pedido.id,
+          cliente: pedido.cliente.nombre,
+          fecha: pedido.fechaPedido,
+          saldoPendiente,
+        };
+      })
+      .filter((p) => p.saldoPendiente > 0);
+  }
+
+  //Reporte de pedidos por rango de fechas y vendedor
+  async saldosPendientesPorPedidoVendedor(
+    usuario: UsuarioPayload,
+    vendedorId: string,
+    dto: CrearReporteInvDto
+  ): Promise<
+    Array<{
+      id: string;
+      cliente: string;
+      fecha: Date;
+      saldoPendiente: number;
+    }>
+  > {
+    const { empresaId } = usuario;
+    const { fechaInicio, fechaFin } = dto;
+
+    // 1) Traigo los pedidos del vendedor en rango de fechas
+    const pedidos = await this.prisma.pedido.findMany({
+      where: {
+        empresaId,
+        usuarioId: vendedorId,           // <— aquí filtramos por vendedor
+        fechaPedido: {
+          gte: new Date(fechaInicio),
+          lte: new Date(fechaFin),
+        },
+      },
+      include: {
+        cliente: {
+          select: { nombre: true },
+        },
+        detalleRecibo: {
+          select: { valorTotal: true },
+        },
+        detalleAjusteCartera: {
+          where: {
+            movimiento: {
+              tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+              empresaId,              // relacional a Movimiento.empresaId
+            },
+          },
+          select: { valor: true },
+        },
+      },
+      orderBy: {
+        fechaPedido: 'asc',
+      },
+    });
+
+    // 2) Calculo saldo pendiente
+    return pedidos
+      .map((pedido) => {
+        const totalAbonado = pedido.detalleRecibo
+          .reduce((sum, d) => sum + d.valorTotal, 0);
+        const ajusteManual = pedido.detalleAjusteCartera
+          .reduce((sum, a) => sum + a.valor, 0);
+        const saldoPendiente = pedido.total - totalAbonado - ajusteManual;
+
+        return {
+          id: pedido.id,
+          cliente: pedido.cliente.nombre,
+          fecha: pedido.fechaPedido,
+          saldoPendiente,
+        };
+      })
+      .filter((r) => r.saldoPendiente > 0);
   }
 }
