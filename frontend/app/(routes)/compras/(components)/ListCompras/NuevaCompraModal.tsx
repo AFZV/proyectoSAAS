@@ -12,8 +12,17 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { ShoppingCart, Package, X, Loader2, Plus, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { FormCreateProduct } from "../../../catalog/(components)/FormCreateProduct"; // 👈 Importar el componente existente
 
 // Tipos
 interface Proveedor {
@@ -43,6 +52,65 @@ interface NuevaCompraModalProps {
   open: boolean;
   onClose: () => void;
   onCompraCreada?: () => void;
+}
+
+// 🎯 Componente que wrappea FormCreateProduct en un modal
+function CreateProductModal({
+  onProductCreated,
+}: {
+  onProductCreated: (producto: Producto) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const { toast } = useToast();
+
+  // 🔄 Callback que se ejecuta cuando se crea exitosamente un producto
+  const handleProductSuccess = async () => {
+    // Cerrar el modal
+    setIsOpen(false);
+    
+    // Mostrar mensaje de éxito
+    toast({
+      title: "Producto creado",
+      description: "El producto ha sido agregado al catálogo. Búscalo para agregarlo a la compra.",
+    });
+
+    // Notificar al componente padre para que recargue los productos
+    // En lugar de pasar el producto directamente, simplemente notificamos que se creó
+    // El componente padre puede recargar la lista completa
+    onProductCreated({} as Producto); // Pasamos un objeto vacío como señal
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-1 hover:bg-green-50 hover:border-green-300"
+        >
+          <Plus className="w-3 h-3" />
+          Crear Producto
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-green-600" />
+            Crear Nuevo Producto
+          </DialogTitle>
+          <DialogDescription>
+            Agrega un nuevo producto al catálogo y podrás buscarlo para agregarlo a la compra
+          </DialogDescription>
+        </DialogHeader>
+        
+        {/* 🎯 Aquí usamos el FormCreateProduct existente */}
+        <div className="mt-4">
+          <FormCreateProduct onSuccess={handleProductSuccess} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraModalProps) {
@@ -81,33 +149,37 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
     })();
   }, [open, getToken, toast]);
 
-  // Carga productos
+  // 🔄 Función para cargar productos (separada para poder reutilizarla)
+  const fetchProductos = async () => {
+    setLoadingProducts(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/productos/empresa`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+      const list: Producto[] = (data.productos || data || []).map((p: any) => ({
+        id: p.id,
+        nombre: p.nombre,
+        precio: p.precioCompra || p.precio || 0,
+      }));
+      setProductos(list);
+    } catch (err) {
+      console.error("Error cargando productos:", err);
+      toast({ title: "No se pudo cargar productos", variant: "destructive" });
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  // Carga productos cuando se abre el modal
   useEffect(() => {
-    if (!open) return;
-    (async () => {
-      setLoadingProducts(true);
-      try {
-        const token = await getToken();
-        if (!token) return;
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/productos/empresa`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error(`Error ${res.status}`);
-        const data = await res.json();
-        const list: Producto[] = (data.productos || data || []).map((p: any) => ({
-          id: p.id,
-          nombre: p.nombre,
-          precio: p.precioCompra || p.precio || 0,
-        }));
-        setProductos(list);
-      } catch (err) {
-        console.error("Error cargando productos:", err);
-        toast({ title: "No se pudo cargar productos", variant: "destructive" });
-      } finally {
-        setLoadingProducts(false);
-      }
-    })();
-  }, [open, getToken, toast]);
+    if (open) {
+      fetchProductos();
+    }
+  }, [open]);
 
   // Reset cuando se cierra
   useEffect(() => {
@@ -117,6 +189,17 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
       setShowDropdown(false);
     }
   }, [open]);
+
+  // 🎯 Callback cuando se crea un nuevo producto
+  const handleProductCreated = () => {
+    // Recargar la lista de productos para incluir el nuevo
+    fetchProductos();
+    
+    toast({
+      title: "Lista actualizada",
+      description: "Busca el nuevo producto para agregarlo a la compra",
+    });
+  };
 
   // Autocomplete filtrado
   const filtered = productos.filter(
@@ -134,7 +217,7 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
         { 
           idProducto: prod.id, 
           cantidad: 1, 
-          precio: prod.precio, // 👈 Usa precioCompra del producto por defecto
+          precio: prod.precio,
           nombre: prod.nombre 
         },
       ],
@@ -168,7 +251,7 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
     }));
   };
 
-  // 🔥 CÁLCULOS TOTALES
+  // Cálculos totales
   const totalCompra = formData.ProductosCompras.reduce(
     (sum, it) => sum + (it.cantidad * it.precio),
     0
@@ -194,13 +277,12 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
       const token = await getToken();
       if (!token) throw new Error("Token no disponible");
       
-      // 🔥 ENVIAR DATOS CON PRECIO INCLUIDO
       const payload = {
         idProveedor: formData.idProveedor,
         ProductosCompras: formData.ProductosCompras.map((it) => ({
           idProducto: it.idProducto,
           cantidad: it.cantidad,
-          precio: it.precio, // 👈 INCLUIR PRECIO
+          precio: it.precio,
         })),
       };
 
@@ -388,9 +470,14 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
               </div>
             )}
 
-            {/* Buscador de productos */}
+            {/* Buscador de productos con botón para crear nuevo */}
             <div className="border-2 border-dashed border-blue-300 rounded-lg p-4 relative">
-              <Label className="text-sm font-medium">Agregar Producto</Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-sm font-medium">Agregar Producto</Label>
+                {/* 🎯 Botón para crear nuevo producto */}
+                <CreateProductModal onProductCreated={handleProductCreated} />
+              </div>
+              
               <Input
                 placeholder="Buscar producto por nombre..."
                 value={searchTerm}
