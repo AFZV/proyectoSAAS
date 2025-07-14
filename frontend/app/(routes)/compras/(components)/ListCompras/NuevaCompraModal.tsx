@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { ShoppingCart, Package, X, Loader2, Plus, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { FormCreateProduct } from "../../../catalog/(components)/FormCreateProduct"; // 👈 Importar el componente existente
+import { FormCreateProduct } from "../../../catalog/(components)/FormCreateProduct";
 
 // Tipos
 interface Proveedor {
