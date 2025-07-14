@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { BadgeDollarSign, FileSearch, PlusCircle } from "lucide-react";
+import { BadgeDollarSign, FileSearch } from "lucide-react";
 import { ClienteCartera } from "../ListCartera/ListCartera.types";
 import { BuscarClienteCartera } from "../BuscarClienteCartera";
 
@@ -27,7 +27,6 @@ export function HeaderCartera({
   stats: CarteraStats;
 }) {
   const [openBuscarModal, setOpenBuscarModal] = useState<boolean>(false);
-  const [openAjusteModal, setOpenAjusteModal] = useState<boolean>(false);
 
   return (
     <div className="border-b bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-950/30 dark:to-yellow-900/20">

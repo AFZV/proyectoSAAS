@@ -50,4 +50,12 @@ export class BalanceController {
     const usuario = req.usuario;
     return this.balanceService.ajusteManual(data, usuario);
   }
+
+  @Roles('admin')
+  @Get('stats/:clienteId')
+  getStats(@Param('clienteId') clienteId: string, @Req() req: UsuarioRequest) {
+    if (!req.usuario) throw new UnauthorizedException('no esta autorizado');
+    const usuario = req.usuario;
+    return this.balanceService.stats(usuario, clienteId);
+  }
 }

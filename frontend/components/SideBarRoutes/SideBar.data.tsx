@@ -12,6 +12,8 @@ import {
   Wallet,
   BanknoteIcon,
   WarehouseIcon,
+  DownloadCloud,
+  UploadCloud,
 } from "lucide-react";
 
 export const dataGeneralSideBar = [
@@ -32,11 +34,6 @@ export const dataFacturacionSidebar = [
     icon: FolderOpen,
     label: "Catálogo",
     href: "/catalog",
-  },
-  {
-    icon: CreditCard,
-    label: "Compras",
-    href: "/compras",
   },
 ];
 
@@ -59,6 +56,11 @@ export const dataInventarioSideBar = [
     label: "Inventario",
     href: "/inventario",
   },
+  {
+    icon: CreditCard,
+    label: "Compras",
+    href: "/compras",
+  },
 ];
 
 export const dataToolsSideBar = [
@@ -79,6 +81,19 @@ export const dataClienteSideBar = [
     icon: WarehouseIcon,
     label: "Proveedores",
     href: "proveedores",
+  },
+];
+
+export const dataRespaldoSideBar = [
+  {
+    icon: DownloadCloud,
+    label: "Respaldos",
+    href: "/respaldo",
+  },
+  {
+    icon: UploadCloud,
+    label: "Restaurar",
+    href: "restaurar",
   },
 ];
 

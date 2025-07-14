@@ -14,12 +14,12 @@ import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { SuperadminGuard } from 'src/common/guards/superadmin.guard';
 
-@UseGuards(UsuarioGuard, RolesGuard, SuperadminGuard)
-@Roles('admin', 'superadmin')
+@UseGuards(UsuarioGuard, RolesGuard)
+@Roles('admin')
 @Controller('cloudinary')
 export class CloudinaryController {
   constructor(private cloudinaryService: CloudinaryService) {}
-
+  @Roles('admin')
   @Post('upload/producto')
   @UseInterceptors(FileInterceptor('imagen'))
   async uploadImagenProducto(
@@ -37,7 +37,7 @@ export class CloudinaryController {
 
     return { url: result.url };
   }
-
+  @UseGuards(SuperadminGuard)
   @Post('upload/logo-empresa')
   @UseInterceptors(FileInterceptor('file'))
   async uploadLogoEmpresa(

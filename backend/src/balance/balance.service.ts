@@ -174,4 +174,54 @@ export class BalanceService {
       movimiento,
     };
   }
+
+  async stats(usuario: UsuarioPayload, clienteId: string) {
+    if (!usuario) {
+      throw new UnauthorizedException('Usuario no autorizado');
+    }
+
+    const { empresaId } = usuario;
+
+    const saldo = await this.saldoPorCliente(clienteId, usuario);
+    const totalSaldo = saldo.saldo;
+
+    // Total de abonos: RECIBO + AJUSTE_MANUAL
+    const totalAbonos = await this.prisma.movimientosCartera.aggregate({
+      where: {
+        empresaId,
+        idCliente: clienteId,
+        tipoMovimientoOrigen: {
+          in: ['RECIBO', 'AJUSTE_MANUAL'],
+        },
+      },
+      _sum: {
+        valorMovimiento: true,
+      },
+    });
+
+    // Total de cargos: PEDIDO
+    const totalCargos = await this.prisma.movimientosCartera.aggregate({
+      where: {
+        empresaId,
+        idCliente: clienteId,
+        tipoMovimientoOrigen: 'PEDIDO',
+      },
+      _sum: {
+        valorMovimiento: true,
+      },
+    });
+    const respuesta = {
+      totalSaldo,
+      totalNegativos: totalAbonos._sum.valorMovimiento ?? 0,
+      totalPositivos: totalCargos._sum.valorMovimiento ?? 0,
+    };
+
+    console.log('service respondiendo con el object', respuesta);
+
+    return {
+      totalSaldo,
+      totalNegativos: totalAbonos._sum.valorMovimiento ?? 0,
+      totalPositivos: totalCargos._sum.valorMovimiento ?? 0,
+    };
+  }
 }
