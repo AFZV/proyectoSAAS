@@ -44,7 +44,8 @@ type ReciboEditable = z.infer<typeof formSchema>;
 type PedidoPendiente = {
   id: string;
   saldoPendiente: number;
-  fechaPedido: string;
+  fecha: string;
+  valorOriginal: number;
 };
 
 export function FormUpdateRecibo({
@@ -123,7 +124,9 @@ export function FormUpdateRecibo({
     try {
       const token = await getToken();
       await axios.patch(
-        `${process.env.NEXT_PUBLIC_API_URL}/recibos/${searchForm.getValues("idRecibo")}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/recibos/${searchForm.getValues(
+          "idRecibo"
+        )}`,
         values,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -279,15 +282,21 @@ export function FormUpdateRecibo({
                       >
                         <div>
                           <p className="text-sm font-medium">
-                            Pedido #
-                            {new Date(p.fechaPedido).toLocaleDateString(
-                              "es-CO"
-                            )}
+                            Pedido: #{p.id.slice(0, 6)}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            Pendiente:{" "}
-                            {p.saldoPendiente.toLocaleString("es-CO")}
+                          <p className="text-sm font-medium">
+                            Fecha:
+                            {new Date(p.fecha).toLocaleDateString("es-CO")}
                           </p>
+                          <div>
+                            <p className="text-xs text-muted-foreground">
+                              Valor Pedido:{" "}
+                              {p.valorOriginal.toLocaleString("es-CO")}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Saldo: {p.saldoPendiente.toLocaleString("es-CO")}
+                            </p>
+                          </div>
                         </div>
                         <Button
                           type="button"

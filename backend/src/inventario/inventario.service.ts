@@ -116,7 +116,7 @@ export class InventarioService {
             },
           },
         },
-        orderBy: { fechaMovimiento: "asc" },
+        orderBy: { fechaMovimiento: 'asc' },
       });
 
       if (movimientos.length === 0) return [];
@@ -165,9 +165,9 @@ export class InventarioService {
 
       return mapped;
     } catch (error) {
-      console.error("Error interno al obtener movimientos:", error);
+      console.error('Error interno al obtener movimientos:', error);
       throw new InternalServerErrorException(
-        "Error al obtener los movimientos de inventario"
+        'Error al obtener los movimientos de inventario'
       );
     }
   }
@@ -181,7 +181,10 @@ export class InventarioService {
     tipomovid: string,
     cantidad: number,
     usuario: UsuarioPayload
-  ): Promise<{ stockActualizado: number; movimiento: MovimientoInventarioDto }> {
+  ): Promise<{
+    stockActualizado: number;
+    movimiento: MovimientoInventarioDto;
+  }> {
     try {
       // 1) Buscamos el inventario existente
       const inv = await this.prisma.inventario.findFirst({
@@ -189,7 +192,7 @@ export class InventarioService {
       });
       if (!inv) {
         throw new NotFoundException(
-          `Inventario para producto ${productoId} no encontrado`,
+          `Inventario para producto ${productoId} no encontrado`
         );
       }
 
@@ -199,7 +202,7 @@ export class InventarioService {
       });
       if (!tipoMov) {
         throw new NotFoundException(
-          `Tipo de movimiento ${tipomovid} no encontrado`,
+          `Tipo de movimiento ${tipomovid} no encontrado`
         );
       }
 
@@ -210,7 +213,9 @@ export class InventarioService {
       } else if (tipoMov.tipo === 'SALIDA') {
         updateData = { stockActual: { decrement: cantidad } };
       } else {
-        throw new NotFoundException(`Tipo de movimiento inválido: ${tipoMov.tipo}`);
+        throw new NotFoundException(
+          `Tipo de movimiento inválido: ${tipoMov.tipo}`
+        );
       }
 
       // 4) Ejecutamos en transacción:
@@ -255,7 +260,8 @@ export class InventarioService {
         precioCompra: movimientoRaw.producto.precioCompra,
         usuario: `${movimientoRaw.usuario.nombre} ${movimientoRaw.usuario.apellidos}`,
         cantidadMovimiendo: movimientoRaw.cantidadMovimiendo,
-        stockInicial: movimientoRaw.producto.inventario[0]?.stockReferenciaOinicial ?? 0,
+        stockInicial:
+          movimientoRaw.producto.inventario[0]?.stockReferenciaOinicial ?? 0,
         stockActual: movimientoRaw.producto.inventario[0]?.stockActual ?? 0,
         fecha: movimientoRaw.fechaMovimiento,
         observacion: movimientoRaw.observacion,
@@ -269,7 +275,7 @@ export class InventarioService {
       console.error('Error al actualizar el inventario:', error);
       if (error instanceof NotFoundException) throw error;
       throw new InternalServerErrorException(
-        'Error interno al ajustar el inventario',
+        'Error interno al ajustar el inventario'
       );
     }
   }

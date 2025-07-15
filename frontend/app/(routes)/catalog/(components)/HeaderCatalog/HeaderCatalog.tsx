@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, DownloadIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,9 +12,49 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { FormCreateProduct } from "../FormCreateProduct";
+import { useAuth } from "@clerk/nextjs";
+import { Loading } from "@/components/Loading";
 
 export function HeaderCatalog() {
   const [openModalCreate, setOpenModalCreate] = useState(false);
+  const { getToken } = useAuth();
+  const [loading, setLoading] = useState<boolean>(false);
+
+  async function generarPdf() {
+    const token = await getToken();
+    if (!token) return "No tiene acceso";
+    setLoading(true);
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/productos/catalogo/pdf`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.error("❌ Error al generar el PDF");
+      return;
+    }
+
+    // ⚠️ Convertimos a blob (tipo archivo)
+    const blob = await response.blob();
+
+    // Creamos un enlace temporal para forzar la descarga
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "catalogo_productos.pdf";
+    document.body.appendChild(a);
+    a.click();
+
+    // Limpiamos
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    setLoading(false);
+  }
+  if (loading) return <Loading title="Cargando PDF" />;
 
   return (
     <div className="border-b bg-card">
@@ -27,6 +67,13 @@ export function HeaderCatalog() {
             </p>
           </div>
 
+          <Button
+            onClick={generarPdf}
+            className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-blue-500/25"
+          >
+            <DownloadIcon className="w-4 h-4" />
+            Generar PDF
+          </Button>
           <Dialog open={openModalCreate} onOpenChange={setOpenModalCreate}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-blue-500/25">
@@ -41,7 +88,7 @@ export function HeaderCatalog() {
                   Agrega un nuevo producto al catálogo de la empresa
                 </DialogDescription>
               </DialogHeader>
-              <FormCreateProduct 
+              <FormCreateProduct
                 onSuccess={() => {
                   setOpenModalCreate(false);
                   // Aquí podríamos actualizar la lista de productos

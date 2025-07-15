@@ -268,6 +268,11 @@ export class PedidosService {
               usuarioNombre: resumen.vendedor,
               tipo: 'pedidos',
             });
+            await this.prisma.pedido.update({
+              where: { id: pedido.id },
+              data: { pdfUrl: url },
+            });
+
             if (!pedido.cliente?.email)
               throw new Error('Error al obtener email');
             const numeroWhatsApp = `+57${pedido.usuario?.telefono?.replace(/\D/g, '')}`;
