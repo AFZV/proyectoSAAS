@@ -14,6 +14,7 @@ import {
   WarehouseIcon,
   DownloadCloud,
   UploadCloud,
+  FileBarChart,
 } from "lucide-react";
 
 export const dataGeneralSideBar = [
@@ -68,6 +69,11 @@ export const dataToolsSideBar = [
     icon: TrendingUp,
     label: "Estadísticas",
     href: "/estadisticas",
+  },
+  {
+    icon: FileBarChart,
+    label: "Reportes",
+    href: "/reportes",
   },
 ];
 
