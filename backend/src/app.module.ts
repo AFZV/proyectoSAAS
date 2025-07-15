@@ -24,6 +24,8 @@ import { BalanceModule } from './balance/balance.module';
 import { PdfUploaderModule } from './pdf-uploader/pdf-uploader.module';
 import { ResendModule } from './resend/resend.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { RespaldosModule } from './respaldos/respaldos.module';
+import { ImportarModule } from './importar/importar.module';
 
 @Module({
   imports: [
@@ -49,6 +51,10 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     ResendModule,
 
     CloudinaryModule,
+
+    RespaldosModule,
+
+    ImportarModule,
   ],
   controllers: [PrismaController],
 })

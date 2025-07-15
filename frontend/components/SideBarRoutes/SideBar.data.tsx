@@ -15,6 +15,7 @@ import {
   DownloadCloud,
   UploadCloud,
   FileBarChart,
+  FileUp,
 } from "lucide-react";
 
 export const dataGeneralSideBar = [
@@ -90,16 +91,21 @@ export const dataClienteSideBar = [
   },
 ];
 
-export const dataRespaldoSideBar = [
+export const dataHerramientasSideBar = [
   {
     icon: DownloadCloud,
     label: "Respaldos",
-    href: "/respaldo",
+    href: "respaldos",
   },
   {
     icon: UploadCloud,
     label: "Restaurar",
     href: "restaurar",
+  },
+  {
+    icon: FileUp,
+    label: "Importar",
+    href: "importar",
   },
 ];
 
@@ -107,6 +113,6 @@ export const dataSupportSideBar = [
   {
     icon: Settings,
     label: "Administración",
-    href: "/admin",
+    href: "admin",
   },
 ];

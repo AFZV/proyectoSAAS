@@ -112,10 +112,10 @@ model Producto {
   id          String   @id @default(uuid())
   codigo      Int      @default(autoincrement())
   nombre      String   @db.Text
-  precioCompra      Float    @db.DoublePrecision
-  precioVenta      Float    @db.DoublePrecision
+  precioCompra      Float    @db.DoublePrecision 
+  precioVenta      Float    @db.DoublePrecision ////debo hacer este campo opcional para la creacion masiva
   categoriaId String ?
-  imagenUrl   String   @db.Text
+  imagenUrl   String   @db.Text          ////debo hacer este campo opcional para la creacion masiva
   fechaCreado      DateTime @default(now())
   fechaActualizado DateTime @updatedAt
   estado String @db.Text
@@ -150,7 +150,7 @@ model Inventario {
   idProducto String
   idEmpresa String
   stockActual Float @default(0) @db.DoublePrecision
-  stockReferenciaOinicial Float @default(0) @db.DoublePrecision
+  stockReferenciaOinicial Float @default(0) @db.DoublePrecision  // hacer opcional para carga masiva o mandar lo mismo que se ingresa
 
   producto Producto @relation(fields: [idProducto],references: [id])
   empresa Empresa @relation(fields: [idEmpresa],references: [id])

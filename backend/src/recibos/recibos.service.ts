@@ -748,9 +748,11 @@ export class RecibosService {
           id: pedido.id,
           fecha: pedido.fechaPedido,
           saldoPendiente,
+          valorOriginal: pedido.total,
         };
       })
       .filter((p) => p.saldoPendiente > 0);
+    console.log('respondiendo al front con :', pedidosConSaldo);
 
     return pedidosConSaldo;
   }

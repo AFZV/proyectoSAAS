@@ -14,11 +14,10 @@ import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { SuperadminGuard } from 'src/common/guards/superadmin.guard';
 
-@UseGuards(UsuarioGuard, RolesGuard)
-@Roles('admin')
 @Controller('cloudinary')
 export class CloudinaryController {
   constructor(private cloudinaryService: CloudinaryService) {}
+  @UseGuards(UsuarioGuard, RolesGuard)
   @Roles('admin')
   @Post('upload/producto')
   @UseInterceptors(FileInterceptor('imagen'))
@@ -38,13 +37,14 @@ export class CloudinaryController {
     return { url: result.url };
   }
   @UseGuards(SuperadminGuard)
+  @Roles('superadmin')
   @Post('upload/logo-empresa')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('imagen'))
   async uploadLogoEmpresa(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() imagen: Express.Multer.File,
     @Req() req: UsuarioRequest
   ) {
-    const { buffer, originalname } = file;
+    const { buffer, originalname } = imagen;
     const usuario = req.usuario;
 
     const result = await this.cloudinaryService.uploadLogoEmpresa({

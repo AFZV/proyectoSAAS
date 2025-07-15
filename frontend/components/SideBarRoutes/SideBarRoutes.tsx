@@ -4,8 +4,8 @@ import {
   dataCuentasPorCobrarSideBar,
   dataFacturacionSidebar,
   dataGeneralSideBar,
+  dataHerramientasSideBar,
   dataInventarioSideBar,
-  dataRespaldoSideBar,
   dataSupportSideBar,
   dataToolsSideBar,
 } from "./SideBar.data";
@@ -113,13 +113,14 @@ export function SideBarRoutes({ rol }: { rol: string }) {
           </div>
         )}
       </div>
+
       {rol === "admin" && (
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
-            Copias de seguridad
+            Herramientas Avanzadas
           </h3>
           <nav className="space-y-1">
-            {dataRespaldoSideBar.map((item) => (
+            {dataHerramientasSideBar.map((item) => (
               <SideBarItem key={item.label} item={item} />
             ))}
           </nav>

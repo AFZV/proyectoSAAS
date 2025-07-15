@@ -38,6 +38,7 @@ type PedidoConSaldo = {
   id: string;
   fecha: string;
   saldoPendiente: number;
+  valorOriginal: number;
 };
 
 export function FormCrearRecibo({
@@ -199,6 +200,7 @@ export function FormCrearRecibo({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {loadingCliente && <Loading title="Cargando Cliente" />}
         <FormField
           control={form.control}
           name="nit"
@@ -217,8 +219,6 @@ export function FormCrearRecibo({
             </FormItem>
           )}
         />
-
-        {loadingCliente && <Loading title="Cargando cliente..." />}
 
         {clienteInfo && (
           <div className="border p-4 rounded-md bg-muted">
@@ -271,11 +271,18 @@ export function FormCrearRecibo({
                 className="flex justify-between items-center border p-2 rounded"
               >
                 <div>
-                  <p className="text-sm font-medium">Pedido #{p.id}</p>
+                  <p className="text-sm font-medium">
+                    Pedido #{p.id.slice(0, 6)}
+                  </p>
                   <p className="text-sm font-medium">
                     Fecha:{new Date(p.fecha).toLocaleDateString("es-CO")}
                   </p>
                   <p className="text-xs text-muted-foreground">
+                    Valor Original:
+                    {p.valorOriginal.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Saldo:
                     {p.saldoPendiente.toLocaleString()}
                   </p>
                 </div>

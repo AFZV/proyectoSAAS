@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
-
+import * as bodyParser from 'body-parser';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -24,8 +24,10 @@ async function bootstrap() {
         console.error('🚨 Errores de validación:', errors);
         return new BadRequestException(errors);
       },
-    }),
+    })
   );
+  app.use(bodyParser.json({ limit: '10mb' }));
+  app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
   await app.listen(4000);
   console.log('🚀 Servidor iniciado en http://localhost:4000');

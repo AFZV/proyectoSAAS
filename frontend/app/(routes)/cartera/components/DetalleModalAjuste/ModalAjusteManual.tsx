@@ -63,17 +63,20 @@ export function ModalAjusteManual({
       try {
         setLoading(true);
         if (!open || !cliente?.id) return;
+        console.log("token enviado desde el frontend", token);
 
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/recibos/PedidosSaldoPendiente/${cliente.id}`,
           {
             headers: { Authorization: `Bearer ${token}` },
+            cache: "no-cache",
           }
         );
 
         if (!response.ok) throw new Error("El cliente no presenta deuda");
 
         const pedidosResponse = await response.json();
+        console.log("pedidos con saldo:", pedidosResponse);
 
         // Validar que sea un array
         if (Array.isArray(pedidosResponse)) {
