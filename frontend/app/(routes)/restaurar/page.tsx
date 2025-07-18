@@ -3,6 +3,7 @@
 import { useAuth } from "@clerk/nextjs";
 import React, { useState } from "react";
 import { UploadCloud, RefreshCcw } from "lucide-react";
+import { Loading } from "@/components/Loading";
 
 export default function RestaurarRespaldoPage() {
   const { getToken } = useAuth();
@@ -68,38 +69,41 @@ export default function RestaurarRespaldoPage() {
   };
 
   return (
-    <div className="text-center mt-10 space-y-4 max-w-md mx-auto">
-      <h2 className="text-xl font-semibold">Restaurar respaldo de empresa</h2>
+    <>
+      {restaurando && <Loading title="Restaurando Base De Datos...." />}
+      <div className="text-center mt-10 space-y-4 max-w-md mx-auto">
+        <h2 className="text-xl font-semibold">Restaurar respaldo de empresa</h2>
 
-      {/* Selector de archivo */}
-      <label className="cursor-pointer inline-block bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm font-medium border border-gray-300 transition-all">
-        <UploadCloud className="inline-block w-4 h-4 mr-2" />
-        Seleccionar archivo .backup
-        <input
-          type="file"
-          accept=".backup"
-          onChange={handleArchivo}
-          className="hidden"
-        />
-      </label>
+        {/* Selector de archivo */}
+        <label className="cursor-pointer inline-block bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm font-medium border border-gray-300 transition-all">
+          <UploadCloud className="inline-block w-4 h-4 mr-2" />
+          Seleccionar archivo .backup
+          <input
+            type="file"
+            accept=".backup"
+            onChange={handleArchivo}
+            className="hidden"
+          />
+        </label>
 
-      {archivoNombre && (
-        <p className="text-sm text-gray-600">📄 {archivoNombre}</p>
-      )}
+        {archivoNombre && (
+          <p className="text-sm text-gray-600">📄 {archivoNombre}</p>
+        )}
 
-      {/* Botón para confirmar restauración */}
-      {base64 && !restaurando && (
-        <button
-          onClick={confirmarRestauracion}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded inline-flex items-center gap-2"
-        >
-          <RefreshCcw className="w-4 h-4" />
-          Restaurar ahora
-        </button>
-      )}
+        {/* Botón para confirmar restauración */}
+        {base64 && !restaurando && (
+          <button
+            onClick={confirmarRestauracion}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded inline-flex items-center gap-2"
+          >
+            <RefreshCcw className="w-4 h-4" />
+            Restaurar ahora
+          </button>
+        )}
 
-      {/* Mensaje de estado */}
-      {estado && <p className="text-sm text-muted-foreground">{estado}</p>}
-    </div>
+        {/* Mensaje de estado */}
+        {estado && <p className="text-sm text-muted-foreground">{estado}</p>}
+      </div>
+    </>
   );
 }

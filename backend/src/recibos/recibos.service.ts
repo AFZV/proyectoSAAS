@@ -688,7 +688,7 @@ export class RecibosService {
   ) {
     const { empresaId } = usuario;
 
-    // Traer pedidos con sus recibos
+    // 1. Traer pedidos con estados y recibos
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         clienteId,
@@ -696,13 +696,27 @@ export class RecibosService {
       },
       include: {
         detalleRecibo: true,
+        estados: true,
       },
       orderBy: {
         fechaPedido: 'asc',
       },
     });
 
-    // Traer detalles de ajustes manuales por movimiento y pedido
+    // 2. Filtrar los que están en estado FACTURADO o ENVIADO (último estado)
+    const pedidosValidos = pedidos.filter((pedido) => {
+      const estadoMasReciente = [...pedido.estados].sort(
+        (a, b) => b.fechaEstado.getTime() - a.fechaEstado.getTime()
+      )[0];
+
+      return (
+        estadoMasReciente &&
+        (estadoMasReciente.estado === 'FACTURADO' ||
+          estadoMasReciente.estado === 'ENVIADO')
+      );
+    });
+
+    // 3. Traer ajustes manuales
     const detallesAjuste = await this.prisma.detalleAjusteCartera.findMany({
       where: {
         pedido: {
@@ -721,7 +735,7 @@ export class RecibosService {
       },
     });
 
-    // Agrupar ajustes por pedidoId
+    // 4. Agrupar ajustes por pedidoId
     const ajustesPorPedido = detallesAjuste.reduce(
       (acc, ajuste) => {
         if (!ajuste.idPedido) return acc;
@@ -732,8 +746,8 @@ export class RecibosService {
       {} as Record<string, number>
     );
 
-    // Calcular saldo pendiente por pedido
-    const pedidosConSaldo = pedidos
+    // 5. Calcular saldo pendiente por pedido válido
+    const pedidosConSaldo = pedidosValidos
       .map((pedido) => {
         const totalAbonado = pedido.detalleRecibo.reduce(
           (suma, d) => suma + d.valorTotal,
@@ -744,16 +758,18 @@ export class RecibosService {
 
         const saldoPendiente = pedido.total - totalAbonado - ajusteManual;
 
-        return {
-          id: pedido.id,
-          fecha: pedido.fechaPedido,
-          saldoPendiente,
-          valorOriginal: pedido.total,
-        };
+        return saldoPendiente > 0
+          ? {
+              id: pedido.id,
+              fecha: pedido.fechaPedido,
+              saldoPendiente,
+              valorOriginal: pedido.total,
+            }
+          : null;
       })
-      .filter((p) => p.saldoPendiente > 0);
-    console.log('respondiendo al front con :', pedidosConSaldo);
+      .filter((p): p is NonNullable<typeof p> => p !== null);
 
+    console.log('respondiendo al front con :', pedidosConSaldo);
     return pedidosConSaldo;
   }
 }

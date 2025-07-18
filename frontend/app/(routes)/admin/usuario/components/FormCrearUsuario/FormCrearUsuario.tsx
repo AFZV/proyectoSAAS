@@ -26,7 +26,7 @@ const formSchema = z.object({
   apellidos: z.string().min(2),
   correo: z.string().email(),
   telefono: z.string().min(7),
-  rol: z.enum(["admin", "vendedor", "superadmin", "bodega"]),
+  rol: z.enum(["admin", "vendedor", "superadmin", "bodega", "temporal"]),
   empresaId: z.string().uuid(),
 });
 
@@ -252,6 +252,7 @@ export function FormCrearUsuario({
                   <option value="admin">Admin</option>
                   <option value="superadmin">Superadmin</option>
                   <option value="bodega">Bodega</option>
+                  <option value="temporal">Temporal</option>
                 </select>
               </FormControl>
               <FormMessage />

@@ -10,12 +10,37 @@ import {
   dataToolsSideBar,
 } from "./SideBar.data";
 import { SideBarItem } from "../SideBarItem";
+import { Package } from "lucide-react";
 
 export function SideBarRoutes({ rol }: { rol: string }) {
+  if (rol === "temporal") {
+    return (
+      <div className="flex flex-col h-full px-4 py-6">
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
+            Catálogo
+          </h3>
+          <nav className="space-y-1">
+            <SideBarItem
+              item={{
+                label: "Catálogo",
+                href: "/catalog",
+                icon: Package, // asegúrate de que este icono esté soportado en tu componente
+              }}
+              key="1"
+            />
+          </nav>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Resto del sidebar para roles distintos a "temporal" ---
   return (
     <div className="flex flex-col h-full">
-      {/* Navegación Principal */}
+      {/* General */}
       <div className="flex-1 px-4 py-6 space-y-8">
+        {/* Secciones normales */}
         {/* General */}
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
@@ -71,6 +96,7 @@ export function SideBarRoutes({ rol }: { rol: string }) {
             </nav>
           </div>
         )}
+
         {/* Clientes */}
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
@@ -87,19 +113,25 @@ export function SideBarRoutes({ rol }: { rol: string }) {
           </nav>
         </div>
 
-        {/* Estadísticas */}
+        {/* Análisis */}
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
             Análisis
           </h3>
           <nav className="space-y-1">
-            {dataToolsSideBar.map((item) => (
-              <SideBarItem key={item.label} item={item} />
-            ))}
+            {dataToolsSideBar.map((item) => {
+              if (
+                (item.label === "Reportes" || item.href === "/reportes") &&
+                rol !== "admin"
+              ) {
+                return null;
+              }
+              return <SideBarItem key={item.label} item={item} />;
+            })}
           </nav>
         </div>
 
-        {/* Administración - Solo para superadmin */}
+        {/* Administración */}
         {rol === "superadmin" && (
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">
@@ -114,6 +146,7 @@ export function SideBarRoutes({ rol }: { rol: string }) {
         )}
       </div>
 
+      {/* Herramientas Avanzadas */}
       {rol === "admin" && (
         <div className="space-y-3">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3">

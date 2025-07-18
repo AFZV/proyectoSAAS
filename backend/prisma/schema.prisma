@@ -133,6 +133,8 @@ model Producto {
   @@index([empresaId])
   @@unique([codigo, empresaId])
 
+  ///agregar una descripcion opcinal del producto
+
 }
 
 model CategoriasProducto {
@@ -226,6 +228,8 @@ model Recibo {
   concepto    String   @db.Text
   Fechacrecion      DateTime @default(now())
   empresaId String
+
+  ///agregar campo opcional para controlar cuando se revise un recibo
 
 
 empresa Empresa @relation(fields: [empresaId],references: [id])

@@ -49,7 +49,7 @@ export class ProductosController {
   }
 
   //Obtener los productos con stock de una empresa
-  @Roles('admin', 'vendedor', 'superadmin')
+  @Roles('admin', 'vendedor', 'superadmin', 'temporal')
   @Get('empresa/activos')
   async findAllActivos(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
@@ -104,7 +104,7 @@ export class ProductosController {
   }
 
   //Obtener todas las categorías de productos de una empresa
-  @Roles('admin', 'superadmin', 'vendedor')
+  @Roles('admin', 'superadmin', 'vendedor', 'temporal')
   @Get('categoria/empresa')
   async findAllCategorias(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
@@ -114,7 +114,7 @@ export class ProductosController {
   }
 
   //Obtener productos por categoria
-  @Roles('admin', 'superadmin', 'vendedor')
+  @Roles('admin', 'superadmin', 'vendedor', 'temporal')
   @Get('categoria/:categoriaId')
   async findByCategoria(
     @Param('categoriaId') categoriaId: string,

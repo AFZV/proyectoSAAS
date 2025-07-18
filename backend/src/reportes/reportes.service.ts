@@ -381,8 +381,10 @@ export class ReportesService {
     // 4) Calcular saldo pendiente y filtrar sólo saldo>0
     return pedidos
       .map((pedido) => {
-        const totalAbonado = pedido.detalleRecibo
-          .reduce((s, d) => s + d.valorTotal, 0);
+        const totalAbonado = pedido.detalleRecibo.reduce(
+          (s, d) => s + d.valorTotal,
+          0
+        );
         const ajusteManual = ajustesPorPedido[pedido.id] || 0;
         const saldoPendiente = pedido.total - totalAbonado - ajusteManual;
 
@@ -416,7 +418,7 @@ export class ReportesService {
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         empresaId,
-        usuarioId: vendedorId,           // <— aquí filtramos por vendedor
+        usuarioId: vendedorId, // <— aquí filtramos por vendedor
         fechaPedido: {
           gte: new Date(fechaInicio),
           lte: new Date(fechaFin),
@@ -433,7 +435,7 @@ export class ReportesService {
           where: {
             movimiento: {
               tipoMovimientoOrigen: 'AJUSTE_MANUAL',
-              empresaId,              // relacional a Movimiento.empresaId
+              empresaId, // relacional a Movimiento.empresaId
             },
           },
           select: { valor: true },
@@ -447,10 +449,14 @@ export class ReportesService {
     // 2) Calculo saldo pendiente
     return pedidos
       .map((pedido) => {
-        const totalAbonado = pedido.detalleRecibo
-          .reduce((sum, d) => sum + d.valorTotal, 0);
-        const ajusteManual = pedido.detalleAjusteCartera
-          .reduce((sum, a) => sum + a.valor, 0);
+        const totalAbonado = pedido.detalleRecibo.reduce(
+          (sum, d) => sum + d.valorTotal,
+          0
+        );
+        const ajusteManual = pedido.detalleAjusteCartera.reduce(
+          (sum, a) => sum + a.valor,
+          0
+        );
         const saldoPendiente = pedido.total - totalAbonado - ajusteManual;
 
         return {

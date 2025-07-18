@@ -131,7 +131,6 @@ export function FormCrearRecibo({
   useEffect(() => {
     if (!clienteInfo?.id) return;
     const clienteId = clienteInfo.id;
-    console.log("cliente id enviado al backend:", clienteId);
     if (!clienteId || !token) return;
 
     const fetchPedidos = async () => {
@@ -198,164 +197,168 @@ export function FormCrearRecibo({
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {loadingCliente && <Loading title="Cargando Cliente" />}
-        <FormField
-          control={form.control}
-          name="nit"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>NIT del Cliente</FormLabel>
-              <FormControl>
-                <div className="flex gap-2">
-                  <Input {...field} placeholder="NIT o cédula del cliente" />
-                  <Button type="button" onClick={buscarClientePorNIT}>
-                    Buscar
-                  </Button>
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+    <>
+      {isSubmitting && <Loading title="Enviando Recibo..." />}
+      <Form {...form}>
+        {isSubmitting && <Loading title="Enviando Recibo..." />}
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {loadingCliente && <Loading title="Cargando Cliente" />}
+          <FormField
+            control={form.control}
+            name="nit"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>NIT del Cliente</FormLabel>
+                <FormControl>
+                  <div className="flex gap-2">
+                    <Input {...field} placeholder="NIT o cédula del cliente" />
+                    <Button type="button" onClick={buscarClientePorNIT}>
+                      Buscar
+                    </Button>
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {clienteInfo && (
+            <div className="border p-4 rounded-md bg-muted">
+              <p className="text-sm font-semibold">{clienteInfo.nombre}</p>
+              <p className="text-sm">📧 {clienteInfo.email}</p>
+              <p className="text-sm">📍 {clienteInfo.ciudad}</p>
+              <p className="text-sm">📞 {clienteInfo.telefono}</p>
+            </div>
           )}
-        />
 
-        {clienteInfo && (
-          <div className="border p-4 rounded-md bg-muted">
-            <p className="text-sm font-semibold">{clienteInfo.nombre}</p>
-            <p className="text-sm">📧 {clienteInfo.email}</p>
-            <p className="text-sm">📍 {clienteInfo.ciudad}</p>
-            <p className="text-sm">📞 {clienteInfo.telefono}</p>
-          </div>
-        )}
+          <FormField
+            control={form.control}
+            name="tipo"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tipo de pago</FormLabel>
+                <FormControl>
+                  <select {...field} className="w-full border p-2 rounded-md">
+                    <option value="efectivo">Efectivo</option>
+                    <option value="consignacion">Consignación</option>
+                  </select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="tipo"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tipo de pago</FormLabel>
-              <FormControl>
-                <select {...field} className="w-full border p-2 rounded-md">
-                  <option value="efectivo">Efectivo</option>
-                  <option value="consignacion">Consignación</option>
-                </select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <FormField
+            control={form.control}
+            name="concepto"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Concepto</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="Descripción del recibo" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="concepto"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Concepto</FormLabel>
-              <FormControl>
-                <Input {...field} placeholder="Descripción del recibo" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {pedidosDisponibles.length > 0 && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Pedidos con saldo pendiente:
-            </p>
-            {pedidosDisponibles.map((p) => (
-              <div
-                key={p.id}
-                className="flex justify-between items-center border p-2 rounded"
-              >
-                <div>
-                  <p className="text-sm font-medium">
-                    Pedido #{p.id.slice(0, 6)}
-                  </p>
-                  <p className="text-sm font-medium">
-                    Fecha:{new Date(p.fecha).toLocaleDateString("es-CO")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Valor Original:
-                    {p.valorOriginal.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Saldo:
-                    {p.saldoPendiente.toLocaleString()}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  onClick={() => handleAgregarPedido(p)}
-                  variant="secondary"
-                  size="sm"
+          {pedidosDisponibles.length > 0 && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Pedidos con saldo pendiente:
+              </p>
+              {pedidosDisponibles.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex justify-between items-center border p-2 rounded"
                 >
-                  Usar
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {fields.length > 0 && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Pedidos a abonar:</p>
-            {fields.map((field, index) => (
-              <div key={field.id} className="grid grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name={`pedidos.${index}.pedidoId`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ID Pedido</FormLabel>
-                      <FormControl>
-                        <Input {...field} disabled />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name={`pedidos.${index}.valorAplicado`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Valor a aplicar</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="number"
-                          onChange={(e) =>
-                            field.onChange(e.target.valueAsNumber || 0)
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex items-end">
+                  <div>
+                    <p className="text-sm font-medium">
+                      Pedido #{p.id.slice(0, 6)}
+                    </p>
+                    <p className="text-sm font-medium">
+                      Fecha:{new Date(p.fecha).toLocaleDateString("es-CO")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Valor Original:
+                      {p.valorOriginal.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Saldo:
+                      {p.saldoPendiente.toLocaleString()}
+                    </p>
+                  </div>
                   <Button
                     type="button"
-                    variant="destructive"
-                    onClick={() => remove(index)}
+                    onClick={() => handleAgregarPedido(p)}
+                    variant="secondary"
+                    size="sm"
                   >
-                    Quitar
+                    Usar
                   </Button>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        <div className="flex justify-center">
-          <Button type="submit" disabled={isSubmitting}>
-            Crear Recibo
-          </Button>
-        </div>
-      </form>
-    </Form>
+          {fields.length > 0 && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Pedidos a abonar:</p>
+              {fields.map((field, index) => (
+                <div key={field.id} className="grid grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name={`pedidos.${index}.pedidoId`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>ID Pedido</FormLabel>
+                        <FormControl>
+                          <Input {...field} disabled />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`pedidos.${index}.valorAplicado`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Valor a aplicar</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="number"
+                            onChange={(e) =>
+                              field.onChange(e.target.valueAsNumber || 0)
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => remove(index)}
+                    >
+                      Quitar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex justify-center">
+            <Button type="submit" disabled={isSubmitting}>
+              Crear Recibo
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </>
   );
 }
