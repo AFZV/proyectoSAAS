@@ -51,16 +51,28 @@ export class CatalogService {
     const categoriasMap = new Map(
       categoriasRes.categorias.map((cat) => [cat.idCategoria, cat.nombre])
     );
+
     console.log("productos que llegan :", productosRes.productos.length);
 
-    return productosRes.productos.map((producto) => ({
-      id: producto.id,
-      nombre: producto.nombre,
-      precio: producto.precioVenta,
-      categoria: categoriasMap.get(producto.categoriaId) || "Sin categoría",
-      imagenUrl: producto.imagenUrl,
-      stock: producto.inventario?.[0]?.stockActual ?? 0,
-    }));
+    // Mapear productos y ordenar alfabéticamente por nombre
+    const productosOrdenados = productosRes.productos
+      .map((producto) => ({
+        id: producto.id,
+        nombre: producto.nombre,
+        precio: producto.precioVenta,
+        categoria: categoriasMap.get(producto.categoriaId) || "Sin categoría",
+        imagenUrl: producto.imagenUrl,
+        stock: producto.inventario?.[0]?.stockActual ?? 0,
+      }))
+      // ✅ ORDENAR ALFABÉTICAMENTE POR NOMBRE (A-Z)
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', {
+        sensitivity: 'base', // Ignora mayúsculas/minúsculas y acentos
+        numeric: true,       // Maneja números correctamente (ej: "Producto 2" antes que "Producto 10")
+      }));
+
+    console.log("✅ Productos ordenados alfabéticamente:", productosOrdenados.length);
+
+    return productosOrdenados;
   }
 
   // 🛠️ GESTIÓN DE PRODUCTOS - NUEVO

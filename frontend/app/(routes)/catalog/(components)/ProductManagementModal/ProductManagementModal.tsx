@@ -1,7 +1,6 @@
-// (components)/ProductManagementModal/ProductManagementModal.tsx
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -34,30 +33,23 @@ import {
   Save,
   X,
   Search,
-  Filter,
-  AlertCircle,
-  CheckCircle,
   Eye,
   EyeOff,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Camera,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
 import { formatValue } from "@/utils/FormartValue";
-import type { ProductoBackend, Categoria } from "../../types/catalog.types";
-
-interface ProductManagementModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onProductUpdated?: () => void;
-}
-
-interface EditingProduct {
-  id: string;
-  nombre: string;
-  precioCompra: number;
-  precioVenta: number;
-  categoriaId: string;
-}
+import type {
+  ProductoBackend,
+  Categoria,
+  EditingProduct,
+  ProductManagementModalProps,
+} from "./ProductManagementModal.types";
 
 export function ProductManagementModal({
   isOpen,
@@ -80,10 +72,15 @@ export function ProductManagementModal({
     null
   );
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  // ✅ NUEVO: Estados de paginación
+  // Nuevo estado para manejar la imagen temporal
+  const [tempImageFile, setTempImageFile] = useState<File | null>(null);
+  const [tempImagePreview, setTempImagePreview] = useState<string | null>(null);
+
+  // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10); // 10 productos por página
+  const itemsPerPage = 15;
 
   const { getToken } = useAuth();
   const { toast } = useToast();
@@ -95,7 +92,7 @@ export function ProductManagementModal({
     }
   }, [isOpen]);
 
-  // ✅ NUEVO: Reset página cuando cambian filtros
+  // Reset página cuando cambian filtros
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filterCategoria, filterEstado]);
@@ -122,11 +119,20 @@ export function ProductManagementModal({
         const productosData = await productosRes.json();
         const categoriasData = await categoriasRes.json();
 
+        console.log(
+          "✅ Productos cargados:",
+          productosData.productos?.length || 0
+        );
+        console.log(
+          "✅ Categorías cargadas:",
+          categoriasData.categorias?.length || 0
+        );
+
         setProductos(productosData.productos || []);
         setCategorias(categoriasData.categorias || []);
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("❌ Error fetching data:", error);
       toast({
         title: "Error",
         description: "No se pudieron cargar los productos",
@@ -137,7 +143,7 @@ export function ProductManagementModal({
     }
   };
 
-  // ✅ MODIFICADO: Filtrar productos y aplicar paginación
+  // Filtrar productos y aplicar paginación
   const productosFiltrados = productos.filter((producto) => {
     const matchSearch = producto.nombre
       .toLowerCase()
@@ -150,31 +156,38 @@ export function ProductManagementModal({
     return matchSearch && matchCategoria && matchEstado;
   });
 
-  // ✅ NUEVO: Cálculos de paginación
+  // Cálculos de paginación
   const totalPages = Math.ceil(productosFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const productosEnPagina = productosFiltrados.slice(startIndex, endIndex);
 
-  // Iniciar edición
+  // Iniciar edición (ACTUALIZADO)
   const startEditing = (producto: ProductoBackend) => {
+    console.log("✏️ Editando producto:", producto);
     setEditingProduct({
       id: producto.id,
       nombre: producto.nombre,
       precioCompra: producto.precioCompra,
       precioVenta: producto.precioVenta,
       categoriaId: producto.categoriaId,
+      imagenUrl: producto.imagenUrl || "", // ✅ Asegurar que no sea undefined
     });
     setEditErrors({});
+    setTempImageFile(null);
+    setTempImagePreview(null);
   };
 
   // Cancelar edición
   const cancelEditing = () => {
     setEditingProduct(null);
     setEditErrors({});
+    setIsUploadingImage(false);
+    setTempImageFile(null);
+    setTempImagePreview(null);
   };
 
-  // Validar formulario
+  // Validar formulario (ACTUALIZADO para requerir imagen)
   const validateForm = (data: EditingProduct): Record<string, string> => {
     const errors: Record<string, string> = {};
 
@@ -199,10 +212,102 @@ export function ProductManagementModal({
       errors.categoriaId = "La categoría es requerida";
     }
 
+    // ✅ Validar que siempre haya imagen (nueva, existente o que se subirá)
+    if (!data.imagenUrl && !tempImageFile) {
+      errors.imagenUrl = "La imagen del producto es requerida";
+    }
+
     return errors;
   };
 
-  // Guardar cambios
+  // Función para subir imagen a Cloudinary (IGUAL QUE EN CREAR PRODUCTO)
+  const uploadImageToCloudinary = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append("imagen", file);
+
+    const token = await getToken();
+    if (!token) throw new Error("No hay token de autorización");
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/cloudinary/upload/producto`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Error al subir imagen");
+    }
+
+    const data = await response.json(); // { url: string }
+    return data.url;
+  };
+
+  // Manejar selección de archivo de imagen (IGUAL QUE EN CREAR PRODUCTO)
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tipo de archivo
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Error",
+        description: "Solo se permiten archivos de imagen",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar tamaño (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Error",
+        description: "La imagen debe ser menor a 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Crear preview inmediato
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setTempImagePreview(base64);
+    };
+    reader.readAsDataURL(file);
+
+    // Guardar el archivo para subirlo después
+    setTempImageFile(file);
+
+    toast({
+      title: "Imagen seleccionada",
+      description: "La imagen se subirá al guardar los cambios",
+    });
+  };
+
+  // Remover imagen (ACTUALIZADO para DTO requerido)
+  const removeImage = () => {
+    setTempImageFile(null);
+    setTempImagePreview(null);
+    if (editingProduct) {
+      setEditingProduct({
+        ...editingProduct,
+        imagenUrl: "", // ✅ Vacío en lugar de undefined
+      });
+    }
+    toast({
+      title: "Imagen removida",
+      description: "Se usará una imagen por defecto al guardar",
+      variant: "destructive",
+    });
+  };
+
+  // Guardar cambios (MISMA ESTRATEGIA QUE CREAR PRODUCTO)
   const saveChanges = async () => {
     if (!editingProduct) return;
 
@@ -213,9 +318,57 @@ export function ProductManagementModal({
     }
 
     setIsLoadingUpdate(editingProduct.id);
+
     try {
       const token = await getToken();
-      if (!token) return;
+      if (!token) {
+        throw new Error("No hay token de autorización");
+      }
+
+      let finalImageUrl = editingProduct.imagenUrl;
+
+      // Si hay una nueva imagen, subirla primero (IGUAL QUE EN CREAR PRODUCTO)
+      if (tempImageFile) {
+        setIsUploadingImage(true);
+        console.log("📤 Subiendo nueva imagen...");
+
+        try {
+          finalImageUrl = await uploadImageToCloudinary(tempImageFile);
+          console.log("✅ Imagen subida:", finalImageUrl);
+
+          toast({
+            title: "Imagen subida",
+            description: "La imagen se subió correctamente",
+          });
+        } catch (imageError) {
+          console.error("❌ Error subiendo imagen:", imageError);
+          toast({
+            title: "Error",
+            description: "No se pudo subir la imagen",
+            variant: "destructive",
+          });
+          return; // No continuar si falló la subida de imagen
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+
+      // Preparar datos para actualizar (TODOS LOS CAMPOS REQUERIDOS)
+      const updateData = {
+        nombre: editingProduct.nombre.trim(),
+        precioCompra: Number(editingProduct.precioCompra),
+        precioVenta: Number(editingProduct.precioVenta),
+        categoriaId: editingProduct.categoriaId,
+        imagenUrl: finalImageUrl || "", // ✅ Siempre incluir, vacío si no hay imagen
+      };
+
+      // Si no hay imagen, usar placeholder o imagen por defecto
+      if (!updateData.imagenUrl) {
+        updateData.imagenUrl =
+          "https://via.placeholder.com/400x400?text=Sin+Imagen";
+      }
+
+      console.log("📤 Enviando actualización:", updateData);
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/productos/update/${editingProduct.id}`,
@@ -225,42 +378,51 @@ export function ProductManagementModal({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            nombre: editingProduct.nombre,
-            precioCompra: editingProduct.precioCompra,
-            precioVenta: editingProduct.precioVenta,
-            categoriaId: editingProduct.categoriaId,
-          }),
+          body: JSON.stringify(updateData),
         }
       );
 
-      if (response.ok) {
-        toast({
-          title: "Producto actualizado",
-          description: "Los cambios se guardaron correctamente",
-        });
-
-        // Actualizar el producto en la lista local
-        setProductos((prevProductos) =>
-          prevProductos.map((p) =>
-            p.id === editingProduct.id ? { ...p, ...editingProduct } : p
-          )
-        );
-
-        setEditingProduct(null);
-        onProductUpdated?.();
-      } else {
-        throw new Error("Error al actualizar producto");
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("❌ Error response:", errorData);
+        throw new Error(`Error del servidor: ${response.status}`);
       }
+
+      const responseData = await response.json();
+      console.log("✅ Producto actualizado:", responseData);
+
+      toast({
+        title: "Producto actualizado",
+        description: "Los cambios se guardaron correctamente",
+      });
+
+      // Actualizar el producto en la lista local
+      setProductos((prevProductos) =>
+        prevProductos.map((p) =>
+          p.id === editingProduct.id
+            ? { ...p, ...updateData, imagenUrl: finalImageUrl }
+            : p
+        )
+      );
+
+      // Limpiar estados de edición
+      setEditingProduct(null);
+      setTempImageFile(null);
+      setTempImagePreview(null);
+      onProductUpdated?.();
     } catch (error) {
-      console.error("Error updating product:", error);
+      console.error("❌ Error completo:", error);
       toast({
         title: "Error",
-        description: "No se pudo actualizar el producto",
+        description:
+          error instanceof Error
+            ? error.message
+            : "No se pudo actualizar el producto",
         variant: "destructive",
       });
     } finally {
       setIsLoadingUpdate(null);
+      setIsUploadingImage(false);
     }
   };
 
@@ -280,7 +442,6 @@ export function ProductManagementModal({
       );
 
       if (response.ok) {
-        // Actualizar el estado en la lista local
         setProductos((prevProductos) =>
           prevProductos.map((p) =>
             p.id === productoId
@@ -328,9 +489,142 @@ export function ProductManagementModal({
     );
   };
 
+  // Función para obtener la imagen a mostrar (ACTUALIZADA)
+  const getImageToShow = (producto: ProductoBackend) => {
+    if (editingProduct?.id === producto.id) {
+      // Si estamos editando este producto
+      if (tempImagePreview) {
+        // Si hay una nueva imagen seleccionada, mostrar preview
+        return tempImagePreview;
+      } else if (editingProduct.imagenUrl && editingProduct.imagenUrl !== "") {
+        // Si no hay nueva imagen, mostrar la actual (si existe y no está vacía)
+        return editingProduct.imagenUrl;
+      } else {
+        // Si no hay imagen nueva ni existente
+        return "/placeholder-product.png";
+      }
+    }
+    // Para productos no en edición, mostrar imagen actual o placeholder
+    return producto.imagenUrl && producto.imagenUrl !== ""
+      ? producto.imagenUrl
+      : "/placeholder-product.png";
+  };
+
+  // Componente de paginación
+  const PaginationControls = () => {
+    if (totalPages <= 1) return null;
+
+    const getVisiblePages = () => {
+      const delta = 2;
+      const range = [];
+      const rangeWithDots = [];
+
+      for (
+        let i = Math.max(2, currentPage - delta);
+        i <= Math.min(totalPages - 1, currentPage + delta);
+        i++
+      ) {
+        range.push(i);
+      }
+
+      if (currentPage - delta > 2) {
+        rangeWithDots.push(1, "...");
+      } else {
+        rangeWithDots.push(1);
+      }
+
+      rangeWithDots.push(...range);
+
+      if (currentPage + delta < totalPages - 1) {
+        rangeWithDots.push("...", totalPages);
+      } else {
+        rangeWithDots.push(totalPages);
+      }
+
+      return rangeWithDots;
+    };
+
+    return (
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="text-sm text-muted-foreground">
+          Mostrando {startIndex + 1}-
+          {Math.min(endIndex, productosFiltrados.length)} de{" "}
+          {productosFiltrados.length} productos ({itemsPerPage} por página)
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+            className="hidden sm:flex"
+          >
+            Primera
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+
+          <div className="hidden sm:flex items-center gap-1">
+            {getVisiblePages().map((page, index) => (
+              <React.Fragment key={index}>
+                {page === "..." ? (
+                  <span className="px-2">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </span>
+                ) : (
+                  <Button
+                    variant={currentPage === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(page as number)}
+                    className="w-10"
+                  >
+                    {page}
+                  </Button>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          <span className="sm:hidden px-3 py-1 text-sm font-medium">
+            {currentPage} / {totalPages}
+          </span>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+            }
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+            className="hidden sm:flex"
+          >
+            Última
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="w-6 h-6 text-blue-600" />
@@ -400,12 +694,10 @@ export function ProductManagementModal({
                 </div>
               </div>
 
-              {/* ✅ MODIFICADO: Resumen con info de paginación */}
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                <span>{productosFiltrados.length} productos encontrados</span>
                 <span>
-                  Mostrando {startIndex + 1}-
-                  {Math.min(endIndex, productosFiltrados.length)} de{" "}
-                  {productosFiltrados.length} productos
+                  Página {currentPage} de {totalPages}
                 </span>
                 {(searchTerm ||
                   filterCategoria !== "all" ||
@@ -429,359 +721,417 @@ export function ProductManagementModal({
 
           {/* Tabla de productos */}
           <Card className="flex-1 overflow-hidden">
-            <CardContent className="p-0 h-full overflow-auto">
+            <CardContent className="p-0 h-full">
               {isLoading ? (
                 <div className="flex items-center justify-center h-48">
                   <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Producto</TableHead>
-                      <TableHead>Categoría</TableHead>
-                      <TableHead>Precio Compra</TableHead>
-                      <TableHead>Precio Venta</TableHead>
-                      <TableHead>Stock</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {/* ✅ MODIFICADO: Usar productosEnPagina en lugar de productosFiltrados */}
-                    {productosEnPagina.map((producto) => (
-                      <TableRow key={producto.id}>
-                        {/* Nombre del producto */}
-                        <TableCell className="min-w-[200px]">
-                          {editingProduct?.id === producto.id ? (
-                            <div>
-                              <Input
-                                value={editingProduct.nombre}
-                                onChange={(e) =>
-                                  setEditingProduct({
-                                    ...editingProduct,
-                                    nombre: e.target.value,
-                                  })
-                                }
-                                className={`text-sm ${
-                                  editErrors.nombre ? "border-red-500" : ""
-                                }`}
-                              />
-                              {editErrors.nombre && (
-                                <p className="text-xs text-red-500 mt-1">
-                                  {editErrors.nombre}
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <img
-                                src={
-                                  producto.imagenUrl ||
-                                  "/placeholder-product.png"
-                                }
-                                alt={producto.nombre}
-                                className="w-8 h-8 object-cover rounded"
-                              />
-                              <span className="font-medium">
-                                {producto.nombre}
-                              </span>
-                            </div>
-                          )}
-                        </TableCell>
+                <div className="h-[500px] overflow-auto">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-background z-10 border-b">
+                        <TableRow>
+                          <TableHead className="min-w-[250px]">
+                            Producto
+                          </TableHead>
+                          <TableHead className="min-w-[120px]">
+                            Categoría
+                          </TableHead>
+                          <TableHead className="min-w-[120px]">
+                            Precio Compra
+                          </TableHead>
+                          <TableHead className="min-w-[120px]">
+                            Precio Venta
+                          </TableHead>
+                          <TableHead className="min-w-[80px]">Stock</TableHead>
+                          <TableHead className="min-w-[100px]">
+                            Estado
+                          </TableHead>
+                          <TableHead className="min-w-[120px]">
+                            Acciones
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {productosEnPagina.map((producto) => (
+                          <TableRow key={producto.id}>
+                            {/* Producto con funcionalidad de imagen COMPLETA */}
+                            <TableCell className="min-w-[250px]">
+                              {editingProduct?.id === producto.id ? (
+                                <div className="space-y-3">
+                                  {/* Nombre del producto */}
+                                  <div>
+                                    <Input
+                                      value={editingProduct.nombre}
+                                      onChange={(e) =>
+                                        setEditingProduct({
+                                          ...editingProduct,
+                                          nombre: e.target.value,
+                                        })
+                                      }
+                                      className={`text-sm ${
+                                        editErrors.nombre
+                                          ? "border-red-500"
+                                          : ""
+                                      }`}
+                                      placeholder="Nombre del producto"
+                                    />
+                                    {editErrors.nombre && (
+                                      <p className="text-xs text-red-500 mt-1">
+                                        {editErrors.nombre}
+                                      </p>
+                                    )}
+                                    {editErrors.imagenUrl && (
+                                      <p className="text-xs text-red-500 mt-1">
+                                        {editErrors.imagenUrl}
+                                      </p>
+                                    )}
+                                  </div>
 
-                        {/* Categoría */}
-                        <TableCell>
-                          {editingProduct?.id === producto.id ? (
-                            <div>
-                              <Select
-                                value={editingProduct.categoriaId}
-                                onValueChange={(value) =>
-                                  setEditingProduct({
-                                    ...editingProduct,
-                                    categoriaId: value,
-                                  })
+                                  {/* Upload/Cambio de imagen COMPLETO */}
+                                  <div className="space-y-2">
+                                    <Label className="text-xs">
+                                      Imagen del producto
+                                    </Label>
+
+                                    <div className="flex items-center gap-3">
+                                      {/* Preview de la imagen */}
+                                      <img
+                                        src={getImageToShow(producto)}
+                                        alt="Producto"
+                                        className="w-16 h-16 object-cover rounded border"
+                                      />
+
+                                      {/* Controles */}
+                                      <div className="flex flex-col gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            document
+                                              .getElementById(
+                                                `file-input-${editingProduct.id}`
+                                              )
+                                              ?.click()
+                                          }
+                                          disabled={isUploadingImage}
+                                          className="text-blue-600 hover:text-blue-700"
+                                        >
+                                          {isUploadingImage ? (
+                                            <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+                                          ) : (
+                                            <Camera className="w-4 h-4 mr-1" />
+                                          )}
+                                          {tempImageFile
+                                            ? "Cambiar"
+                                            : "Seleccionar"}
+                                        </Button>
+
+                                        {/* Solo mostrar botón quitar si hay imagen nueva seleccionada */}
+                                        {tempImageFile && (
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={removeImage}
+                                            className="text-red-600 hover:text-red-700"
+                                          >
+                                            <Trash2 className="w-4 h-4 mr-1" />
+                                            Quitar nueva
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Input oculto para seleccionar archivos */}
+                                    <input
+                                      id={`file-input-${editingProduct.id}`}
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={handleFileSelect}
+                                      className="hidden"
+                                      disabled={isUploadingImage}
+                                    />
+
+                                    {/* Indicador de estado */}
+                                    {tempImageFile && (
+                                      <p className="text-xs text-blue-600 mt-1">
+                                        📄 Nueva imagen seleccionada:{" "}
+                                        {tempImageFile.name}
+                                      </p>
+                                    )}
+                                    {isUploadingImage && (
+                                      <p className="text-xs text-orange-600 mt-1">
+                                        📤 Subiendo imagen...
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-3">
+                                  <img
+                                    src={getImageToShow(producto)}
+                                    alt={producto.nombre}
+                                    className="w-10 h-10 object-cover rounded border"
+                                  />
+                                  <span className="font-medium">
+                                    {producto.nombre}
+                                  </span>
+                                </div>
+                              )}
+                            </TableCell>
+
+                            {/* Categoría */}
+                            <TableCell>
+                              {editingProduct?.id === producto.id ? (
+                                <div>
+                                  <Select
+                                    value={editingProduct.categoriaId}
+                                    onValueChange={(value) =>
+                                      setEditingProduct({
+                                        ...editingProduct,
+                                        categoriaId: value,
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger
+                                      className={`w-full ${
+                                        editErrors.categoriaId
+                                          ? "border-red-500"
+                                          : ""
+                                      }`}
+                                    >
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {categorias.map((categoria) => (
+                                        <SelectItem
+                                          key={categoria.idCategoria}
+                                          value={categoria.idCategoria}
+                                        >
+                                          {categoria.nombre}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {editErrors.categoriaId && (
+                                    <p className="text-xs text-red-500 mt-1">
+                                      {editErrors.categoriaId}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <Badge variant="secondary">
+                                  {getCategoryName(producto.categoriaId)}
+                                </Badge>
+                              )}
+                            </TableCell>
+
+                            {/* Precio Compra */}
+                            <TableCell>
+                              {editingProduct?.id === producto.id ? (
+                                <div>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={editingProduct.precioCompra}
+                                    onChange={(e) =>
+                                      setEditingProduct({
+                                        ...editingProduct,
+                                        precioCompra:
+                                          parseFloat(e.target.value) || 0,
+                                      })
+                                    }
+                                    className={`text-sm ${
+                                      editErrors.precioCompra
+                                        ? "border-red-500"
+                                        : ""
+                                    }`}
+                                  />
+                                  {editErrors.precioCompra && (
+                                    <p className="text-xs text-red-500 mt-1">
+                                      {editErrors.precioCompra}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-orange-600 font-medium">
+                                  {formatValue(producto.precioCompra)}
+                                </span>
+                              )}
+                            </TableCell>
+
+                            {/* Precio Venta */}
+                            <TableCell>
+                              {editingProduct?.id === producto.id ? (
+                                <div>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={editingProduct.precioVenta}
+                                    onChange={(e) =>
+                                      setEditingProduct({
+                                        ...editingProduct,
+                                        precioVenta:
+                                          parseFloat(e.target.value) || 0,
+                                      })
+                                    }
+                                    className={`text-sm ${
+                                      editErrors.precioVenta
+                                        ? "border-red-500"
+                                        : ""
+                                    }`}
+                                  />
+                                  {editErrors.precioVenta && (
+                                    <p className="text-xs text-red-500 mt-1">
+                                      {editErrors.precioVenta}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-green-600 font-bold">
+                                  {formatValue(producto.precioVenta)}
+                                </span>
+                              )}
+                            </TableCell>
+
+                            {/* Stock */}
+                            <TableCell>
+                              <span
+                                className={`font-medium ${
+                                  getTotalStock(producto) > 10
+                                    ? "text-green-600"
+                                    : getTotalStock(producto) > 0
+                                    ? "text-yellow-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {getTotalStock(producto)}
+                              </span>
+                            </TableCell>
+
+                            {/* Estado */}
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  producto.estado === "activo"
+                                    ? "default"
+                                    : "secondary"
+                                }
+                                className={
+                                  producto.estado === "activo"
+                                    ? "bg-green-500"
+                                    : "bg-gray-500"
                                 }
                               >
-                                <SelectTrigger
-                                  className={`w-full ${
-                                    editErrors.categoriaId
-                                      ? "border-red-500"
-                                      : ""
-                                  }`}
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {categorias.map((categoria) => (
-                                    <SelectItem
-                                      key={categoria.idCategoria}
-                                      value={categoria.idCategoria}
+                                {producto.estado === "activo"
+                                  ? "Activo"
+                                  : "Inactivo"}
+                              </Badge>
+                            </TableCell>
+
+                            {/* Acciones */}
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                {editingProduct?.id === producto.id ? (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      onClick={saveChanges}
+                                      disabled={
+                                        isLoadingUpdate === producto.id ||
+                                        isUploadingImage
+                                      }
+                                      className="bg-green-500 hover:bg-green-600"
                                     >
-                                      {categoria.nombre}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              {editErrors.categoriaId && (
-                                <p className="text-xs text-red-500 mt-1">
-                                  {editErrors.categoriaId}
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <Badge variant="secondary">
-                              {getCategoryName(producto.categoriaId)}
-                            </Badge>
-                          )}
-                        </TableCell>
-
-                        {/* Precio Compra */}
-                        <TableCell>
-                          {editingProduct?.id === producto.id ? (
-                            <div>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editingProduct.precioCompra}
-                                onChange={(e) =>
-                                  setEditingProduct({
-                                    ...editingProduct,
-                                    precioCompra:
-                                      parseFloat(e.target.value) || 0,
-                                  })
-                                }
-                                className={`text-sm ${
-                                  editErrors.precioCompra
-                                    ? "border-red-500"
-                                    : ""
-                                }`}
-                              />
-                              {editErrors.precioCompra && (
-                                <p className="text-xs text-red-500 mt-1">
-                                  {editErrors.precioCompra}
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-orange-600 font-medium">
-                              {formatValue(producto.precioCompra)}
-                            </span>
-                          )}
-                        </TableCell>
-
-                        {/* Precio Venta */}
-                        <TableCell>
-                          {editingProduct?.id === producto.id ? (
-                            <div>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={editingProduct.precioVenta}
-                                onChange={(e) =>
-                                  setEditingProduct({
-                                    ...editingProduct,
-                                    precioVenta:
-                                      parseFloat(e.target.value) || 0,
-                                  })
-                                }
-                                className={`text-sm ${
-                                  editErrors.precioVenta ? "border-red-500" : ""
-                                }`}
-                              />
-                              {editErrors.precioVenta && (
-                                <p className="text-xs text-red-500 mt-1">
-                                  {editErrors.precioVenta}
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-green-600 font-bold">
-                              {formatValue(producto.precioVenta)}
-                            </span>
-                          )}
-                        </TableCell>
-
-                        {/* Stock */}
-                        <TableCell>
-                          <span
-                            className={`font-medium ${
-                              getTotalStock(producto) > 10
-                                ? "text-green-600"
-                                : getTotalStock(producto) > 0
-                                ? "text-yellow-600"
-                                : "text-red-600"
-                            }`}
-                          >
-                            {getTotalStock(producto)}
-                          </span>
-                        </TableCell>
-
-                        {/* Estado */}
-                        <TableCell>
-                          <Badge
-                            variant={
-                              producto.estado === "activo"
-                                ? "default"
-                                : "secondary"
-                            }
-                            className={
-                              producto.estado === "activo"
-                                ? "bg-green-500"
-                                : "bg-gray-500"
-                            }
-                          >
-                            {producto.estado === "activo"
-                              ? "Activo"
-                              : "Inactivo"}
-                          </Badge>
-                        </TableCell>
-
-                        {/* Acciones */}
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            {editingProduct?.id === producto.id ? (
-                              // Botones de guardar/cancelar
-                              <>
-                                <Button
-                                  size="sm"
-                                  onClick={saveChanges}
-                                  disabled={isLoadingUpdate === producto.id}
-                                  className="bg-green-500 hover:bg-green-600"
-                                >
-                                  {isLoadingUpdate === producto.id ? (
-                                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                                  ) : (
-                                    <Save className="w-4 h-4" />
-                                  )}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={cancelEditing}
-                                >
-                                  <X className="w-4 h-4" />
-                                </Button>
-                              </>
-                            ) : (
-                              // Botones de editar/cambiar estado
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => startEditing(producto)}
-                                  disabled={!!editingProduct}
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    toggleProductStatus(producto.id)
-                                  }
-                                  disabled={
-                                    isLoadingUpdate === producto.id ||
-                                    !!editingProduct
-                                  }
-                                  className={
-                                    producto.estado === "activo"
-                                      ? "text-red-600 hover:text-red-700"
-                                      : "text-green-600 hover:text-green-700"
-                                  }
-                                >
-                                  {isLoadingUpdate === producto.id ? (
-                                    <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-                                  ) : producto.estado === "activo" ? (
-                                    <EyeOff className="w-4 h-4" />
-                                  ) : (
-                                    <Eye className="w-4 h-4" />
-                                  )}
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-
-              {/* ✅ MODIFICADO: Mensaje cuando no hay productos en la página actual */}
-              {!isLoading && productosEnPagina.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-                  <Package className="w-12 h-12 mb-2 opacity-50" />
-                  <p>No se encontraron productos</p>
-                  {(searchTerm ||
-                    filterCategoria !== "all" ||
-                    filterEstado !== "all") && (
-                    <p className="text-sm">Intenta ajustar los filtros</p>
+                                      {isLoadingUpdate === producto.id ||
+                                      isUploadingImage ? (
+                                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                                      ) : (
+                                        <Save className="w-4 h-4" />
+                                      )}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={cancelEditing}
+                                      disabled={
+                                        isLoadingUpdate === producto.id ||
+                                        isUploadingImage
+                                      }
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => startEditing(producto)}
+                                      disabled={!!editingProduct}
+                                    >
+                                      <Edit3 className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        toggleProductStatus(producto.id)
+                                      }
+                                      disabled={
+                                        isLoadingUpdate === producto.id ||
+                                        !!editingProduct
+                                      }
+                                      className={
+                                        producto.estado === "activo"
+                                          ? "text-red-600 hover:text-red-700"
+                                          : "text-green-600 hover:text-green-700"
+                                      }
+                                    >
+                                      {isLoadingUpdate === producto.id ? (
+                                        <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                                      ) : producto.estado === "activo" ? (
+                                        <EyeOff className="w-4 h-4" />
+                                      ) : (
+                                        <Eye className="w-4 h-4" />
+                                      )}
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {/* Mensaje cuando no hay productos */}
+                  {productosEnPagina.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+                      <Package className="w-12 h-12 mb-2 opacity-50" />
+                      <p>No se encontraron productos</p>
+                      {(searchTerm ||
+                        filterCategoria !== "all" ||
+                        filterEstado !== "all") && (
+                        <p className="text-sm">Intenta ajustar los filtros</p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* ✅ NUEVO: Controles de paginación */}
-          {totalPages > 1 && (
+          {/* Controles de paginación */}
+          {productosFiltrados.length > 0 && (
             <Card>
               <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Mostrando {startIndex + 1}-
-                    {Math.min(endIndex, productosFiltrados.length)} de{" "}
-                    {productosFiltrados.length} productos
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(1)}
-                      disabled={currentPage === 1}
-                    >
-                      Primera
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.max(prev - 1, 1))
-                      }
-                      disabled={currentPage === 1}
-                    >
-                      Anterior
-                    </Button>
-
-                    <span className="px-3 py-1 text-sm font-medium">
-                      Página {currentPage} de {totalPages}
-                    </span>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                      }
-                      disabled={currentPage === totalPages}
-                    >
-                      Siguiente
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(totalPages)}
-                      disabled={currentPage === totalPages}
-                    >
-                      Última
-                    </Button>
-                  </div>
-                </div>
+                <PaginationControls />
               </CardContent>
             </Card>
           )}

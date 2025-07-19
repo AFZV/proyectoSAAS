@@ -15,7 +15,7 @@ export class ProductosService {
   constructor(
     private prisma: PrismaService,
     private pdfUploaderService: PdfUploaderService
-  ) {}
+  ) { }
 
   async create(usuario: UsuarioPayload, data: CreateProductoDto) {
     try {
@@ -69,20 +69,20 @@ export class ProductosService {
         where:
           rol === 'admin'
             ? {
-                empresaId: empresaId,
-                estado: 'activo', // Solo productos activos
-              }
+              empresaId: empresaId,
+              estado: 'activo', // Solo productos activos
+            }
             : {
-                empresaId: empresaId,
-                estado: 'activo', // Solo productos activos
-                inventario: {
-                  some: {
-                    stockActual: {
-                      gt: 0, // Solo productos con stock actual mayor a 0
-                    },
+              empresaId: empresaId,
+              estado: 'activo', // Solo productos activos
+              inventario: {
+                some: {
+                  stockActual: {
+                    gt: 0, // Solo productos con stock actual mayor a 0
                   },
                 },
               },
+            },
 
         include: {
           //Incluimos el inventario del producto
@@ -199,7 +199,8 @@ export class ProductosService {
           nombre: data.nombre,
           precioCompra: data.precioCompra,
           precioVenta: data.precioVenta,
-          categoriaId: data.categoriaId, // Asignamos la categoría por su ID
+          categoriaId: data.categoriaId,// Asignamos la categoría por su ID
+          ...(data.imagenUrl !== undefined && { imagenUrl: data.imagenUrl }),//Para actualizar la imagenUrl solo si se proporciona
         },
       });
     } catch (error) {
