@@ -69,6 +69,10 @@ export class InventarioService {
     try {
       return await this.prisma.producto.findMany({
         where: { empresaId: usuario.empresaId },
+        orderBy: {
+          // ← Aquí
+          fechaCreado: 'desc', // ← Descendente por fechaCreado
+        },
         select: {
           id: true,
           nombre: true,

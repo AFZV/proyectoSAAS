@@ -8,6 +8,7 @@ import {
   Res,
   HttpStatus,
   UseGuards,
+  Get,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ReportesService } from './reportes.service';
@@ -24,17 +25,55 @@ import { CrearReporteRangoProductoDto } from './dto/crear-reporte-rango-producto
 @Controller('reportes')
 export class ReportesController {
   constructor(private readonly reportesService: ReportesService) {}
-  //Reporte de productos con inventario
+  //Reporte de carga de inventario
   @Roles('admin')
-  @Post('inventario/:format')
-  async createInventarioReport(
+  @Get('backupinv/:format')
+  async RestoreBackuproduct(
     @Req() req: UsuarioRequest,
-    @Body() data: CrearReporteInvDto,
     @Param('format') format: 'excel' | 'pdf',
     @Res() res: Response
   ) {
     const usuario = req.usuario;
-    const rows = await this.reportesService.inventarioValor(usuario, data);
+    const rows = await this.reportesService.inventarioCompleto(usuario);
+
+    const columns: ColumnDef<(typeof rows)[0]>[] = [
+      { header: 'Nombre', key: 'nombre', width: 40 },
+      { header: 'Cantidad', key: 'cantidades', width: 12, numFmt: '#,##0' },
+      {
+        header: 'Valor Unitario',
+        key: 'precio',
+        width: 14,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
+      {
+        header: 'Total',
+        key: 'total',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
+    ];
+
+    if (format === 'excel') {
+      const wb = buildExcel('Backup para cargar Inventario', columns, rows);
+      res.status(HttpStatus.OK).set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename="backuprecov.xlsx"',
+      });
+      await wb.xlsx.write(res);
+      return res.end();
+    }
+  }
+  //Reporte de productos con inventario
+  @Roles('admin')
+  @Get('inventario/:format')
+  async createInventarioReport(
+    @Req() req: UsuarioRequest,
+    @Param('format') format: 'excel' | 'pdf',
+    @Res() res: Response
+  ) {
+    const usuario = req.usuario;
+    const rows = await this.reportesService.inventarioValor(usuario);
 
     const columns: ColumnDef<(typeof rows)[0]>[] = [
       { header: 'Nombre', key: 'nombre', width: 40 },
@@ -157,7 +196,8 @@ export class ReportesController {
     const rows = await this.reportesService.clientesAll(usuario);
 
     const columns: ColumnDef<(typeof rows)[0]>[] = [
-      { header: 'ID', key: 'id', width: 35 },
+      { header: 'Vendedor', key: 'vendedor', width: 30 },
+      { header: 'ID_Cliente', key: 'id', width: 35 },
       { header: 'Nit', key: 'nit', width: 25 },
       { header: 'Nombre', key: 'nombre', width: 30 },
       { header: 'Email', key: 'email', width: 30 },
@@ -400,5 +440,50 @@ export class ReportesController {
       message: 'Cartera pendiente para vendedor',
       data: rows,
     });
+  }
+
+  //Reporte de balance general de cartera
+  @Roles('admin')
+  @Post('balance-general/:format')
+  async createBalanceGeneralReport(
+    @Req() req: UsuarioRequest,
+    @Param('format') format: 'excel' | 'pdf',
+    @Res() res: Response
+  ) {
+    const usuario = req.usuario;
+    // 1) Obtener datos
+    const rows = await this.reportesService.reporteBalanceGeneral(usuario);
+
+    // 2) Definir columnas
+    const columns: ColumnDef<(typeof rows)[0]>[] = [
+      { header: 'Vendedor', key: 'vendedor', width: 20 },
+      { header: 'ID Cliente', key: 'clienteId', width: 30 },
+      { header: 'Nombre', key: 'nombre', width: 35 },
+      { header: 'NIT', key: 'nit', width: 20 },
+      { header: 'Razón Social', key: 'razonSocial', width: 30 },
+      { header: 'Ciudad', key: 'ciudad', width: 20 },
+      {
+        header: 'Total Deuda',
+        key: 'totalDeuda',
+        width: 25,
+        numFmt: '#,##0.00',
+      },
+    ];
+
+    // 3) Generar y devolver Excel o PDF
+    if (format === 'excel') {
+      const wb = buildExcel('Balance General', columns, rows);
+      res.status(HttpStatus.OK).set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename="balance-general.xlsx"',
+      });
+      await wb.xlsx.write(res);
+      return res.end();
+    }
+
+    // — Si luego quieres PDF —
+    // const doc = buildBalanceGeneralPDF(rows);
+    // doc.pipe(res);
   }
 }

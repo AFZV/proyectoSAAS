@@ -11,19 +11,43 @@ export class ReportesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async inventarioValor(
-    usuario: UsuarioPayload,
-    data: CrearReporteInvDto
+    usuario: UsuarioPayload
   ): Promise<
     Array<{ nombre: string; cantidades: number; precio: number; total: number }>
   > {
-    const { fechaInicio, fechaFin } = data;
     const productos = await this.prisma.producto.findMany({
       where: {
         empresaId: usuario.empresaId,
-        fechaCreado: {
-          gte: new Date(fechaInicio),
-          lte: new Date(fechaFin),
-        },
+        inventario: { some: { stockActual: { gt: 0 } } }, // Solo productos con stock
+      },
+      orderBy: {
+        fechaCreado: 'asc',
+      },
+      include: { inventario: { select: { stockActual: true } } },
+    });
+
+    return productos.map(({ nombre, precioCompra, inventario }) => {
+      const stock = inventario?.[0]?.stockActual ?? 0;
+      return {
+        nombre,
+        cantidades: stock,
+        precio: precioCompra,
+        total: stock * precioCompra,
+      };
+    });
+  }
+  /** Todos los productos, sin importar si su stock es 0 */
+  async inventarioCompleto(
+    usuario: UsuarioPayload
+  ): Promise<
+    Array<{ nombre: string; cantidades: number; precio: number; total: number }>
+  > {
+    const productos = await this.prisma.producto.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+      },
+      orderBy: {
+        fechaCreado: 'asc',
       },
       include: { inventario: { select: { stockActual: true } } },
     });
@@ -91,6 +115,7 @@ export class ReportesService {
   //Reporte de clientes
   async clientesAll(usuario: UsuarioPayload): Promise<
     Array<{
+      vendedor: string;
       id: string;
       nit: string;
       nombre: string;
@@ -105,17 +130,25 @@ export class ReportesService {
     const raw = await this.prisma.clienteEmpresa.findMany({
       where: { empresaId: usuario.empresaId },
       include: {
+        // datos del cliente
         cliente: {
           select: {
             id: true,
             nit: true,
             nombre: true,
+            apellidos: true,
             email: true,
             telefono: true,
-            rasonZocial: true,
             direccion: true,
             departamento: true,
             ciudad: true,
+            rasonZocial: true,
+          },
+        },
+        // datos del vendedor (usuario)
+        usuario: {
+          select: {
+            nombre: true,
           },
         },
       },
@@ -123,9 +156,10 @@ export class ReportesService {
 
     // “Aplanamos” el nested `cliente` al nivel superior
     return raw.map((item) => ({
+      vendedor: item.usuario.nombre,
       id: item.cliente.id,
       nit: item.cliente.nit,
-      nombre: item.cliente.nombre,
+      nombre: item.cliente.nombre + ' ' + item.cliente.apellidos,
       email: item.cliente.email,
       telefono: item.cliente.telefono,
       direccion: item.cliente.direccion,
@@ -381,8 +415,10 @@ export class ReportesService {
     // 4) Calcular saldo pendiente y filtrar sólo saldo>0
     return pedidos
       .map((pedido) => {
-        const totalAbonado = pedido.detalleRecibo
-          .reduce((s, d) => s + d.valorTotal, 0);
+        const totalAbonado = pedido.detalleRecibo.reduce(
+          (s, d) => s + d.valorTotal,
+          0
+        );
         const ajusteManual = ajustesPorPedido[pedido.id] || 0;
         const saldoPendiente = pedido.total - totalAbonado - ajusteManual;
 
@@ -416,7 +452,7 @@ export class ReportesService {
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         empresaId,
-        usuarioId: vendedorId,           // <— aquí filtramos por vendedor
+        usuarioId: vendedorId,
         fechaPedido: {
           gte: new Date(fechaInicio),
           lte: new Date(fechaFin),
@@ -433,7 +469,7 @@ export class ReportesService {
           where: {
             movimiento: {
               tipoMovimientoOrigen: 'AJUSTE_MANUAL',
-              empresaId,              // relacional a Movimiento.empresaId
+              empresaId,
             },
           },
           select: { valor: true },
@@ -447,10 +483,14 @@ export class ReportesService {
     // 2) Calculo saldo pendiente
     return pedidos
       .map((pedido) => {
-        const totalAbonado = pedido.detalleRecibo
-          .reduce((sum, d) => sum + d.valorTotal, 0);
-        const ajusteManual = pedido.detalleAjusteCartera
-          .reduce((sum, a) => sum + a.valor, 0);
+        const totalAbonado = pedido.detalleRecibo.reduce(
+          (sum, d) => sum + d.valorTotal,
+          0
+        );
+        const ajusteManual = pedido.detalleAjusteCartera.reduce(
+          (sum, a) => sum + a.valor,
+          0
+        );
         const saldoPendiente = pedido.total - totalAbonado - ajusteManual;
 
         return {
@@ -461,5 +501,72 @@ export class ReportesService {
         };
       })
       .filter((r) => r.saldoPendiente > 0);
+  }
+
+  //Reporte de balance de cartera
+  async reporteBalanceGeneral(usuario: UsuarioPayload): Promise<
+    Array<{
+      vendedor: string;
+      clienteId: string;
+      nombre: string;
+      razonSocial?: string;
+      nit?: string;
+      ciudad?: string;
+      totalDeuda: number;
+    }>
+  > {
+    const { empresaId } = usuario;
+
+    // 1) Agrupamos saldos >0
+    const saldos = await this.prisma.movimientosCartera.groupBy({
+      by: ['idCliente'],
+      _sum: { valorMovimiento: true },
+      where: { empresaId },
+      having: { valorMovimiento: { _sum: { gt: 0 } } },
+    });
+
+    const clienteIds = saldos.map((s) => s.idCliente);
+
+    // 2) Obtengo datos de clientes
+    const clientes = await this.prisma.cliente.findMany({
+      where: { id: { in: clienteIds } },
+      select: {
+        id: true,
+        nombre: true,
+        apellidos: true,
+        nit: true,
+        rasonZocial: true,
+        ciudad: true,
+      },
+    });
+
+    // 3) Obtengo asignación (clienteEmpresa → usuario/vendedor)
+    const asignaciones = await this.prisma.clienteEmpresa.findMany({
+      where: {
+        empresaId,
+        clienteId: { in: clienteIds },
+      },
+      include: {
+        usuario: { select: { nombre: true } },
+      },
+    });
+
+    // 4) Mapeo al formato plano
+    const resultado = saldos.map((saldo) => {
+      const c = clientes.find((cli) => cli.id === saldo.idCliente);
+      const a = asignaciones.find((a) => a.clienteId === saldo.idCliente);
+      return {
+        vendedor: a?.usuario.nombre ?? '—',
+        clienteId: saldo.idCliente,
+        nombre: `${c?.nombre ?? ''} ${c?.apellidos ?? ''}`.trim(),
+        razonSocial: c?.rasonZocial,
+        nit: c?.nit,
+        ciudad: c?.ciudad,
+        totalDeuda: saldo._sum.valorMovimiento ?? 0,
+      };
+    });
+
+    // 5) Ordeno por nombre
+    return resultado.sort((a, b) => a.nombre.localeCompare(b.nombre));
   }
 }

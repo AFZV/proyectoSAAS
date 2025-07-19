@@ -351,9 +351,11 @@ async updateCompra(
     });
 
     // 3) Transformamos a array, calculando totalCompra
-    return Object.values(agrupado).map(compra => {
-      const totalCompra = compra.productos
-        .reduce((sum, p) => sum + p.cantidad * p.precioCompra, 0);
+    const resultado = Object.values(agrupado).map((compra) => {
+      const totalCompra = compra.productos.reduce(
+        (sum, p) => sum + p.cantidad * p.precioCompra,
+        0
+      );
 
       return {
         idCompra: compra.idCompra,
@@ -363,6 +365,10 @@ async updateCompra(
         productos: compra.productos,
       };
     });
+    // 4) Ordenamos el array final por FechaCompra desc
+    return resultado.sort(
+      (a, b) => b.FechaCompra.getTime() - a.FechaCompra.getTime()
+    );
   }
 
   // Obtener una compra por su ID
@@ -381,11 +387,11 @@ async updateCompra(
       select: {
         cantidad: true,
         producto: {
-          select: { 
-            nombre: true, 
+          select: {
+            nombre: true,
             id: true,
             precioCompra: true, // 👈 AGREGAR PRECIO DE COMPRA DEL PRODUCTO
-            precioVenta: true,  // 👈 OPCIONAL: precio de venta también
+            precioVenta: true, // 👈 OPCIONAL: precio de venta también
           },
         },
         compra: {
