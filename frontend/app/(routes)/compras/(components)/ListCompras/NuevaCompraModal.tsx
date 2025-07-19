@@ -216,7 +216,7 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
         ...f.ProductosCompras,
         { 
           idProducto: prod.id, 
-          cantidad: 1, 
+          cantidad: 0, // 🔥 Cambiado: ahora inicia en 0 (vacío)
           precio: prod.precio,
           nombre: prod.nombre 
         },
@@ -230,7 +230,7 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
     setFormData((f) => ({
       ...f,
       ProductosCompras: f.ProductosCompras.map((it, idx) =>
-        idx === i ? { ...it, cantidad: Math.max(1, qty) } : it
+        idx === i ? { ...it, cantidad: Math.max(0, qty) } : it // 🔥 Cambiado: permite 0
       ),
     }));
   };
@@ -268,6 +268,17 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
     if (!formData.idProveedor) {
       return toast({ title: "Selecciona proveedor", variant: "destructive" });
     }
+    
+    // 🔥 Validar que no haya productos con cantidad 0
+    const productosConCantidadCero = formData.ProductosCompras.filter(p => p.cantidad === 0);
+    if (productosConCantidadCero.length > 0) {
+      return toast({ 
+        title: "Cantidad requerida", 
+        description: "Todos los productos deben tener una cantidad mayor a 0",
+        variant: "destructive" 
+      });
+    }
+    
     if (!formData.ProductosCompras.length) {
       return toast({ title: "Agrega al menos un producto", variant: "destructive" });
     }
@@ -411,20 +422,26 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
                       </Button>
                     </div>
                     
-                    {/* Controles de cantidad y precio */}
-                    <div className="grid grid-cols-4 gap-3 items-center">
+                    {/* 🔥 Controles de cantidad y precio - CAMBIADO A 3 COLUMNAS */}
+                    <div className="grid grid-cols-3 gap-3 items-center">
                       <div>
                         <Label className="text-xs">Cantidad</Label>
                         <Input
                           type="number"
-                          min={1}
-                          value={it.cantidad}
+                          min={0} // 🔥 Cambiado: permite 0
+                          value={it.cantidad === 0 ? "" : it.cantidad} // 🔥 Muestra vacío si es 0
                           onChange={(e) => {
                             const qty = parseInt(e.target.value, 10);
-                            updateQty(idx, isNaN(qty) ? 1 : qty);
+                            updateQty(idx, isNaN(qty) ? 0 : qty); // 🔥 Si no es número, pone 0
                           }}
                           className="text-sm"
+                          placeholder="0"
                         />
+                        {it.cantidad === 0 && (
+                          <div className="text-xs text-red-500 mt-1">
+                            Cantidad requerida
+                          </div>
+                        )}
                       </div>
                       
                       <div>
@@ -458,12 +475,7 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
                         </div>
                       </div>
                       
-                      <div className="text-center">
-                        <Label className="text-xs text-gray-600">x{it.cantidad}</Label>
-                        <div className="text-sm text-gray-500">
-                          {formatCurrency(it.precio)} c/u
-                        </div>
-                      </div>
+                      {/* 🔥 REMOVIDA LA CUARTA COLUMNA */}
                     </div>
                   </div>
                 ))}

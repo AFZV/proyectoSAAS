@@ -36,6 +36,32 @@ export class ReportesService {
       };
     });
   }
+  /** Todos los productos, sin importar si su stock es 0 */
+  async inventarioCompleto(
+    usuario: UsuarioPayload
+  ): Promise<
+    Array<{ nombre: string; cantidades: number; precio: number; total: number }>
+  > {
+    const productos = await this.prisma.producto.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+      },
+      orderBy: {
+        fechaCreado: 'asc',
+      },
+      include: { inventario: { select: { stockActual: true } } },
+    });
+
+    return productos.map(({ nombre, precioCompra, inventario }) => {
+      const stock = inventario?.[0]?.stockActual ?? 0;
+      return {
+        nombre,
+        cantidades: stock,
+        precio: precioCompra,
+        total: stock * precioCompra,
+      };
+    });
+  }
 
   //Reporte de productos por rango de letras Iniciales
   async inventarioPorRango(
