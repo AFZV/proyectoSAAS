@@ -1,4 +1,4 @@
-// InvoiceDetailModal.tsx - ACTUALIZADO PARA EL NUEVO BACKEND
+// InvoiceDetailModal.tsx - SIN ESTADO ENTREGADO
 
 "use client";
 
@@ -23,6 +23,7 @@ import {
   Truck,
   X,
   AlertTriangle,
+  CheckCircle,
 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
@@ -40,13 +41,12 @@ interface InvoiceDetailModalProps {
   onUpdate: (pedidoActualizado: Pedido) => void;
 }
 
-// ✅ ESTADOS SIGUIENTES ACTUALIZADOS SEGÚN TU BACKEND
+// ✅ ESTADOS SIGUIENTES SIN ENTREGADO
 const ESTADOS_SIGUIENTES = {
   GENERADO: ["SEPARADO"],
   SEPARADO: ["FACTURADO", "CANCELADO"],
-  FACTURADO: ["ENVIADO", "CANCELADO"], // ✅ Ahora puede cancelarse después de facturado
-  ENVIADO: ["ENTREGADO"],
-  ENTREGADO: [],
+  FACTURADO: ["ENVIADO", "CANCELADO"], // ✅ Puede ir a ENVIADO o CANCELADO
+  ENVIADO: [], // ✅ CAMBIO: Ya no va a ENTREGADO, es estado final
   CANCELADO: [],
 };
 
@@ -92,7 +92,7 @@ export function InvoiceDetailModal({
       return;
     }
 
-    // ✅ VALIDACIONES SEGÚN TU BACKEND
+    // ✅ VALIDACIONES ACTUALIZADAS
     if (nuevoEstado === "ENVIADO" && !guiaTransporte.trim()) {
       toast({
         title: "Error",
@@ -111,6 +111,21 @@ export function InvoiceDetailModal({
           "• Retornará la mercancía al inventario\n" +
           "• Eliminará los movimientos de cartera\n" +
           "• NO se puede deshacer\n\n" +
+          "¿Continuar?"
+      );
+
+      if (!confirmacion) return;
+    }
+
+    // ✅ CONFIRMACIÓN PARA ENVIADO (nuevo estado final)
+    if (nuevoEstado === "ENVIADO") {
+      const confirmacion = window.confirm(
+        "🚚 ¿Confirmar envío del pedido?\n\n" +
+          "Esta acción:\n" +
+          "• Marcará el pedido como ENVIADO (estado final)\n" +
+          "• Registrará la guía de transporte\n" +
+          "• El pedido se considerará completado exitosamente\n" +
+          "• Ya no podrá ser cancelado\n\n" +
           "¿Continuar?"
       );
 
@@ -185,7 +200,7 @@ export function InvoiceDetailModal({
 
       onUpdate(pedidoActualizado);
 
-      // ✅ MENSAJES ESPECÍFICOS POR ESTADO
+      // ✅ MENSAJES ESPECÍFICOS POR ESTADO - ACTUALIZADOS
       let mensaje = `Pedido cambiado a ${
         ESTADOS_PEDIDO[nuevoEstado as keyof typeof ESTADOS_PEDIDO]?.label
       }`;
@@ -195,7 +210,7 @@ export function InvoiceDetailModal({
       } else if (nuevoEstado === "CANCELADO") {
         mensaje += ". Mercancía retornada al inventario.";
       } else if (nuevoEstado === "ENVIADO") {
-        mensaje += `. Guía: ${guiaTransporte}`;
+        mensaje += `. Pedido completado exitosamente. Guía: ${guiaTransporte}`;
       }
 
       toast({
@@ -253,9 +268,7 @@ export function InvoiceDetailModal({
                       : estadoActual === "FACTURADO"
                       ? "bg-purple-100 text-purple-800"
                       : estadoActual === "ENVIADO"
-                      ? "bg-orange-100 text-orange-800"
-                      : estadoActual === "ENTREGADO"
-                      ? "bg-green-100 text-green-800"
+                      ? "bg-green-100 text-green-800" // ✅ Verde para ENVIADO (exitoso)
                       : estadoActual === "CANCELADO"
                       ? "bg-red-100 text-red-800"
                       : "bg-gray-100 text-gray-800"
@@ -265,10 +278,16 @@ export function InvoiceDetailModal({
                     ?.label || estadoActual}
                 </span>
 
-                {/* ✅ INDICADOR ESPECIAL PARA CANCELADO */}
+                {/* ✅ INDICADORES ESPECIALES */}
                 {estadoActual === "CANCELADO" && (
                   <span className="text-sm text-red-600 font-medium">
                     Inventario restaurado
+                  </span>
+                )}
+                {estadoActual === "ENVIADO" && (
+                  <span className="text-sm text-green-600 font-medium flex items-center">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Pedido completado
                   </span>
                 )}
               </div>
@@ -334,6 +353,28 @@ export function InvoiceDetailModal({
                   </div>
                 )}
 
+                {/* ✅ ADVERTENCIA PARA ENVIADO (estado final) */}
+                {nuevoEstado === "ENVIADO" && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex">
+                      <CheckCircle className="h-5 w-5 text-green-400 mr-2 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-sm font-medium text-green-800">
+                          🚚 Envío del Pedido (Estado Final)
+                        </h4>
+                        <div className="text-sm text-green-700 mt-1 space-y-1">
+                          <p>
+                            • El pedido se marcará como completado exitosamente
+                          </p>
+                          <p>• Ya no podrá ser cancelado después del envío</p>
+                          <p>• Se registrará la guía de transporte</p>
+                          <p>• Este es el estado final del pedido</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {nuevoEstado === "ENVIADO" && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -363,6 +404,8 @@ export function InvoiceDetailModal({
                     className={
                       nuevoEstado === "CANCELADO"
                         ? "bg-red-600 hover:bg-red-700 text-white"
+                        : nuevoEstado === "ENVIADO"
+                        ? "bg-green-600 hover:bg-green-700 text-white"
                         : "bg-blue-600 hover:bg-blue-700 text-white"
                     }
                   >
@@ -370,6 +413,8 @@ export function InvoiceDetailModal({
                       ? "Actualizando..."
                       : nuevoEstado === "CANCELADO"
                       ? "🗑️ Confirmar Cancelación"
+                      : nuevoEstado === "ENVIADO"
+                      ? "🚚 Confirmar Envío"
                       : "Confirmar"}
                   </Button>
                   <Button
@@ -463,13 +508,20 @@ export function InvoiceDetailModal({
                     className={`text-lg font-semibold ${
                       estadoActual === "CANCELADO"
                         ? "text-red-600"
-                        : "text-green-600"
+                        : estadoActual === "ENVIADO"
+                        ? "text-green-600"
+                        : "text-blue-600"
                     }`}
                   >
                     {formatValue(pedido.total || 0)}
                     {estadoActual === "CANCELADO" && (
                       <span className="text-sm text-red-500 ml-2">
                         (Cancelado)
+                      </span>
+                    )}
+                    {estadoActual === "ENVIADO" && (
+                      <span className="text-sm text-green-500 ml-2">
+                        (Completado)
                       </span>
                     )}
                   </p>
@@ -489,15 +541,16 @@ export function InvoiceDetailModal({
 
               {/* Información de envío */}
               {pedido.guiaTransporte && (
-                <div className="mt-4 bg-orange-50 border border-orange-200 rounded p-4">
-                  <h4 className="font-medium text-orange-900 mb-3 flex items-center">
+                <div className="mt-4 bg-green-50 border border-green-200 rounded p-4">
+                  <h4 className="font-medium text-green-900 mb-3 flex items-center">
                     <Truck className="h-4 w-4 mr-2" />
-                    Información de Envío
+                    Información de Envío{" "}
+                    {estadoActual === "ENVIADO" && "(COMPLETADO)"}
                   </h4>
                   <div className="space-y-2 text-sm">
                     {pedido.fechaEnvio && (
                       <div className="flex justify-between">
-                        <span className="text-orange-700">Fecha de envío:</span>
+                        <span className="text-green-700">Fecha de envío:</span>
                         <span className="font-medium">
                           {new Date(pedido.fechaEnvio).toLocaleDateString(
                             "es-CO"
@@ -506,7 +559,7 @@ export function InvoiceDetailModal({
                       </div>
                     )}
                     <div className="flex justify-between">
-                      <span className="text-orange-700">
+                      <span className="text-green-700">
                         Guía de transporte:
                       </span>
                       <span className="font-medium">
@@ -515,9 +568,7 @@ export function InvoiceDetailModal({
                     </div>
                     {pedido.flete && (
                       <div className="flex justify-between">
-                        <span className="text-orange-700">
-                          Valor del flete:
-                        </span>
+                        <span className="text-green-700">Valor del flete:</span>
                         <span className="font-medium">
                           {formatValue(pedido.flete)}
                         </span>
@@ -537,6 +588,11 @@ export function InvoiceDetailModal({
               {estadoActual === "CANCELADO" && (
                 <span className="ml-2 text-sm text-red-600">
                   (Inventario restaurado)
+                </span>
+              )}
+              {estadoActual === "ENVIADO" && (
+                <span className="ml-2 text-sm text-green-600">
+                  (Enviado exitosamente)
                 </span>
               )}
             </h3>
@@ -617,7 +673,9 @@ export function InvoiceDetailModal({
                         className={`py-4 px-4 text-right text-lg font-semibold ${
                           estadoActual === "CANCELADO"
                             ? "text-red-600"
-                            : "text-green-600"
+                            : estadoActual === "ENVIADO"
+                            ? "text-green-600"
+                            : "text-blue-600"
                         }`}
                       >
                         {formatValue(pedido.total || 0)}
@@ -669,6 +727,8 @@ export function InvoiceDetailModal({
                               esActual
                                 ? estado.estado === "CANCELADO"
                                   ? "bg-red-600 border-red-600"
+                                  : estado.estado === "ENVIADO"
+                                  ? "bg-green-600 border-green-600"
                                   : "bg-blue-600 border-blue-600"
                                 : "bg-white border-gray-400"
                             }`}
@@ -680,6 +740,8 @@ export function InvoiceDetailModal({
                                 esActual
                                   ? estado.estado === "CANCELADO"
                                     ? "bg-red-50 border border-red-200"
+                                    : estado.estado === "ENVIADO"
+                                    ? "bg-green-50 border border-green-200"
                                     : "bg-blue-50 border border-blue-200"
                                   : "bg-gray-50 border border-gray-200"
                               }`}
@@ -695,8 +757,6 @@ export function InvoiceDetailModal({
                                         : estado.estado === "FACTURADO"
                                         ? "bg-purple-100 text-purple-800"
                                         : estado.estado === "ENVIADO"
-                                        ? "bg-orange-100 text-orange-800"
-                                        : estado.estado === "ENTREGADO"
                                         ? "bg-green-100 text-green-800"
                                         : estado.estado === "CANCELADO"
                                         ? "bg-red-100 text-red-800"
@@ -710,6 +770,8 @@ export function InvoiceDetailModal({
                                       className={`text-xs font-medium ${
                                         estado.estado === "CANCELADO"
                                           ? "text-red-600"
+                                          : estado.estado === "ENVIADO"
+                                          ? "text-green-600"
                                           : "text-blue-600"
                                       }`}
                                     >
@@ -735,6 +797,8 @@ export function InvoiceDetailModal({
                                   {estadoInfo.description}
                                   {estado.estado === "CANCELADO" &&
                                     " - Inventario restaurado"}
+                                  {estado.estado === "ENVIADO" &&
+                                    " - Pedido completado exitosamente"}
                                 </p>
                               )}
                             </div>

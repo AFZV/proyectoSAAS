@@ -210,7 +210,18 @@ export function FormCrearRecibo({
               <FormControl>
                 <div className="flex gap-2">
                   <Input {...field} placeholder="NIT o cédula del cliente" />
-                  <Button type="button" onClick={buscarClientePorNIT}>
+                  <Button
+                    type="button"
+                    onClick={buscarClientePorNIT}
+                    className="
+    bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700
+    hover:from-blue-600 hover:to-blue-800
+    text-white font-semibold
+    shadow-md hover:shadow-lg
+    disabled:opacity-50 disabled:pointer-events-none
+    transition-all duration-200
+  "
+                  >
                     Buscar
                   </Button>
                 </div>
@@ -351,7 +362,18 @@ export function FormCrearRecibo({
         )}
 
         <div className="flex justify-center">
-          <Button type="submit" disabled={isSubmitting}>
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="
+    bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700
+    hover:from-blue-600 hover:to-blue-800
+    text-white font-semibold
+    shadow-md hover:shadow-lg
+    disabled:opacity-50 disabled:pointer-events-none
+    transition-all duration-200
+  "
+          >
             Crear Recibo
           </Button>
         </div>

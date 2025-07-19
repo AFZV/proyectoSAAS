@@ -97,6 +97,11 @@ const REPORTES_DATA: ReporteCardData[] = [
         label: "Por Vendedor",
         description: "Cartera pendiente agrupada por vendedor",
       },
+      {
+        id: "balance",
+        label: "Balance General",
+        description: "Resumen total de deudas por cliente y vendedor",
+      },
     ],
   },
 ];
@@ -145,7 +150,7 @@ export default function ReportesPage() {
     <div className="space-y-8">
       {/* Header */}
       <HeaderReportes
-        totalReportesGenerados={9} // 9 reportes reales del backend
+        totalReportesGenerados={10} // 10 reportes reales del backend (incluye balance)
         onRefresh={handleRefresh}
       />
 
@@ -217,7 +222,12 @@ export default function ReportesPage() {
                 <li>• Filtros por fechas y parámetros específicos</li>
                 <li>• Descarga automática e instantánea</li>
                 <li>• Datos en tiempo real</li>
-                <li>• Compatibilidad con Excel y PDF viewers</li>
+                <li>
+                  • <strong>Inventario y Clientes: Sin fechas</strong>
+                </li>
+                <li>
+                  • <strong>Balance General: Sin fechas</strong>
+                </li>
               </ul>
             </div>
             <div className="space-y-2">
@@ -237,7 +247,7 @@ export default function ReportesPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <CreditCard className="w-3 h-3 text-red-500" />
-                  Cuentas por cobrar
+                  Cuentas por cobrar + Balance
                 </li>
               </ul>
             </div>

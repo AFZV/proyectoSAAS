@@ -1,13 +1,12 @@
 // app/reportes/(components)/FormReportes/FormReportes.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -24,66 +23,211 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Download, FileSpreadsheet, FileText } from "lucide-react";
-import { FormReportesProps } from "./FormReportes.types";
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
+  LoaderCircle,
+} from "lucide-react";
+import { FormReportesProps, Vendedor } from "./FormReportes.types";
 import { useAuth } from "@clerk/nextjs";
 
-// Schema base
-const baseSchema = z.object({
+// ✅ SCHEMAS ESPECÍFICOS
+const formatoBaseSchema = z.object({
   formato: z.enum(["excel", "pdf"]),
-  fechaInicio: z.string().min(1, "Fecha inicial requerida"),
-  fechaFin: z.string().min(1, "Fecha final requerida"),
 });
 
-// Schemas específicos
-const rangoSchema = baseSchema.extend({
+const inventarioGeneralSchema = formatoBaseSchema;
+
+const inventarioRangoSchema = formatoBaseSchema.extend({
   inicio: z.string().min(1, "Letra inicial requerida").max(1),
   fin: z.string().min(1, "Letra final requerida").max(1),
 });
 
-const ciudadSchema = baseSchema.extend({
+const clientesTodosSchema = formatoBaseSchema;
+
+const clientesCiudadSchema = formatoBaseSchema.extend({
   ciudad: z.string().min(1, "Ciudad requerida"),
 });
 
-const vendedorSchema = baseSchema.extend({
+const clientesVendedorSchema = formatoBaseSchema.extend({
   vendedorId: z.string().min(1, "Vendedor requerido"),
 });
 
+const pedidosConFechasSchema = formatoBaseSchema.extend({
+  fechaInicio: z.string().min(1, "Fecha inicial requerida"),
+  fechaFin: z.string().min(1, "Fecha final requerida"),
+});
+
+const pedidosVendedorSchema = formatoBaseSchema.extend({
+  fechaInicio: z.string().min(1, "Fecha inicial requerida"),
+  fechaFin: z.string().min(1, "Fecha final requerida"),
+  vendedorId: z.string().min(1, "Vendedor requerido"),
+});
+
+const carteraConFechasSchema = formatoBaseSchema.extend({
+  fechaInicio: z.string().min(1, "Fecha inicial requerida"),
+  fechaFin: z.string().min(1, "Fecha final requerida"),
+});
+
+const carteraVendedorSchema = formatoBaseSchema.extend({
+  fechaInicio: z.string().min(1, "Fecha inicial requerida"),
+  fechaFin: z.string().min(1, "Fecha final requerida"),
+  vendedorId: z.string().min(1, "Vendedor requerido"),
+});
+
+const balanceGeneralSchema = formatoBaseSchema;
+
 export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [vendedores, setVendedores] = useState<Vendedor[]>([]);
+  const [loadingVendedores, setLoadingVendedores] = useState(false);
   const { toast } = useToast();
   const { getToken } = useAuth();
 
-  // Función para llamar al backend directamente
-  const generarReporte = async (data: any) => {
-    // ❌ Verificar PDF primero
-    if (data.formato === "pdf") {
+  // Obtener vendedores si es necesario
+  useEffect(() => {
+    if (opcion === "vendedor") {
+      obtenerVendedores();
+    }
+  }, [opcion]);
+
+  const obtenerVendedores = async () => {
+    try {
+      setLoadingVendedores(true);
+      const token = await getToken();
+      const BACKEND_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+      // ✅ USAR ENDPOINT EXISTENTE: Obtener usuario actual para extraer empresaId
+      const userResponse = await fetch(`${BACKEND_URL}/auth/usuario-actual`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!userResponse.ok) {
+        throw new Error("Error al obtener datos del usuario");
+      }
+
+      const userData = await userResponse.json();
+      const empresaId = userData.empresaId;
+
+      // ✅ USAR ENDPOINT EXISTENTE: /usuario/empresa/:empresaId
+      const vendedoresResponse = await fetch(
+        `${BACKEND_URL}/usuario/empresa/${empresaId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!vendedoresResponse.ok) {
+        throw new Error("Error al obtener vendedores");
+      }
+
+      const usuarios = await vendedoresResponse.json();
+
+      // Filtrar solo vendedores y admins activos
+      const vendedoresFiltrados = usuarios.filter(
+        (usuario: any) =>
+          usuario.estado === "activo" &&
+          (usuario.rol === "vendedor" || usuario.rol === "admin")
+      );
+
+      setVendedores(vendedoresFiltrados);
+    } catch (error) {
+      console.error("Error al cargar vendedores:", error);
+
+      // FALLBACK: Vendedores hardcodeados con IDs reales
+      const vendedoresTemporales: Vendedor[] = [
+        { id: "usuario-real-1", nombre: "Juan", apellidos: "Pérez" },
+        { id: "usuario-real-2", nombre: "María", apellidos: "García" },
+        { id: "usuario-real-3", nombre: "Carlos", apellidos: "López" },
+      ];
+      setVendedores(vendedoresTemporales);
+
       toast({
-        title: "🚧 Función en construcción",
+        title: "⚠️ Usando vendedores de prueba",
         description:
-          "Los reportes en PDF estarán disponibles próximamente. Usa Excel por ahora.",
+          "Reemplaza los IDs con vendedores reales de tu base de datos",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setLoadingVendedores(false);
+    }
+  };
+
+  // ✅ FUNCIÓN PARA MANEJAR CLIC EN PDF
+  const handlePdfClick = () => {
+    toast({
+      title: "🚧 Próximamente disponible",
+      description:
+        "Estamos trabajando en esta funcionalidad. Los reportes en PDF estarán disponibles próximamente. Usa Excel por ahora.",
+      variant: "destructive",
+    });
+  };
+
+  // ✅ FUNCIÓN PARA OBTENER SCHEMA CORRECTO
+  const getSchema = () => {
+    if (tipo === "inventario") {
+      if (opcion === "general") return inventarioGeneralSchema;
+      if (opcion === "rango") return inventarioRangoSchema;
     }
 
+    if (tipo === "clientes") {
+      if (opcion === "todos") return clientesTodosSchema;
+      if (opcion === "ciudad") return clientesCiudadSchema;
+      if (opcion === "vendedor") return clientesVendedorSchema;
+    }
+
+    if (tipo === "pedidos") {
+      if (opcion === "todos") return pedidosConFechasSchema;
+      if (opcion === "vendedor") return pedidosVendedorSchema;
+    }
+
+    if (tipo === "cartera") {
+      if (opcion === "general") return carteraConFechasSchema;
+      if (opcion === "vendedor") return carteraVendedorSchema;
+      if (opcion === "balance") return balanceGeneralSchema;
+    }
+
+    return formatoBaseSchema;
+  };
+
+  const form = useForm({
+    resolver: zodResolver(getSchema()),
+    defaultValues: {
+      formato: "excel" as const,
+      fechaInicio: "",
+      fechaFin: "",
+      inicio: "",
+      fin: "",
+      ciudad: "",
+      vendedorId: "",
+    },
+  });
+
+  // Función para llamar al backend
+  const generarReporte = async (data: any) => {
     const token = await getToken();
     const BACKEND_URL =
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
     let endpoint = "";
+    let method = "GET";
     let body = {};
 
-    // Determinar endpoint según tipo y opción - EXACTAMENTE como el backend
+    // Endpoints según tu backend
     if (tipo === "inventario") {
       if (opcion === "general") {
-        endpoint = `/reportes/inventario/excel`;
-        body = {
-          fechaInicio: data.fechaInicio, // El backend espera string, no ISO
-          fechaFin: data.fechaFin,
-        };
+        endpoint = `/reportes/inventario/${data.formato}`;
+        method = "GET";
+        body = {};
       } else if (opcion === "rango") {
-        endpoint = `/reportes/inventario/rango/excel`;
+        endpoint = `/reportes/inventario/rango/${data.formato}`;
+        method = "POST";
         body = {
           inicio: data.inicio.toUpperCase(),
           fin: data.fin.toUpperCase(),
@@ -91,26 +235,29 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       }
     } else if (tipo === "clientes") {
       if (opcion === "todos") {
-        endpoint = `/reportes/clientes/excel`;
-        body = {}; // Backend no espera body para este endpoint
+        endpoint = `/reportes/clientes/${data.formato}`;
+        method = "POST";
+        body = {};
       } else if (opcion === "ciudad") {
-        endpoint = `/reportes/clientes/ciudad/excel`;
+        endpoint = `/reportes/clientes/ciudad/${data.formato}`;
+        method = "POST";
         body = { ciudad: data.ciudad };
       } else if (opcion === "vendedor") {
-        // ⚠️ IMPORTANTE: Backend usa /clientes/vendedor/:id/excel
-        endpoint = `/reportes/clientes/vendedor/${data.vendedorId}/excel`;
-        body = {}; // Vendedor va en URL, no en body
+        endpoint = `/reportes/clientes/vendedor/${data.vendedorId}/${data.formato}`;
+        method = "POST";
+        body = {};
       }
     } else if (tipo === "pedidos") {
       if (opcion === "todos") {
-        endpoint = `/reportes/pedidos/excel`;
+        endpoint = `/reportes/pedidos/${data.formato}`;
+        method = "POST";
         body = {
           fechaInicio: data.fechaInicio,
           fechaFin: data.fechaFin,
         };
       } else if (opcion === "vendedor") {
-        // ⚠️ IMPORTANTE: Backend usa /pedidos/excel/:id
-        endpoint = `/reportes/pedidos/excel/${data.vendedorId}`;
+        endpoint = `/reportes/pedidos/${data.formato}/${data.vendedorId}`;
+        method = "POST";
         body = {
           fechaInicio: data.fechaInicio,
           fechaFin: data.fechaFin,
@@ -118,35 +265,45 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       }
     } else if (tipo === "cartera") {
       if (opcion === "general") {
-        endpoint = `/reportes/cartera/excel`;
+        endpoint = `/reportes/cartera/${data.formato}`;
+        method = "POST";
         body = {
           fechaInicio: data.fechaInicio,
           fechaFin: data.fechaFin,
         };
       } else if (opcion === "vendedor") {
-        // ⚠️ IMPORTANTE: Backend usa /cartera/excel/vendedor/:vendedorId
-        endpoint = `/reportes/cartera/excel/vendedor/${data.vendedorId}`;
+        endpoint = `/reportes/cartera/${data.formato}/vendedor/${data.vendedorId}`;
+        method = "POST";
         body = {
           fechaInicio: data.fechaInicio,
           fechaFin: data.fechaFin,
         };
+      } else if (opcion === "balance") {
+        endpoint = `/reportes/balance-general/${data.formato}`;
+        method = "POST";
+        body = {};
       }
     }
 
     console.log("🚀 Llamando al backend:", {
       endpoint: `${BACKEND_URL}${endpoint}`,
+      method,
       body,
-      method: "POST",
     });
 
-    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-      method: "POST",
+    const fetchOptions: RequestInit = {
+      method,
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
-    });
+    };
+
+    if (method === "POST") {
+      fetchOptions.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(`${BACKEND_URL}${endpoint}`, fetchOptions);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -159,7 +316,6 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
     // Manejar descarga
     const blob = await response.blob();
 
-    // Verificar que el blob no esté vacío
     if (blob.size === 0) {
       throw new Error(
         "El archivo descargado está vacío. Verifica los filtros aplicados."
@@ -178,36 +334,9 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
     console.log("✅ Descarga completada:", `reporte-${tipo}-${opcion}.xlsx`);
   };
 
-  // Determinar el schema según el tipo y opción
-  const getSchema = () => {
-    if (tipo === "inventario" && opcion === "rango") return rangoSchema;
-    if (tipo === "clientes" && opcion === "ciudad") return ciudadSchema;
-    if (
-      (tipo === "clientes" || tipo === "pedidos" || tipo === "cartera") &&
-      opcion === "vendedor"
-    ) {
-      return vendedorSchema;
-    }
-    return baseSchema;
-  };
-
-  const form = useForm({
-    resolver: zodResolver(getSchema()),
-    defaultValues: {
-      formato: "excel" as const,
-      fechaInicio: "",
-      fechaFin: "",
-      inicio: "",
-      fin: "",
-      ciudad: "",
-      vendedorId: "",
-    },
-  });
-
   const onSubmit = async (data: any) => {
     setIsLoading(true);
     try {
-      // Llamada directa al backend
       await generarReporte(data);
 
       toast({
@@ -229,8 +358,13 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
     }
   };
 
+  // ✅ FUNCIÓN PARA DETERMINAR SI NECESITA FECHAS
+  const necesitaFechas = () => {
+    return tipo === "pedidos" || (tipo === "cartera" && opcion !== "balance");
+  };
+
   const renderSpecificFields = () => {
-    // Campos específicos según tipo y opción
+    // Campos para inventario por rango
     if (tipo === "inventario" && opcion === "rango") {
       return (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -280,6 +414,7 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       );
     }
 
+    // Campo para clientes por ciudad
     if (tipo === "clientes" && opcion === "ciudad") {
       return (
         <FormField
@@ -298,10 +433,8 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       );
     }
 
-    if (
-      (tipo === "clientes" || tipo === "pedidos" || tipo === "cartera") &&
-      opcion === "vendedor"
-    ) {
+    // Campo para reportes por vendedor
+    if (opcion === "vendedor") {
       return (
         <FormField
           control={form.control}
@@ -309,30 +442,44 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Vendedor</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
+              <Select
+                onValueChange={field.onChange}
+                value={field.value}
+                disabled={loadingVendedores}
+              >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un vendedor" />
+                    <SelectValue
+                      placeholder={
+                        loadingVendedores
+                          ? "Cargando vendedores..."
+                          : "Selecciona un vendedor"
+                      }
+                    />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {/* ⚠️ TEMPORAL: IDs reales para testing */}
-                  <SelectItem value="test-vendedor-1">
-                    Juan Pérez (ID: test-vendedor-1)
-                  </SelectItem>
-                  <SelectItem value="test-vendedor-2">
-                    María García (ID: test-vendedor-2)
-                  </SelectItem>
-                  <SelectItem value="test-vendedor-3">
-                    Carlos López (ID: test-vendedor-3)
-                  </SelectItem>
-                  {/* 💡 TODO: Hacer fetch a /usuario/vendedores para obtener lista real */}
+                  {loadingVendedores ? (
+                    <SelectItem value="loading" disabled>
+                      <div className="flex items-center gap-2">
+                        <LoaderCircle className="w-4 h-4 animate-spin" />
+                        Cargando...
+                      </div>
+                    </SelectItem>
+                  ) : vendedores.length > 0 ? (
+                    vendedores.map((vendedor) => (
+                      <SelectItem key={vendedor.id} value={vendedor.id}>
+                        {vendedor.nombre} {vendedor.apellidos || ""}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-vendedores" disabled>
+                      No hay vendedores disponibles
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               <FormMessage />
-              <p className="text-xs text-muted-foreground">
-                💡 Usa un ID de vendedor real de tu base de datos
-              </p>
             </FormItem>
           )}
         />
@@ -345,7 +492,7 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Selector de formato */}
+        {/* ✅ SELECTOR DE FORMATO CON PDF INACTIVO */}
         <FormField
           control={form.control}
           name="formato"
@@ -367,57 +514,68 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
                     <FileSpreadsheet className="w-4 h-4 mr-2" />
                     Excel
                   </Button>
+
+                  {/* ✅ BOTÓN PDF INACTIVO CON MENSAJE */}
                   <Button
                     type="button"
-                    variant={field.value === "pdf" ? "default" : "outline"}
-                    className={`flex-1 ${
-                      field.value === "pdf"
-                        ? "bg-blue-600 hover:bg-blue-700"
-                        : "hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
-                    }`}
-                    onClick={() => field.onChange("pdf")}
+                    variant="outline"
+                    className="flex-1 opacity-50 cursor-not-allowed hover:bg-gray-50 border-gray-200"
+                    onClick={handlePdfClick}
+                    disabled={false} // No disabled para que funcione el onClick
                   >
                     <FileText className="w-4 h-4 mr-2" />
                     PDF
+                    <span className="ml-2 text-xs">🚧</span>
                   </Button>
                 </div>
               </FormControl>
               <FormMessage />
+
+              {/* ✅ MENSAJE INFORMATIVO SOBRE PDF */}
+              <div className="flex items-center gap-2 text-xs text-orange-600 bg-orange-50 p-2 rounded-lg">
+                <span>🚧</span>
+                <span>
+                  Próximamente disponible - Estamos trabajando en esta
+                  funcionalidad
+                </span>
+              </div>
             </FormItem>
           )}
         />
 
-        {/* Rango de fechas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="fechaInicio"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha Inicial</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="fechaFin"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha Final</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        {/* Rango de fechas - Solo cuando sea necesario */}
+        {necesitaFechas() && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="fechaInicio"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha Inicial</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="fechaFin"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha Final</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
 
-        {/* Información sobre los campos específicos */}
+        {/* Campos específicos */}
         {renderSpecificFields()}
 
         {/* Nota informativa */}
@@ -431,6 +589,11 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
               <p>
                 El archivo se descargará automáticamente una vez generado. Los
                 reportes en Excel permiten mayor análisis de datos.
+                {!necesitaFechas() &&
+                  " Este reporte incluye todos los registros disponibles."}
+                {tipo === "cartera" &&
+                  opcion === "balance" &&
+                  " El Balance General muestra el resumen total sin filtros de fecha."}
               </p>
             </div>
           </div>

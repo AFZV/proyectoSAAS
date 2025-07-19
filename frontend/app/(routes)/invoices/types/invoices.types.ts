@@ -1,8 +1,8 @@
-// types/invoices.types.ts - CORREGIDO: Solo cancelar en FACTURADO
+// types/invoices.types.ts - SIN ESTADO ENTREGADO - ENVIADO ES FINAL
 
 export interface EstadoPedido {
   id: string;
-  estado: 'GENERADO' | 'SEPARADO' | 'FACTURADO' | 'ENVIADO' | 'ENTREGADO' | 'CANCELADO';
+  estado: 'GENERADO' | 'SEPARADO' | 'FACTURADO' | 'ENVIADO' | 'CANCELADO'; // ✅ QUITADO ENTREGADO
   fechaEstado: string;
   pedidoId: string;
 }
@@ -40,7 +40,7 @@ export interface Usuario {
   correo: string;
 }
 
-// ✅ Pedido actualizado para manejar cancelaciones
+// ✅ Pedido sin referencias a ENTREGADO
 export interface Pedido {
   id: string;
   clienteId: string;
@@ -54,7 +54,7 @@ export interface Pedido {
   flete?: number;
   actualizado?: string;
   pdfUrl?: string; // ✅ URL del PDF del pedido
-  
+
   // ✅ Relaciones opcionales
   cliente?: Cliente;
   usuario?: Usuario;
@@ -62,9 +62,9 @@ export interface Pedido {
   estados?: EstadoPedido[];
 
   // ✅ Campos adicionales para cancelación
-  fechaCancelacion?: string; // ✅ Cuando fue cancelado
-  motivoCancelacion?: string; // ✅ Por si quieres agregar motivos
-  canceladoPor?: string; // ✅ ID del usuario que canceló
+  fechaCancelacion?: string;
+  motivoCancelacion?: string;
+  canceladoPor?: string;
 }
 
 export interface CreatePedidoDto {
@@ -79,13 +79,13 @@ export interface CreatePedidoDto {
   }[];
 }
 
-// ✅ DTO actualizado para cancelación
+// ✅ DTO sin ENTREGADO
 export interface UpdateEstadoPedidoDto {
   pedidoId: string;
-  estado: 'GENERADO' | 'SEPARADO' | 'FACTURADO' | 'ENVIADO' | 'ENTREGADO' | 'CANCELADO';
+  estado: 'GENERADO' | 'SEPARADO' | 'FACTURADO' | 'ENVIADO' | 'CANCELADO'; // ✅ SIN ENTREGADO
   guiaTransporte?: string;
   flete?: number;
-  motivoCancelacion?: string; // ✅ Opcional para cancelaciones
+  motivoCancelacion?: string;
 }
 
 export interface FilterPedidoOptions {
@@ -93,7 +93,7 @@ export interface FilterPedidoOptions {
   tipoFiltro: 'id' | 'clienteId' | 'usuarioId' | 'total' | 'empresaId' | 'fechaPedido';
 }
 
-// ✅ Estados con lógica corregida
+// ✅ ESTADOS SIN ENTREGADO - ENVIADO ES FINAL
 export const ESTADOS_PEDIDO = {
   GENERADO: {
     label: 'Generado',
@@ -118,17 +118,10 @@ export const ESTADOS_PEDIDO = {
   },
   ENVIADO: {
     label: 'Enviado',
-    color: 'bg-orange-100 text-orange-800',
+    color: 'bg-green-100 text-green-800', // ✅ CAMBIO: Ahora es verde (estado final exitoso)
     icon: '🚚',
-    description: 'Pedido en tránsito',
-    siguientes: ['ENTREGADO'], // ✅ NO puede cancelarse una vez enviado
-  },
-  ENTREGADO: {
-    label: 'Entregado',
-    color: 'bg-green-100 text-green-800',
-    icon: '✅',
-    description: 'Pedido entregado al cliente',
-    siguientes: [], // ✅ Estado final
+    description: 'Pedido enviado al cliente (ESTADO FINAL)', // ✅ Indicar que es final
+    siguientes: [], // ✅ CAMBIO: Ya no va a ENTREGADO, es estado final
   },
   CANCELADO: {
     label: 'Cancelado',
@@ -137,30 +130,32 @@ export const ESTADOS_PEDIDO = {
     description: 'Pedido cancelado, inventario revertido',
     siguientes: [], // ✅ Estado final
   }
+  // ✅ ELIMINADO: ENTREGADO
 } as const;
 
 export type EstadoPedidoKey = keyof typeof ESTADOS_PEDIDO;
 
-// ✅ Estadísticas actualizadas para incluir cancelaciones
+// ✅ Estadísticas sin referencias a ENTREGADO
 export interface EstadisticasPedidos {
   totalPedidos: number;
   pedidosPorEstado: Record<string, number>;
   ventasTotal: number;
   ventasHoy: number;
   pedidosHoy?: number;
-  pedidosCancelados?: number; // ✅ Nuevo campo
-  ventasPerdidas?: number; // ✅ Ventas canceladas
-  porcentajeCancelacion?: number; // ✅ % de cancelación
+  pedidosCancelados?: number;
+  ventasPerdidas?: number;
+  porcentajeCancelacion?: number;
+  pedidosFinalizados?: number; // ✅ ENVIADO será el equivalente a "finalizados"
 }
 
-// ✅ Enum para facilitar el manejo de estados
+// ✅ Enum sin ENTREGADO
 export enum EstadoPedidoEnum {
   GENERADO = 'GENERADO',
   SEPARADO = 'SEPARADO',
   FACTURADO = 'FACTURADO',
-  ENVIADO = 'ENVIADO',
-  ENTREGADO = 'ENTREGADO',
+  ENVIADO = 'ENVIADO', // ✅ Ahora es estado final
   CANCELADO = 'CANCELADO'
+  // ✅ ELIMINADO: ENTREGADO = 'ENTREGADO'
 }
 
 // ✅ Helper para obtener estados siguientes
@@ -168,14 +163,24 @@ export const getEstadosSiguientes = (estadoActual: EstadoPedidoKey): EstadoPedid
   return ESTADOS_PEDIDO[estadoActual]?.siguientes || [];
 };
 
-// ✅ CORREGIDO: Helper para verificar si puede cancelarse - SOLO EN SEPARADO Y FACTURADO
+// ✅ Helper para verificar si puede cancelarse - SEPARADO y FACTURADO
 export const puedeSerCancelado = (estadoActual: EstadoPedidoKey): boolean => {
-  return ['SEPARADO', 'FACTURADO'].includes(estadoActual); // ✅ SEPARADO y FACTURADO pueden cancelarse
+  return ['SEPARADO', 'FACTURADO'].includes(estadoActual);
 };
 
-// ✅ Helper para verificar si es estado final
+// ✅ Helper para verificar si es estado final - ENVIADO y CANCELADO
 export const esEstadoFinal = (estado: EstadoPedidoKey): boolean => {
-  return ['ENTREGADO', 'CANCELADO'].includes(estado);
+  return ['ENVIADO', 'CANCELADO'].includes(estado); // ✅ CAMBIO: ENVIADO ahora es final
+};
+
+// ✅ Helper para verificar si el pedido está completado exitosamente
+export const esPedidoExitoso = (estado: EstadoPedidoKey): boolean => {
+  return estado === 'ENVIADO'; // ✅ ENVIADO = Exitoso
+};
+
+// ✅ Helper para verificar si el pedido está en proceso
+export const esPedidoEnProceso = (estado: EstadoPedidoKey): boolean => {
+  return ['GENERADO', 'SEPARADO', 'FACTURADO'].includes(estado);
 };
 
 // ✅ Helper para obtener color del badge
@@ -207,18 +212,19 @@ export interface ValidacionCancelacion {
   requiereConfirmacion: boolean;
 }
 
-// ✅ Filtros adicionales para pedidos cancelados
+// ✅ Filtros actualizados
 export interface FiltrosPedidosAvanzados extends FilterPedidoOptions {
   estados?: EstadoPedidoKey[];
   fechaDesde?: string;
   fechaHasta?: string;
   incluyeCancelados?: boolean;
   soloActivos?: boolean;
+  soloFinalizados?: boolean; // ✅ ENVIADO
 }
 
-// ✅ Métricas de rendimiento
+// ✅ Métricas de rendimiento actualizadas
 export interface MetricasPedidos {
-  tiempoPromedioEntrega: number; // días
+  tiempoPromedioEntrega: number; // días hasta ENVIADO
   tasaCancelacion: number; // porcentaje
   valorPromedioPedido: number;
   clientesRecurrentes: number;
@@ -227,4 +233,40 @@ export interface MetricasPedidos {
     nombre: string;
     cantidadVendida: number;
   }[];
+  tasaEnvio: number; // ✅ % de pedidos que llegan a ENVIADO
 }
+
+// ✅ CONSTANTES ÚTILES
+export const ESTADOS_FINALES: EstadoPedidoKey[] = ['ENVIADO', 'CANCELADO'];
+export const ESTADOS_ACTIVOS: EstadoPedidoKey[] = ['GENERADO', 'SEPARADO', 'FACTURADO'];
+export const ESTADOS_CON_PDF: EstadoPedidoKey[] = ['FACTURADO', 'ENVIADO']; // ✅ Desde FACTURADO ya hay PDF
+
+// ✅ Helper para obtener descripción del estado
+export const getDescripcionEstado = (estado: EstadoPedidoKey): string => {
+  const estadoInfo = ESTADOS_PEDIDO[estado];
+  if (!estadoInfo) return 'Estado desconocido';
+
+  if (estado === 'ENVIADO') {
+    return 'Pedido enviado exitosamente al cliente';
+  }
+
+  return estadoInfo.description;
+};
+
+// ✅ Helper para obtener el siguiente paso lógico
+export const getSiguientePasoRecomendado = (estado: EstadoPedidoKey): string => {
+  switch (estado) {
+    case 'GENERADO':
+      return 'Separar productos del inventario';
+    case 'SEPARADO':
+      return 'Facturar pedido para descontar stock';
+    case 'FACTURADO':
+      return 'Enviar pedido al cliente';
+    case 'ENVIADO':
+      return 'Pedido completado exitosamente';
+    case 'CANCELADO':
+      return 'Pedido cancelado, no requiere acción';
+    default:
+      return 'Acción no definida';
+  }
+};

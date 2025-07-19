@@ -19,7 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Edit3, Plus, X } from "lucide-react";
+import { RefreshCw, Edit3, Plus, X, ShoppingCart } from "lucide-react";
 import { Loading } from "@/components/Loading";
 
 const searchSchema = z.object({
@@ -170,14 +170,29 @@ export function FormUpdateRecibo({
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={isSearching}>
+            <Button
+              type="submit"
+              disabled={isSearching}
+              className={`
+    w-full
+    bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700
+    hover:from-blue-600 hover:to-blue-800
+    text-white font-semibold
+    shadow-md hover:shadow-lg
+    disabled:opacity-50 disabled:pointer-events-none
+    transition-all duration-200
+  `}
+            >
               {isSearching ? (
                 <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />{" "}
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                   Buscando...
                 </>
               ) : (
-                "Buscar Recibo"
+                <>
+                  <ShoppingCart className="w-4 h-4 mr-2" />
+                  Buscar Recibo
+                </>
               )}
             </Button>
           </form>
