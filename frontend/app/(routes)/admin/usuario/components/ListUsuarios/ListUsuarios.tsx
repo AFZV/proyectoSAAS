@@ -12,12 +12,15 @@ export async function getUsuarios(): Promise<Usuario[]> {
       return [];
     }
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/usuario/all`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store", // Evita cache para datos actualizados
-    });
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/usuario/obtener/all`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store", // Evita cache para datos actualizados
+      }
+    );
 
     if (!res.ok) {
       console.error("Error al obtener clientes:", res.status, res.statusText);

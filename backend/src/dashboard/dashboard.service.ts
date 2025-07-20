@@ -102,8 +102,19 @@ export class DashboardService {
       _sum: { total: true },
       where:
         rol === 'admin'
-          ? { empresaId: empresaId }
-          : { empresaId: empresaId, usuarioId: usuarioId },
+          ? {
+              empresaId: empresaId,
+              estados: {
+                some: { estado: 'FACTURADO' },
+              },
+            }
+          : {
+              empresaId: empresaId,
+              usuarioId: usuarioId,
+              estados: {
+                some: { estado: 'FACTURADO' },
+              },
+            },
     });
 
     const meses = [
@@ -201,17 +212,14 @@ export class DashboardService {
     const totalVentas = await this.prisma.pedido
       .aggregate({
         _sum: { total: true },
-        where:
-          rol === 'admin'
-            ? {
-                empresaId,
-                fechaPedido: { gte: inicioDia, lte: finDia },
-              }
-            : {
-                empresaId,
-                usuarioId: dbUserId,
-                fechaPedido: { gte: inicioDia, lte: finDia },
-              },
+        where: {
+          empresaId,
+          fechaPedido: { gte: inicioDia, lte: finDia },
+          ...(rol !== 'admin' && { usuarioId: dbUserId }),
+          estados: {
+            some: { estado: 'FACTURADO' },
+          },
+        },
       })
       .then((res) => res._sum.total ?? 0);
 
@@ -227,12 +235,18 @@ export class DashboardService {
                   gte: rangoActual.desde,
                   lte: rangoActual.hasta,
                 },
+                estados: {
+                  some: { estado: 'FACTURADO' },
+                },
               }
             : {
                 usuarioId: dbUserId,
                 fechaPedido: {
                   gte: rangoActual.desde,
                   lte: rangoActual.hasta,
+                },
+                estados: {
+                  some: { estado: 'FACTURADO' },
                 },
               },
       }),
@@ -246,12 +260,18 @@ export class DashboardService {
                   gte: rangoAnterior.desde,
                   lte: rangoAnterior.hasta,
                 },
+                estados: {
+                  some: { estado: 'FACTURADO' },
+                },
               }
             : {
                 usuarioId: dbUserId,
                 fechaPedido: {
                   gte: rangoAnterior.desde,
                   lte: rangoAnterior.hasta,
+                },
+                estados: {
+                  some: { estado: 'FACTURADO' },
                 },
               },
       }),

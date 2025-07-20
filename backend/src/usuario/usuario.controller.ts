@@ -18,6 +18,7 @@ import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { UsuarioGuard } from 'src/common/guards/usuario.guard';
+import { SuperadminGuard } from 'src/common/guards/superadmin.guard';
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('usuario')
@@ -44,7 +45,8 @@ export class UsuarioController {
   obtenerUsuarios() {
     return this.usuarioService.obtenerSuperAdmins();
   }
-
+  @UseGuards(SuperadminGuard)
+  @Roles('superadmin')
   @Get('resumen')
   getResumen(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
@@ -57,6 +59,8 @@ export class UsuarioController {
     return this.usuarioService.cambiarEstadoSuperAdmin(id);
   }
   ///crea un usuario y le asigna una empresa
+  @UseGuards(SuperadminGuard)
+  @Roles('superadmin')
   @Post()
   crearUsuarioEmpresa(@Body() data: CreateUsuarioDto) {
     return this.usuarioService.crearUsuario(data);
@@ -70,17 +74,21 @@ export class UsuarioController {
     return this.usuarioService.actualizarUsuarioEmpresa(data, id);
   }
   //obtener todos los usuarios
-  @Get('all')
+  @UseGuards(SuperadminGuard)
+  @Roles('superadmin')
+  @Get('obtener/all')
   getUsuarioConEmpresa(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
     return this.usuarioService.obtenerTodosUsuarios(usuario);
   }
-
+  @UseGuards(SuperadminGuard)
+  @Roles('superadmin')
   @Get('porId/:userId')
   getUsuario(@Param('userId') userId: string) {
     return this.usuarioService.obtenerUsuarioPorId(userId);
   }
-
+  @UseGuards(SuperadminGuard)
+  @Roles('superadmin')
   @Get('correo/:correo')
   getByEmail(@Param('correo') correo: string) {
     return this.usuarioService.getByEmail(correo);

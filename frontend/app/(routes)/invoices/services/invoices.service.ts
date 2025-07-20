@@ -74,9 +74,19 @@ export class InvoicesService {
     });
 
     // ✅ VALIDACIÓN: Solo estados permitidos (sin ENTREGADO)
-    const estadosPermitidos = ['GENERADO', 'SEPARADO', 'FACTURADO', 'ENVIADO', 'CANCELADO'];
+    const estadosPermitidos = [
+      "GENERADO",
+      "SEPARADO",
+      "FACTURADO",
+      "ENVIADO",
+      "CANCELADO",
+    ];
     if (!estadosPermitidos.includes(data.estado)) {
-      throw new Error(`Estado no válido: ${data.estado}. Estados permitidos: ${estadosPermitidos.join(', ')}`);
+      throw new Error(
+        `Estado no válido: ${
+          data.estado
+        }. Estados permitidos: ${estadosPermitidos.join(", ")}`
+      );
     }
 
     // ✅ PREPARAR PAYLOAD SEGÚN EL BACKEND
@@ -137,9 +147,7 @@ export class InvoicesService {
     } catch (error) {
       console.error("❌ Error al cancelar pedido:", error);
       throw new Error(
-        error instanceof Error
-          ? error.message
-          : "No se pudo cancelar el pedido"
+        error instanceof Error ? error.message : "No se pudo cancelar el pedido"
       );
     }
   }
@@ -150,12 +158,12 @@ export class InvoicesService {
     filtros: {
       filtro: string;
       tipoFiltro:
-      | "id"
-      | "clienteId"
-      | "usuarioId"
-      | "total"
-      | "empresaId"
-      | "fechaPedido";
+        | "id"
+        | "clienteId"
+        | "usuarioId"
+        | "total"
+        | "empresaId"
+        | "fechaPedido";
     }
   ): Promise<Pedido[]> {
     console.log("🔍 Filtrando pedidos:", filtros);
@@ -239,7 +247,8 @@ export class InvoicesService {
 
     // ✅ Calcular porcentaje de éxito (pedidos que llegan a ENVIADO)
     if (stats.totalPedidos > 0) {
-      stats.porcentajeExito = (stats.pedidosEnviados / stats.totalPedidos) * 100;
+      stats.porcentajeExito =
+        (stats.pedidosEnviados / stats.totalPedidos) * 100;
     }
 
     return stats;
@@ -271,10 +280,10 @@ export class InvoicesService {
       return { puede: true }; // GENERADO puede cancelarse
     }
 
-    const estadoActual = pedido.estados
-      .sort((a, b) =>
+    const estadoActual = pedido.estados.sort(
+      (a, b) =>
         new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime()
-      )[0].estado;
+    )[0].estado;
 
     switch (estadoActual) {
       case "GENERADO":
@@ -285,37 +294,41 @@ export class InvoicesService {
       case "ENVIADO": // ✅ ENVIADO ya no puede cancelarse (es estado final)
         return {
           puede: false,
-          razon: "No se puede cancelar un pedido que ya fue enviado (estado final)"
+          razon:
+            "No se puede cancelar un pedido que ya fue enviado (estado final)",
         };
 
       case "CANCELADO":
         return {
           puede: false,
-          razon: "El pedido ya está cancelado"
+          razon: "El pedido ya está cancelado",
         };
 
       default:
         return {
           puede: false,
-          razon: "Estado no reconocido"
+          razon: "Estado no reconocido",
         };
     }
   }
 
   // 🔍 VERIFICAR SI PEDIDO ESTÁ COMPLETADO - SIN ENTREGADO
-  verificarEstaCompletado(pedido: Pedido): { completado: boolean; estado: string } {
+  verificarEstaCompletado(pedido: Pedido): {
+    completado: boolean;
+    estado: string;
+  } {
     if (!pedido.estados || pedido.estados.length === 0) {
       return { completado: false, estado: "GENERADO" };
     }
 
-    const estadoActual = pedido.estados
-      .sort((a, b) =>
+    const estadoActual = pedido.estados.sort(
+      (a, b) =>
         new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime()
-      )[0].estado;
+    )[0].estado;
 
     return {
       completado: estadoActual === "ENVIADO", // ✅ ENVIADO = completado exitosamente
-      estado: estadoActual
+      estado: estadoActual,
     };
   }
 
@@ -324,7 +337,7 @@ export class InvoicesService {
     token: string,
     pedidoId: string
   ): Promise<any> {
-    // Esta función podrías implementarla si el backend 
+    // Esta función podrías implementarla si el backend
     // proporciona detalles de los movimientos revertidos
     try {
       return this.makeRequest(`/pedidos/${pedidoId}/movimientos`, token);
@@ -341,31 +354,37 @@ export class InvoicesService {
       const estadisticas = await this.obtenerEstadisticasPedidos(token);
 
       // ✅ Calcular tiempo promedio hasta ENVIADO
-      const pedidosEnviados = pedidos.filter(p => {
+      const pedidosEnviados = pedidos.filter((p) => {
         const estadoActual = this.getEstadoActual(p);
         return estadoActual === "ENVIADO";
       });
 
       let tiempoPromedioEnvio = 0;
       if (pedidosEnviados.length > 0) {
-        const tiempos = pedidosEnviados.map(p => {
+        const tiempos = pedidosEnviados.map((p) => {
           const fechaCreacion = new Date(p.fechaPedido);
           const fechaEnvio = new Date(p.fechaEnvio || p.fechaPedido);
-          return (fechaEnvio.getTime() - fechaCreacion.getTime()) / (1000 * 60 * 60 * 24); // días
+          return (
+            (fechaEnvio.getTime() - fechaCreacion.getTime()) /
+            (1000 * 60 * 60 * 24)
+          ); // días
         });
 
-        tiempoPromedioEnvio = tiempos.reduce((a, b) => a + b, 0) / tiempos.length;
+        tiempoPromedioEnvio =
+          tiempos.reduce((a, b) => a + b, 0) / tiempos.length;
       }
 
       return {
         tiempoPromedioEnvio: Math.round(tiempoPromedioEnvio * 10) / 10, // redondear a 1 decimal
-        tasaCancelacion: estadisticas.totalPedidos > 0
-          ? (estadisticas.pedidosCancelados / estadisticas.totalPedidos) * 100
-          : 0,
+        tasaCancelacion:
+          estadisticas.totalPedidos > 0
+            ? (estadisticas.pedidosCancelados / estadisticas.totalPedidos) * 100
+            : 0,
         tasaExito: estadisticas.porcentajeExito || 0, // % que llegan a ENVIADO
-        valorPromedioPedido: estadisticas.totalPedidos > 0
-          ? estadisticas.ventasTotal / estadisticas.totalPedidos
-          : 0,
+        valorPromedioPedido:
+          estadisticas.totalPedidos > 0
+            ? estadisticas.ventasTotal / estadisticas.totalPedidos
+            : 0,
         distribucionEstados: estadisticas.pedidosPorEstado,
       };
     } catch (error) {
@@ -387,13 +406,16 @@ export class InvoicesService {
   }
 
   // 📊 VALIDAR TRANSICIÓN DE ESTADO - SIN ENTREGADO
-  validarTransicionEstado(estadoActual: string, nuevoEstado: string): { valida: boolean; razon?: string } {
+  validarTransicionEstado(
+    estadoActual: string,
+    nuevoEstado: string
+  ): { valida: boolean; razon?: string } {
     const transicionesValidas: Record<string, string[]> = {
-      'GENERADO': ['SEPARADO'],
-      'SEPARADO': ['FACTURADO', 'CANCELADO'],
-      'FACTURADO': ['ENVIADO', 'CANCELADO'],
-      'ENVIADO': [], // ✅ Estado final, no puede cambiar
-      'CANCELADO': [], // ✅ Estado final, no puede cambiar
+      GENERADO: ["SEPARADO"],
+      SEPARADO: ["FACTURADO", "CANCELADO"],
+      FACTURADO: ["ENVIADO", "CANCELADO"],
+      ENVIADO: [], // ✅ Estado final, no puede cambiar
+      CANCELADO: [], // ✅ Estado final, no puede cambiar
     };
 
     const estadosPermitidos = transicionesValidas[estadoActual] || [];
@@ -401,7 +423,9 @@ export class InvoicesService {
     if (!estadosPermitidos.includes(nuevoEstado)) {
       return {
         valida: false,
-        razon: `No se puede cambiar de ${estadoActual} a ${nuevoEstado}. Estados permitidos: ${estadosPermitidos.join(', ') || 'ninguno (estado final)'}`
+        razon: `No se puede cambiar de ${estadoActual} a ${nuevoEstado}. Estados permitidos: ${
+          estadosPermitidos.join(", ") || "ninguno (estado final)"
+        }`,
       };
     }
 
@@ -413,23 +437,23 @@ export class InvoicesService {
     const estadoActual = this.getEstadoActual(pedido);
 
     switch (estadoActual) {
-      case 'GENERADO':
-        return ['Separar productos del inventario'];
+      case "GENERADO":
+        return ["Separar productos del inventario"];
 
-      case 'SEPARADO':
-        return ['Facturar pedido', 'Cancelar si es necesario'];
+      case "SEPARADO":
+        return ["Facturar pedido", "Cancelar si es necesario"];
 
-      case 'FACTURADO':
-        return ['Enviar pedido al cliente', 'Cancelar si es necesario'];
+      case "FACTURADO":
+        return ["Enviar pedido al cliente", "Cancelar si es necesario"];
 
-      case 'ENVIADO':
-        return ['Pedido completado exitosamente ✓'];
+      case "ENVIADO":
+        return ["Pedido completado exitosamente ✓"];
 
-      case 'CANCELADO':
-        return ['Pedido cancelado - No requiere acción'];
+      case "CANCELADO":
+        return ["Pedido cancelado - No requiere acción"];
 
       default:
-        return ['Estado no reconocido'];
+        return ["Estado no reconocido"];
     }
   }
 }

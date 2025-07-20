@@ -30,7 +30,7 @@ export class PedidosController {
     return this.pedidosService.crearPedido(data, usuario);
   }
 
-  @Roles('admin')
+  @Roles('admin', 'bodega')
   @Post('estado')
   crearEstado(@Body() data: CrearEstadoPedidoDto) {
     const { estado, pedidoId, flete, guiaTransporte } = data;
@@ -42,7 +42,7 @@ export class PedidosController {
     );
   }
 
-  @Roles('admin', 'vendedor')
+  @Roles('admin', 'vendedor', 'bodega')
   @Get()
   obtenerPedidos(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;

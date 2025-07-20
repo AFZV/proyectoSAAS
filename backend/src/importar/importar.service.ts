@@ -4,7 +4,7 @@ import { CreateClienteExcelDto } from './dto/create-masive-clientes.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CreateMasiveProductoDto } from './dto/create-masive-products.dto';
 import { CreateMasiveInventariosDto } from './dto/create-masive-inventarios.dto';
-
+import { formatearTexto } from 'src/lib/formatearTexto';
 @Injectable()
 export class ImportarService {
   constructor(private prisma: PrismaService) {}
@@ -20,7 +20,7 @@ export class ImportarService {
     for (const product of data) {
       await this.prisma.producto.create({
         data: {
-          nombre: String(product.nombre).trim().toUpperCase(),
+          nombre: formatearTexto(String(product.nombre)).trim(),
           precioCompra: product.precioCompra,
           precioVenta: product.precioVenta ?? 0,
           categoriaId: product.categoriaId,
@@ -147,15 +147,15 @@ export class ImportarService {
     for (const cliente of data) {
       const createdCliente = await this.prisma.cliente.create({
         data: {
-          nit: String(cliente.nit).trim(),
-          rasonZocial: cliente.rasonZocial.trim(),
-          nombre: cliente.nombre.trim(),
-          apellidos: cliente.apellidos.trim(),
-          telefono: cliente.telefono.trim(),
+          nit: formatearTexto(String(cliente.nit)).trim(),
+          rasonZocial: formatearTexto(cliente.rasonZocial).trim(),
+          nombre: formatearTexto(cliente.nombre).trim(),
+          apellidos: formatearTexto(cliente.apellidos).trim(),
+          telefono: formatearTexto(String(cliente.telefono)).trim(),
           email: cliente.email.trim(),
-          direccion: cliente.direccion.trim(),
-          departamento: cliente.departamento.trim(),
-          ciudad: cliente.ciudad.trim(),
+          direccion: formatearTexto(cliente.direccion).trim(),
+          departamento: formatearTexto(cliente.departamento).trim(),
+          ciudad: formatearTexto(cliente.ciudad).trim(),
           estado:
             String(cliente.estado).toLowerCase() === 'true' ||
             String(cliente.estado) === '1',

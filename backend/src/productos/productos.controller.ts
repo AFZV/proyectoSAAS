@@ -39,7 +39,7 @@ export class ProductosController {
     return { message: `Se ha creado el producto ${producto.nombre}`, producto };
   }
   //Obtener todos los productos de una empresa
-  @Roles('admin', 'superadmin')
+  @Roles('admin', 'superadmin', 'bodega')
   @Get('empresa')
   async findAll(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
@@ -49,7 +49,7 @@ export class ProductosController {
   }
 
   //Obtener los productos con stock de una empresa
-  @Roles('admin', 'vendedor', 'superadmin', 'temporal')
+  @Roles('admin', 'vendedor', 'superadmin', 'temporal', 'bodega')
   @Get('empresa/activos')
   async findAllActivos(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
@@ -104,7 +104,7 @@ export class ProductosController {
   }
 
   //Obtener todas las categorías de productos de una empresa
-  @Roles('admin', 'superadmin', 'vendedor', 'temporal')
+  @Roles('admin', 'superadmin', 'vendedor', 'temporal', 'bodega')
   @Get('categoria/empresa')
   async findAllCategorias(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
@@ -114,7 +114,7 @@ export class ProductosController {
   }
 
   //Obtener productos por categoria
-  @Roles('admin', 'superadmin', 'vendedor', 'temporal')
+  @Roles('admin', 'superadmin', 'vendedor', 'temporal', 'bodega')
   @Get('categoria/:categoriaId')
   async findByCategoria(
     @Param('categoriaId') categoriaId: string,

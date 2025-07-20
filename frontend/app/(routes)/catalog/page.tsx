@@ -1,14 +1,15 @@
 // page.tsx
-import { auth } from "@clerk/nextjs";
+
 import { getToken } from "@/lib/getToken";
 import { catalogService } from "./services/catalog.services";
 import { CatalogClient } from "./(components)/CatalogClient";
 import { HeaderCatalog } from "./(components)/HeaderCatalog/HeaderCatalog";
+import { ErrorReload } from "./(components)";
 
 export default async function CatalogPage() {
-  const { userId } = auth();
+  const token = await getToken();
 
-  if (!userId) {
+  if (!token) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">
@@ -28,7 +29,7 @@ export default async function CatalogPage() {
 
   try {
     // Obtener token y datos del usuario
-    const token = await getToken();
+
     const userResponse = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/auth/usuario-actual`,
       {
@@ -47,6 +48,7 @@ export default async function CatalogPage() {
 
     // Obtener productos para el catálogo
     const productos = await catalogService.getProductosParaCatalogo(token);
+    console.log("esto llega en productos al forntend:", productos);
 
     return (
       <div className="space-y-6">
@@ -80,12 +82,7 @@ export default async function CatalogPage() {
           <p className="text-gray-600">
             No se pudieron cargar los productos. Inténtalo de nuevo más tarde.
           </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-          >
-            Reintentar
-          </button>
+          <ErrorReload />
         </div>
       </div>
     );

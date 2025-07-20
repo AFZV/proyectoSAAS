@@ -9,8 +9,8 @@ import { ClerkProvider } from "@clerk/nextjs";
 const noto = Noto_Sans_Display({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Panel Recaudos",
-  description: "Creado por Alexis Zuluaga",
+  title: "BGA Cloud SAAS",
+  description: "SoftVerse",
 };
 
 export default function RootLayout({

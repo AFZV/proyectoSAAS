@@ -21,7 +21,7 @@ export class PedidosService {
     private pdfUploaderService: PdfUploaderService,
     private cloudinaryService: CloudinaryService,
     private resend: ResendService
-  ) { }
+  ) {}
 
   ///crea un pedido en la bdd y sus relaciones
   async crearPedido(data: CreatePedidoDto, usuario: UsuarioPayload) {
@@ -328,7 +328,7 @@ export class PedidosService {
         pedidoId,
         guiaTransporte,
         flete,
-        tipoFlete: typeof flete
+        tipoFlete: typeof flete,
       });
 
       const [, estadoNuevo] = await this.prisma.$transaction([
@@ -417,7 +417,7 @@ export class PedidosService {
         this.prisma.estadoPedido.create({
           data: {
             pedidoId,
-            estado: estadoNormalizado
+            estado: estadoNormalizado,
           },
         })
       );
@@ -443,14 +443,14 @@ export class PedidosService {
 
     const pedidos = await this.prisma.pedido.findMany({
       where:
-        rol === 'admin'
+        rol === 'admin' || rol === 'bodega'
           ? {
-            empresaId: empresaId,
-          }
+              empresaId: empresaId,
+            }
           : {
-            empresaId,
-            usuarioId,
-          },
+              empresaId,
+              usuarioId,
+            },
       include: {
         cliente: true,
         usuario: true,
@@ -472,11 +472,11 @@ export class PedidosService {
 
     // ✅ Agregar log para verificar datos
     console.log('📋 Pedidos obtenidos:');
-    pedidos.slice(0, 3).forEach(pedido => {
+    pedidos.slice(0, 3).forEach((pedido) => {
       console.log(`Pedido ${pedido.id.slice(-8)}:`, {
         flete: pedido.flete,
         guiaTransporte: pedido.guiaTransporte,
-        fechaEnvio: pedido.fechaEnvio
+        fechaEnvio: pedido.fechaEnvio,
       });
     });
 
@@ -490,10 +490,11 @@ export class PedidosService {
     data: UpdatePedidoDto,
     usuario: UsuarioPayload
   ) {
-    const { rol } = usuario;
-    if (rol !== 'admin') throw new UnauthorizedException('no esta autorizado ');
+    const { rol, empresaId } = usuario;
+    if (rol !== 'admin' && rol !== 'bodega')
+      throw new UnauthorizedException('no esta autorizado ');
     const pedidoExistente = await this.prisma.pedido.findUnique({
-      where: { id: pedidoId },
+      where: { id: pedidoId, empresaId: empresaId },
       include: {
         productos: true,
         estados: {

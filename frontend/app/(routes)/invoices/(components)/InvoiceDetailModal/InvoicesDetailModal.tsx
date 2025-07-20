@@ -292,7 +292,7 @@ export function InvoiceDetailModal({
                 )}
               </div>
 
-              {userType === "admin" &&
+              {(userType === "admin" || userType === "bodega") &&
                 estadosSiguientes.length > 0 &&
                 !showEstadoForm && (
                   <Button
@@ -308,130 +308,135 @@ export function InvoiceDetailModal({
           </div>
 
           {/* Formulario para cambiar estado */}
-          {showEstadoForm && userType === "admin" && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-4">
-                Cambiar Estado del Pedido
-              </h4>
-              <div className="space-y-4">
-                <div>
-                  <Label>Nuevo Estado</Label>
-                  <select
-                    value={nuevoEstado}
-                    onChange={(e) => setNuevoEstado(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
-                  >
-                    <option value="">Seleccionar estado...</option>
-                    {estadosSiguientes.map((estado) => (
-                      <option key={estado} value={estado}>
-                        {
-                          ESTADOS_PEDIDO[estado as keyof typeof ESTADOS_PEDIDO]
-                            ?.label
-                        }
-                      </option>
-                    ))}
-                  </select>
-                </div>
+          {showEstadoForm &&
+            (userType === "admin" || userType === "bodega") && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-4">
+                  Cambiar Estado del Pedido
+                </h4>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Nuevo Estado</Label>
+                    <select
+                      value={nuevoEstado}
+                      onChange={(e) => setNuevoEstado(e.target.value)}
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
+                    >
+                      <option value="">Seleccionar estado...</option>
+                      {estadosSiguientes.map((estado) => (
+                        <option key={estado} value={estado}>
+                          {
+                            ESTADOS_PEDIDO[
+                              estado as keyof typeof ESTADOS_PEDIDO
+                            ]?.label
+                          }
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                {/* ✅ ADVERTENCIA PARA CANCELADO */}
-                {nuevoEstado === "CANCELADO" && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                    <div className="flex">
-                      <AlertTriangle className="h-5 w-5 text-red-400 mr-2 flex-shrink-0" />
-                      <div>
-                        <h4 className="text-sm font-medium text-red-800">
-                          ⚠️ Cancelación de Pedido
-                        </h4>
-                        <div className="text-sm text-red-700 mt-1 space-y-1">
-                          <p>• Se retornará toda la mercancía al inventario</p>
-                          <p>• Se eliminarán los movimientos de cartera</p>
-                          <p>• El total del pedido se pondrá en $0</p>
-                          <p>• Esta acción NO se puede deshacer</p>
+                  {/* ✅ ADVERTENCIA PARA CANCELADO */}
+                  {nuevoEstado === "CANCELADO" && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <div className="flex">
+                        <AlertTriangle className="h-5 w-5 text-red-400 mr-2 flex-shrink-0" />
+                        <div>
+                          <h4 className="text-sm font-medium text-red-800">
+                            ⚠️ Cancelación de Pedido
+                          </h4>
+                          <div className="text-sm text-red-700 mt-1 space-y-1">
+                            <p>
+                              • Se retornará toda la mercancía al inventario
+                            </p>
+                            <p>• Se eliminarán los movimientos de cartera</p>
+                            <p>• El total del pedido se pondrá en $0</p>
+                            <p>• Esta acción NO se puede deshacer</p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* ✅ ADVERTENCIA PARA ENVIADO (estado final) */}
-                {nuevoEstado === "ENVIADO" && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <div className="flex">
-                      <CheckCircle className="h-5 w-5 text-green-400 mr-2 flex-shrink-0" />
-                      <div>
-                        <h4 className="text-sm font-medium text-green-800">
-                          🚚 Envío del Pedido (Estado Final)
-                        </h4>
-                        <div className="text-sm text-green-700 mt-1 space-y-1">
-                          <p>
-                            • El pedido se marcará como completado exitosamente
-                          </p>
-                          <p>• Ya no podrá ser cancelado después del envío</p>
-                          <p>• Se registrará la guía de transporte</p>
-                          <p>• Este es el estado final del pedido</p>
+                  {/* ✅ ADVERTENCIA PARA ENVIADO (estado final) */}
+                  {nuevoEstado === "ENVIADO" && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex">
+                        <CheckCircle className="h-5 w-5 text-green-400 mr-2 flex-shrink-0" />
+                        <div>
+                          <h4 className="text-sm font-medium text-green-800">
+                            🚚 Envío del Pedido (Estado Final)
+                          </h4>
+                          <div className="text-sm text-green-700 mt-1 space-y-1">
+                            <p>
+                              • El pedido se marcará como completado
+                              exitosamente
+                            </p>
+                            <p>• Ya no podrá ser cancelado después del envío</p>
+                            <p>• Se registrará la guía de transporte</p>
+                            <p>• Este es el estado final del pedido</p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {nuevoEstado === "ENVIADO" && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Guía de Transporte *</Label>
-                      <Input
-                        value={guiaTransporte}
-                        onChange={(e) => setGuiaTransporte(e.target.value)}
-                        placeholder="Número de guía"
-                      />
+                  {nuevoEstado === "ENVIADO" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Guía de Transporte *</Label>
+                        <Input
+                          value={guiaTransporte}
+                          onChange={(e) => setGuiaTransporte(e.target.value)}
+                          placeholder="Número de guía"
+                        />
+                      </div>
+                      <div>
+                        <Label>Valor del Flete</Label>
+                        <Input
+                          type="number"
+                          value={flete}
+                          onChange={(e) => setFlete(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <Label>Valor del Flete</Label>
-                      <Input
-                        type="number"
-                        value={flete}
-                        onChange={(e) => setFlete(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                <div className="flex space-x-3">
-                  <Button
-                    onClick={handleCambiarEstado}
-                    disabled={isUpdating || !nuevoEstado}
-                    className={
-                      nuevoEstado === "CANCELADO"
-                        ? "bg-red-600 hover:bg-red-700 text-white"
+                  <div className="flex space-x-3">
+                    <Button
+                      onClick={handleCambiarEstado}
+                      disabled={isUpdating || !nuevoEstado}
+                      className={
+                        nuevoEstado === "CANCELADO"
+                          ? "bg-red-600 hover:bg-red-700 text-white"
+                          : nuevoEstado === "ENVIADO"
+                          ? "bg-green-600 hover:bg-green-700 text-white"
+                          : "bg-blue-600 hover:bg-blue-700 text-white"
+                      }
+                    >
+                      {isUpdating
+                        ? "Actualizando..."
+                        : nuevoEstado === "CANCELADO"
+                        ? "🗑️ Confirmar Cancelación"
                         : nuevoEstado === "ENVIADO"
-                        ? "bg-green-600 hover:bg-green-700 text-white"
-                        : "bg-blue-600 hover:bg-blue-700 text-white"
-                    }
-                  >
-                    {isUpdating
-                      ? "Actualizando..."
-                      : nuevoEstado === "CANCELADO"
-                      ? "🗑️ Confirmar Cancelación"
-                      : nuevoEstado === "ENVIADO"
-                      ? "🚚 Confirmar Envío"
-                      : "Confirmar"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowEstadoForm(false);
-                      setNuevoEstado("");
-                      setGuiaTransporte("");
-                      setFlete("");
-                    }}
-                  >
-                    Cancelar
-                  </Button>
+                        ? "🚚 Confirmar Envío"
+                        : "Confirmar"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowEstadoForm(false);
+                        setNuevoEstado("");
+                        setGuiaTransporte("");
+                        setFlete("");
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* Información del cliente */}
           <div className="bg-white border border-gray-200 rounded-lg p-6">
