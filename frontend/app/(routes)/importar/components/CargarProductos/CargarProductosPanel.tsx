@@ -30,17 +30,13 @@ export function CargarProductosPanel({ onClose }: { onClose: () => void }) {
 
       const mapped = raw
         .map((row: any) => ({
-          nombre: row["Nombre del producto (obligatorio)"]?.trim(),
-          precioCompra: Number(row["Precio de compra (número, obligatorio)"]),
-          precioVenta: Number(row["Precio de venta (número, obligatorio)"]),
-          categoriaId: row["ID de la categoría (opcional)"] || null,
+          nombre: row["nombre"]?.toString().trim(), // ahora coincide con el encabezado real
+          precioCompra: Number(row["precioCompra"]),
+          precioVenta: Number(row["precioVenta"]),
+          categoriaId: row["categoriaId"] || null,
         }))
         .filter(
-          (p) =>
-            p.nombre &&
-            p.nombre.toLowerCase() !== "nombre" && // ⚠️ evita la fila encabezado de ejemplo
-            !isNaN(p.precioCompra) &&
-            !isNaN(p.precioVenta)
+          (p) => p.nombre && !isNaN(p.precioCompra) && !isNaN(p.precioVenta)
         );
 
       setData(mapped);

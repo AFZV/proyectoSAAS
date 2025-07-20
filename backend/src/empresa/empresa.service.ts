@@ -8,6 +8,7 @@ import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { UpdateEmpresaDto } from './dto/update-empresa.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { formatearTexto } from 'src/lib/formatearTexto';
 
 @Injectable()
 export class EmpresaService {
@@ -18,8 +19,13 @@ export class EmpresaService {
 
   // Crear una empresa
   async create(data: CreateEmpresaDto) {
+    const dataCleaned = {
+      ...data,
+      ciudad: formatearTexto(data.ciudad),
+      departamento: formatearTexto(data.departamento),
+    };
     const empresa = await this.prisma.empresa.create({
-      data: { ...data, estado: 'activa' },
+      data: { ...dataCleaned, estado: 'activa' },
     });
 
     return {

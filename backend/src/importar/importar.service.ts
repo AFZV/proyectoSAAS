@@ -22,10 +22,9 @@ export class ImportarService {
         data: {
           nombre: String(product.nombre).trim().toUpperCase(),
           precioCompra: product.precioCompra,
-          precioVenta: product.precioVenta,
+          precioVenta: product.precioVenta ?? 0,
+          categoriaId: product.categoriaId,
           estado: 'activo',
-          imagenUrl:
-            'https://res.cloudinary.com/dtgz8eqz9/image/upload/v1752615296/empresas/c9123d4e-de7e-46e7-a0c1-7582280656a2/productos/CUCHILLO.jpeg.jpg'.trim(),
           empresaId: empresaId,
         },
       });
@@ -84,31 +83,28 @@ export class ImportarService {
       const stockNuevo = Number(item.stock);
 
       if (inventario) {
-        const diferencia = stockNuevo - inventario.stockActual;
-
         // Solo actualizar stockActual (nunca el stockReferenciaOinicial)
         await this.prisma.inventario.update({
           where: {
             idInventario: inventario.idInventario,
           },
           data: {
-            stockActual: stockNuevo,
+            stockActual: { increment: stockNuevo },
           },
         });
 
         // Registrar movimiento solo si hay diferencia
-        if (diferencia !== 0) {
-          await this.prisma.movimientoInventario.create({
-            data: {
-              idEmpresa: empresaId,
-              idProducto: item.idProducto,
-              cantidadMovimiendo: diferencia,
-              idTipoMovimiento: tipoAjuste.idTipoMovimiento,
-              IdUsuario: usuarioId,
-              observacion: 'Ajuste por actualización masiva de stock',
-            },
-          });
-        }
+
+        await this.prisma.movimientoInventario.create({
+          data: {
+            idEmpresa: empresaId,
+            idProducto: item.idProducto,
+            cantidadMovimiendo: stockNuevo,
+            idTipoMovimiento: tipoAjuste.idTipoMovimiento,
+            IdUsuario: usuarioId,
+            observacion: 'Ajuste por actualización masiva de stock',
+          },
+        });
       } else {
         // Primera carga de inventario para ese producto
         await this.prisma.inventario.create({

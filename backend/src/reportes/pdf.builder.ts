@@ -2,7 +2,12 @@
 import PDFDocument = require('pdfkit');
 
 export function buildInventarioPDF(
-  rows: Array<{ nombre: string; cantidades: number; precio: number; total: number }>,
+  rows: Array<{
+    nombre: string;
+    cantidades: number;
+    precio: number;
+    total: number;
+  }>
 ): PDFDocument {
   const doc = new PDFDocument({
     size: 'A4',
@@ -11,16 +16,19 @@ export function buildInventarioPDF(
   });
 
   // — Título —
-  doc.fontSize(20).text('Reporte de Inventario', { align: 'center' }).moveDown(1);
+  doc
+    .fontSize(20)
+    .text('Reporte de Inventario', { align: 'center' })
+    .moveDown(1);
 
   // — Configuración de tabla —
   const margin = { top: 80, left: 50, right: 50, bottom: 50 };
   const usableWidth = doc.page.width - margin.left - margin.right;
-  const col1 = { x: margin.left,            width: usableWidth * 0.4  };
-  const col2 = { x: col1.x + col1.width,    width: usableWidth * 0.15 };
-  const col3 = { x: col2.x + col2.width,    width: usableWidth * 0.2  };
-  const col4 = { x: col3.x + col3.width,    width: usableWidth * 0.25 };
-  const rowH  = 30;
+  const col1 = { x: margin.left, width: usableWidth * 0.4 };
+  const col2 = { x: col1.x + col1.width, width: usableWidth * 0.15 };
+  const col3 = { x: col2.x + col2.width, width: usableWidth * 0.2 };
+  const col4 = { x: col3.x + col3.width, width: usableWidth * 0.25 };
+  const rowH = 30;
 
   // — Borde exterior de la tabla —
   const totalRows = rows.length + 1;
@@ -35,10 +43,10 @@ export function buildInventarioPDF(
   let y = tableTopY;
   doc.fontSize(12).font('Helvetica-Bold');
   doc
-    .text('Nombre',         col1.x, y, { width: col1.width, align: 'left' })
-    .text('Cantidad',       col2.x, y, { width: col2.width, align: 'right' })
+    .text('Nombre', col1.x, y, { width: col1.width, align: 'left' })
+    .text('Cantidad', col2.x, y, { width: col2.width, align: 'right' })
     .text('Valor Unitario', col3.x, y, { width: col3.width, align: 'right' })
-    .text('Total',          col4.x, y, { width: col4.width, align: 'right' });
+    .text('Total', col4.x, y, { width: col4.width, align: 'right' });
 
   y += rowH;
   doc.font('Helvetica');
@@ -47,15 +55,29 @@ export function buildInventarioPDF(
   for (const r of rows) {
     // línea separadora
     doc
-      .moveTo(col1.x - 2,                y - 2)
+      .moveTo(col1.x - 2, y - 2)
       .lineTo(col1.x - 2 + usableWidth + 4, y - 2)
       .stroke();
 
     doc
-      .text(r.nombre,                   col1.x, y, { width: col1.width, align: 'left',  height: rowH, lineGap: 4 })
-      .text(r.cantidades.toLocaleString(), col2.x, y, { width: col2.width, align: 'right' })
-      .text(`$${r.precio.toLocaleString()}`,  col3.x, y, { width: col3.width, align: 'right' })
-      .text(`$${r.total.toLocaleString()}`,   col4.x, y, { width: col4.width, align: 'right' });
+      .text(r.nombre, col1.x, y, {
+        width: col1.width,
+        align: 'left',
+        height: rowH,
+        lineGap: 4,
+      })
+      .text(r.cantidades.toLocaleString(), col2.x, y, {
+        width: col2.width,
+        align: 'right',
+      })
+      .text(`$${r.precio.toLocaleString()}`, col3.x, y, {
+        width: col3.width,
+        align: 'right',
+      })
+      .text(`$${r.total.toLocaleString()}`, col4.x, y, {
+        width: col4.width,
+        align: 'right',
+      });
 
     y += rowH;
 

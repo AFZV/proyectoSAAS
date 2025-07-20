@@ -147,10 +147,21 @@ export class UsuarioService {
 
   //obtiene los usuarios por empresa
 
-  async getUsuariosPorEmpresa(empresaId: string) {
-    return this.prisma.usuario.findMany({
+  async getUsuariosPorEmpresa(usuario: UsuarioPayload) {
+    if (!usuario) throw new BadRequestException('no permitido');
+    const { empresaId } = usuario;
+    const usuarios = await this.prisma.usuario.findMany({
       where: { empresaId },
+      select: {
+        id: true,
+        nombre: true,
+        apellidos: true,
+        rol: true,
+        estado: true,
+      },
     });
+    console.log('respondiendo al front con susuarios :', usuarios);
+    return usuarios;
   }
 
   async getResumen(usuario: UsuarioPayload) {

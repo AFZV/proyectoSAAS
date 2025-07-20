@@ -10,18 +10,23 @@ import { UpdateProductoDto } from './dto/actualizar-producto.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CreateCategoriaProductoDto } from './dto/create-categoria-producto.dto';
 import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
+import { formatearTexto } from 'src/lib/formatearTexto';
 @Injectable()
 export class ProductosService {
   constructor(
     private prisma: PrismaService,
     private pdfUploaderService: PdfUploaderService
-  ) { }
+  ) {}
 
   async create(usuario: UsuarioPayload, data: CreateProductoDto) {
+    const dataCleaned = {
+      ...data,
+      nombre: data.nombre,
+    };
     try {
       return await this.prisma.producto.create({
         data: {
-          ...data,
+          ...dataCleaned,
           estado: 'activo', // Por defecto, el producto se crea como activo
           empresaId: usuario.empresaId, // Asignamos la empresa del usuario
           categoriaId: data.categoriaId, // Asignamos la categoría por su ID
@@ -69,20 +74,20 @@ export class ProductosService {
         where:
           rol === 'admin'
             ? {
-              empresaId: empresaId,
-              estado: 'activo', // Solo productos activos
-            }
+                empresaId: empresaId,
+                estado: 'activo', // Solo productos activos
+              }
             : {
-              empresaId: empresaId,
-              estado: 'activo', // Solo productos activos
-              inventario: {
-                some: {
-                  stockActual: {
-                    gt: 0, // Solo productos con stock actual mayor a 0
+                empresaId: empresaId,
+                estado: 'activo', // Solo productos activos
+                inventario: {
+                  some: {
+                    stockActual: {
+                      gt: 0, // Solo productos con stock actual mayor a 0
+                    },
                   },
                 },
               },
-            },
 
         include: {
           //Incluimos el inventario del producto
@@ -138,8 +143,8 @@ export class ProductosService {
 
     const productosFormateados = productos.map((p) => ({
       nombre: p.nombre,
-      imagenUrl: p.imagenUrl,
-      precioVenta: p.precioVenta,
+      imagenUrl: p.imagenUrl ?? '',
+      precioVenta: p.precioVenta ?? 0,
       categoria: p.categoria ?? undefined,
       stockDisponible: p.inventario.reduce(
         (acc, inv) => acc + (inv.stockActual || 0),
@@ -199,8 +204,8 @@ export class ProductosService {
           nombre: data.nombre,
           precioCompra: data.precioCompra,
           precioVenta: data.precioVenta,
-          categoriaId: data.categoriaId,// Asignamos la categoría por su ID
-          ...(data.imagenUrl !== undefined && { imagenUrl: data.imagenUrl }),//Para actualizar la imagenUrl solo si se proporciona
+          categoriaId: data.categoriaId, // Asignamos la categoría por su ID
+          ...(data.imagenUrl !== undefined && { imagenUrl: data.imagenUrl }), //Para actualizar la imagenUrl solo si se proporciona
         },
       });
     } catch (error) {
@@ -218,10 +223,14 @@ export class ProductosService {
     usuario: UsuarioPayload,
     data: CreateCategoriaProductoDto
   ) {
+    const dataCleaned = {
+      ...data,
+      nombre: formatearTexto(data.nombre),
+    };
     try {
       return await this.prisma.categoriasProducto.create({
         data: {
-          ...data,
+          ...dataCleaned,
           empresaId: usuario.empresaId,
         },
       });

@@ -35,6 +35,11 @@ const REPORTES_DATA: ReporteCardData[] = [
         description:
           "Productos filtrados por inicial del nombre (A-C, D-F, etc.)",
       },
+      {
+        id: "productos",
+        label: "Reporte Total de Productos",
+        description: "Todos los productos activos",
+      },
     ],
   },
   {

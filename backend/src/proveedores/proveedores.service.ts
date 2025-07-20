@@ -14,46 +14,47 @@ import { UpdateProveedorDto } from './dto/update-proveedor.dto';
 export class ProveedoresService {
   constructor(private prisma: PrismaService) {}
 
-  //crea un proveedor en la bdd tomando el empresaid del usuario logueado
+  // Crea un proveedor y lo asocia a la empresa del usuario logueado
   async crearProveedor(data: createProveedorDto, usuario: UsuarioPayload) {
-    try {
-      if (usuario.rol === 'admin') {
-        const empresaId = usuario.empresaId;
-        const proveedor = await this.prisma.proveedores.create({
-          data: {
-            ...data,
-            idEmpresa: empresaId,
-          },
-        });
-        // const relacion = await this.prisma.proveedorEmpresa.create({
-        //   data: {
-        //     proveedorId: proveedor.idProveedor,
+    if (usuario.rol === 'admin') {
+      const empresaId = usuario.empresaId;
 
-        //   },
-        // });
-        return proveedor;
-      }
-    } catch (error) {
-      if (error) {
-        throw error;
-      }
+      const proveedor = await this.prisma.proveedores.create({
+        data: {
+          ...data,
+        },
+      });
+
+      await this.prisma.proveedorEmpresa.create({
+        data: {
+          proveedorId: proveedor.idProveedor,
+          empresaId,
+        },
+      });
+
+      return proveedor; // 🔁 Como antes: solo retorna el proveedor
     }
   }
 
-  ///obtiene todos los proveedores de una empresa
+  // Obtiene todos los proveedores de una empresa
   async obtenerProveedores(empresaId: string) {
     if (!empresaId) {
       throw new Error('EmpresaId es requerido');
     }
 
-    return this.prisma.proveedores.findMany({
+    const proveedores = await this.prisma.proveedores.findMany({
       where: {
-        idEmpresa: empresaId,
+        proveedorEmpresa: {
+          some: { empresaId }, // ✅ tienen relación con esta empresa
+          none: { empresaId: { not: empresaId } }, // ❌ no están relacionados con otras
+        },
       },
     });
+
+    return proveedores;
   }
 
-  ///actualizar empresa pasando el id y los datos a actualizar
+  // Actualiza un proveedor si pertenece a la empresa del usuario
   async actualizarProveedorId(
     proveedorId: string,
     data: UpdateProveedorDto,
@@ -63,12 +64,14 @@ export class ProveedoresService {
       throw new Error('El id del proveedor es requerido');
     }
 
-    // Verificar que el proveedor pertenece a la empresa del usuario
-    const proveedor = await this.prisma.proveedores.findUnique({
-      where: { idProveedor: proveedorId },
+    const relacion = await this.prisma.proveedorEmpresa.findFirst({
+      where: {
+        proveedorId,
+        empresaId: usuario.empresaId,
+      },
     });
 
-    if (!proveedor || proveedor.idEmpresa !== usuario.empresaId) {
+    if (!relacion) {
       throw new BadRequestException(
         'No tiene permiso para actualizar este proveedor'
       );
@@ -80,35 +83,46 @@ export class ProveedoresService {
     });
   }
 
+  // Retorna resumen del total de proveedores de una empresa
   async getResumen(usuario: UsuarioPayload) {
     if (!usuario) throw new BadRequestException('No tiene acceso');
     const { empresaId, rol } = usuario;
+
     if (rol === 'admin') {
-      const total = await this.prisma.proveedores.count({
-        where: {
-          idEmpresa: empresaId,
-        },
+      const total = await this.prisma.proveedorEmpresa.count({
+        where: { empresaId },
       });
+
       return {
         total,
       };
     }
   }
 
+  // Retorna un proveedor por su identificación, validando que pertenezca a la empresa del usuario
   async getProveedorById(usuario: UsuarioPayload, proveedorId: string) {
     if (!usuario)
-      throw new UnauthorizedException('No esta autorizado para acceder');
+      throw new UnauthorizedException('No está autorizado para acceder');
+
     const { empresaId } = usuario;
-    const proveedor = await this.prisma.proveedores.findFirst({
+
+    const relacion = await this.prisma.proveedorEmpresa.findFirst({
       where: {
-        identificacion: proveedorId,
-        idEmpresa: empresaId,
+        empresaId,
+        proveedor: {
+          identificacion: proveedorId,
+        },
+      },
+      include: {
+        proveedor: true,
       },
     });
-    if (!proveedor) {
+
+    if (!relacion || !relacion.proveedor) {
       throw new NotFoundException('Proveedor no encontrado');
     }
-    console.log('respondio el service:', proveedor);
-    return proveedor;
+
+    console.log('respondió el service:', relacion.proveedor);
+    return relacion.proveedor;
   }
 }

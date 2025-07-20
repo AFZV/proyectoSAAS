@@ -10,7 +10,7 @@ import { UsuarioPayload } from 'src/types/usuario-payload';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 
 //import { UpdateClienteDto } from './dto/update-cliente.dto';
-
+import { formatearTexto } from 'src/lib/formatearTexto';
 @Injectable()
 export class ClienteService {
   constructor(private prisma: PrismaService) {}
@@ -28,10 +28,18 @@ export class ClienteService {
         existente,
       };
     }
+    const dataCleaned = {
+      ...data,
+      departamento: formatearTexto(data.departamento),
+      ciudad: formatearTexto(data.ciudad),
+      nombre: formatearTexto(data.nombre),
+      apellidos: formatearTexto(data.apellidos),
+      rasonZocial: formatearTexto(data.rasonZocial),
+    };
 
     const cliente = await this.prisma.cliente.create({
       data: {
-        ...data,
+        ...dataCleaned,
         estado: true,
       },
     });

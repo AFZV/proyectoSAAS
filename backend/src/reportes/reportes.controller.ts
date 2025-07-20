@@ -27,7 +27,7 @@ export class ReportesController {
   constructor(private readonly reportesService: ReportesService) {}
   //Reporte de carga de inventario
   @Roles('admin')
-  @Get('backupinv/:format')
+  @Get('/inventario/productos/:format')
   async RestoreBackuproduct(
     @Req() req: UsuarioRequest,
     @Param('format') format: 'excel' | 'pdf',
@@ -37,6 +37,7 @@ export class ReportesController {
     const rows = await this.reportesService.inventarioCompleto(usuario);
 
     const columns: ColumnDef<(typeof rows)[0]>[] = [
+      { header: 'Id Productos', key: 'id', width: 60 },
       { header: 'Nombre', key: 'nombre', width: 40 },
       { header: 'Cantidad', key: 'cantidades', width: 12, numFmt: '#,##0' },
       {
@@ -76,6 +77,7 @@ export class ReportesController {
     const rows = await this.reportesService.inventarioValor(usuario);
 
     const columns: ColumnDef<(typeof rows)[0]>[] = [
+      { header: 'ID producto', key: 'id', width: 60 },
       { header: 'Nombre', key: 'nombre', width: 40 },
       { header: 'Cantidad', key: 'cantidades', width: 12, numFmt: '#,##0' },
       {

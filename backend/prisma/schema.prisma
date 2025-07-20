@@ -29,7 +29,7 @@ model Empresa {
   actualizado      DateTime           @updatedAt
   estado           String             @db.Text
 
- proveedores Proveedores[]
+
  pedidos Pedido[]
  compras Compras[]
  reciboss Recibo[]
@@ -113,13 +113,14 @@ model Producto {
   codigo      Int      @default(autoincrement())
   nombre      String   @db.Text
   precioCompra      Float    @db.DoublePrecision 
-  precioVenta      Float    @db.DoublePrecision ////debo hacer este campo opcional para la creacion masiva
+  precioVenta      Float?    @db.DoublePrecision ////debo hacer este campo opcional para la creacion masiva
   categoriaId String ?
-  imagenUrl   String   @db.Text          ////debo hacer este campo opcional para la creacion masiva
+  imagenUrl   String ?  @db.Text          ////debo hacer este campo opcional para la creacion masiva
   fechaCreado      DateTime @default(now())
   fechaActualizado DateTime @updatedAt
   estado String @db.Text
   manifiestoUrl     String?   @db.Text // ← NUEVO CAMPO OPCIONAL
+  descripcion String? @default("")
 
   empresaId   String
   empresa     Empresa  @relation(fields: [empresaId], references: [id])
@@ -152,7 +153,7 @@ model Inventario {
   idProducto String
   idEmpresa String
   stockActual Float @default(0) @db.DoublePrecision
-  stockReferenciaOinicial Float @default(0) @db.DoublePrecision  // hacer opcional para carga masiva o mandar lo mismo que se ingresa
+  stockReferenciaOinicial Float? @default(0) @db.DoublePrecision  // hacer opcional para carga masiva o mandar lo mismo que se ingresa
 
   producto Producto @relation(fields: [idProducto],references: [id])
   empresa Empresa @relation(fields: [idEmpresa],references: [id])
@@ -200,10 +201,7 @@ model Proveedores {
   razonsocial String @db.Text
   telefono String @db.Text
   direccion String @db.Text
-  idEmpresa String  /// esta se va 
 
-
- empresa Empresa @relation(fields: [idEmpresa],references: [id])// esta se va 
   compras Compras[]
   proveedorEmpresa ProveedorEmpresa[]
 }
@@ -229,7 +227,7 @@ model Recibo {
   Fechacrecion      DateTime @default(now())
   empresaId String
 
-  ///agregar campo opcional para controlar cuando se revise un recibo
+  revisado Boolean? @default(false)///agregar campo opcional para controlar cuando se revise un recibo
 
 
 empresa Empresa @relation(fields: [empresaId],references: [id])

@@ -13,18 +13,17 @@ import { UsuarioService } from './usuario.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { CreateSuperadminDto } from './dto/create-superadmin.dto';
 import { UpdateUsuarioAdminDto } from './dto/update-usuarioadmin.dto';
-import { SuperadminGuard } from 'src/common/guards/superadmin.guard';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 
-@UseGuards(SuperadminGuard, RolesGuard)
-@Roles('superadmin')
+@UseGuards(UsuarioGuard, RolesGuard)
 @Controller('usuario')
 export class UsuarioController {
   constructor(private readonly usuarioService: UsuarioService) {}
-
+  @Roles('superadmin')
   @Post('admin')
   crearSuperAdmin(
     @Body() data: CreateSuperadminDto,
@@ -32,7 +31,7 @@ export class UsuarioController {
   ) {
     return this.usuarioService.createSuperAdmin(data, req.usuario.empresaId);
   }
-
+  @Roles('superadmin')
   @Patch('admin/:id')
   actualizarAdmin(
     @Param('id') id: string,
@@ -86,9 +85,11 @@ export class UsuarioController {
   getByEmail(@Param('correo') correo: string) {
     return this.usuarioService.getByEmail(correo);
   }
-
-  @Get('empresa/:empresaId')
-  getUsuariosPorEmpresa(@Param('empresaId') empresaId: string) {
-    return this.usuarioService.getUsuariosPorEmpresa(empresaId);
+  @Roles('admin')
+  @Get('usuarios/empresa')
+  getUsuariosPorEmpresa(@Req() req: UsuarioRequest) {
+    console.log('entrando al controller de usuario');
+    const usuario = req.usuario;
+    return this.usuarioService.getUsuariosPorEmpresa(usuario);
   }
 }

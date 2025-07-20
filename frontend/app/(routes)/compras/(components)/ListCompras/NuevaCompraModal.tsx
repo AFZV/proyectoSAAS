@@ -20,7 +20,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ShoppingCart, Package, X, Loader2, Plus, DollarSign } from "lucide-react";
+import {
+  ShoppingCart,
+  Package,
+  X,
+  Loader2,
+  Plus,
+  DollarSign,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { FormCreateProduct } from "../../../catalog/(components)/FormCreateProduct";
 
@@ -67,11 +74,12 @@ function CreateProductModal({
   const handleProductSuccess = async () => {
     // Cerrar el modal
     setIsOpen(false);
-    
+
     // Mostrar mensaje de éxito
     toast({
       title: "Producto creado",
-      description: "El producto ha sido agregado al catálogo. Búscalo para agregarlo a la compra.",
+      description:
+        "El producto ha sido agregado al catálogo. Búscalo para agregarlo a la compra.",
     });
 
     // Notificar al componente padre para que recargue los productos
@@ -100,10 +108,11 @@ function CreateProductModal({
             Crear Nuevo Producto
           </DialogTitle>
           <DialogDescription>
-            Agrega un nuevo producto al catálogo y podrás buscarlo para agregarlo a la compra
+            Agrega un nuevo producto al catálogo y podrás buscarlo para
+            agregarlo a la compra
           </DialogDescription>
         </DialogHeader>
-        
+
         {/* 🎯 Aquí usamos el FormCreateProduct existente */}
         <div className="mt-4">
           <FormCreateProduct onSuccess={handleProductSuccess} />
@@ -113,15 +122,19 @@ function CreateProductModal({
   );
 }
 
-export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraModalProps) {
+export function NuevaCompraModal({
+  open,
+  onClose,
+  onCompraCreada,
+}: NuevaCompraModalProps) {
   const { getToken } = useAuth();
   const { toast } = useToast();
 
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
-  const [formData, setFormData] = useState<CompraFormData>({ 
-    idProveedor: "", 
-    ProductosCompras: [] 
+  const [formData, setFormData] = useState<CompraFormData>({
+    idProveedor: "",
+    ProductosCompras: [],
   });
   const [loading, setLoading] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -135,16 +148,25 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
       try {
         const token = await getToken();
         if (!token) throw new Error("Token no disponible");
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/proveedores/all`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/proveedores/all`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const data = await res.json();
-        const list: Proveedor[] = Array.isArray(data) ? data : data.proveedores || [];
+        console.log("esto llega al front de proveedores desde backend:", data);
+        const list: Proveedor[] = Array.isArray(data)
+          ? data
+          : data.proveedores || [];
         setProveedores(list);
       } catch (err) {
         console.error("Error cargando proveedores:", err);
-        toast({ title: "No se pudo cargar proveedores", variant: "destructive" });
+        toast({
+          title: "No se pudo cargar proveedores",
+          variant: "destructive",
+        });
       }
     })();
   }, [open, getToken, toast]);
@@ -155,9 +177,12 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
     try {
       const token = await getToken();
       if (!token) return;
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/productos/empresa`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/productos/empresa`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
       const list: Producto[] = (data.productos || data || []).map((p: any) => ({
@@ -194,7 +219,7 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
   const handleProductCreated = () => {
     // Recargar la lista de productos para incluir el nuevo
     fetchProductos();
-    
+
     toast({
       title: "Lista actualizada",
       description: "Busca el nuevo producto para agregarlo a la compra",
@@ -214,11 +239,11 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
       ...f,
       ProductosCompras: [
         ...f.ProductosCompras,
-        { 
-          idProducto: prod.id, 
+        {
+          idProducto: prod.id,
           cantidad: 0, // 🔥 Cambiado: ahora inicia en 0 (vacío)
           precio: prod.precio,
-          nombre: prod.nombre 
+          nombre: prod.nombre,
         },
       ],
     }));
@@ -229,8 +254,8 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
   const updateQty = (i: number, qty: number) => {
     setFormData((f) => ({
       ...f,
-      ProductosCompras: f.ProductosCompras.map((it, idx) =>
-        idx === i ? { ...it, cantidad: Math.max(0, qty) } : it // 🔥 Cambiado: permite 0
+      ProductosCompras: f.ProductosCompras.map(
+        (it, idx) => (idx === i ? { ...it, cantidad: Math.max(0, qty) } : it) // 🔥 Cambiado: permite 0
       ),
     }));
   };
@@ -253,7 +278,7 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
 
   // Cálculos totales
   const totalCompra = formData.ProductosCompras.reduce(
-    (sum, it) => sum + (it.cantidad * it.precio),
+    (sum, it) => sum + it.cantidad * it.precio,
     0
   );
 
@@ -268,26 +293,31 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
     if (!formData.idProveedor) {
       return toast({ title: "Selecciona proveedor", variant: "destructive" });
     }
-    
+
     // 🔥 Validar que no haya productos con cantidad 0
-    const productosConCantidadCero = formData.ProductosCompras.filter(p => p.cantidad === 0);
+    const productosConCantidadCero = formData.ProductosCompras.filter(
+      (p) => p.cantidad === 0
+    );
     if (productosConCantidadCero.length > 0) {
-      return toast({ 
-        title: "Cantidad requerida", 
+      return toast({
+        title: "Cantidad requerida",
         description: "Todos los productos deben tener una cantidad mayor a 0",
-        variant: "destructive" 
+        variant: "destructive",
       });
     }
-    
+
     if (!formData.ProductosCompras.length) {
-      return toast({ title: "Agrega al menos un producto", variant: "destructive" });
+      return toast({
+        title: "Agrega al menos un producto",
+        variant: "destructive",
+      });
     }
 
     setLoading(true);
     try {
       const token = await getToken();
       if (!token) throw new Error("Token no disponible");
-      
+
       const payload = {
         idProveedor: formData.idProveedor,
         ProductosCompras: formData.ProductosCompras.map((it) => ({
@@ -299,14 +329,17 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
 
       console.log("📦 Enviando compra:", payload);
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/compras/create`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json", 
-          Authorization: `Bearer ${token}` 
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/compras/create`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       if (!res.ok) {
         const errorData = await res.json();
@@ -316,19 +349,19 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
       const result = await res.json();
       console.log("✅ Compra creada:", result);
 
-      toast({ 
-        title: "Compra creada exitosamente", 
-        description: `Total: $${totalCompra.toLocaleString("es-CO")}` 
+      toast({
+        title: "Compra creada exitosamente",
+        description: `Total: $${totalCompra.toLocaleString("es-CO")}`,
       });
-      
+
       onClose();
       onCompraCreada?.();
     } catch (err: any) {
       console.error("❌ Error:", err);
-      toast({ 
-        title: "Error creando compra", 
+      toast({
+        title: "Error creando compra",
         description: err.message,
-        variant: "destructive" 
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -353,7 +386,7 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
         </button>
 
         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <ShoppingCart className="w-5 h-5 text-blue-600" /> 
+          <ShoppingCart className="w-5 h-5 text-blue-600" />
           Nueva Compra
         </h2>
 
@@ -363,7 +396,9 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
             <Label>Proveedor *</Label>
             <Select
               value={formData.idProveedor}
-              onValueChange={(v) => setFormData((f) => ({ ...f, idProveedor: v }))}
+              onValueChange={(v) =>
+                setFormData((f) => ({ ...f, idProveedor: v }))
+              }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona proveedor" />
@@ -382,7 +417,7 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Package className="w-5 h-5 text-green-600" /> 
+                <Package className="w-5 h-5 text-green-600" />
                 Productos ({formData.ProductosCompras.length})
               </h3>
               {totalItems > 0 && (
@@ -396,7 +431,10 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
             {formData.ProductosCompras.length > 0 && (
               <div className="space-y-3 max-h-60 overflow-y-auto border rounded-lg p-3">
                 {formData.ProductosCompras.map((it, idx) => (
-                  <div key={idx} className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-700">
+                  <div
+                    key={idx}
+                    className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-700"
+                  >
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
                         <div className="font-medium text-sm">{it.nombre}</div>
@@ -404,24 +442,30 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
                           ID: {it.idProducto}
                         </div>
                         <div className="text-xs text-blue-600">
-                          Precio actual: {formatCurrency(productos.find(p => p.id === it.idProducto)?.precio || 0)}
+                          Precio actual:{" "}
+                          {formatCurrency(
+                            productos.find((p) => p.id === it.idProducto)
+                              ?.precio || 0
+                          )}
                         </div>
-                        {it.precio !== (productos.find(p => p.id === it.idProducto)?.precio || 0) && (
+                        {it.precio !==
+                          (productos.find((p) => p.id === it.idProducto)
+                            ?.precio || 0) && (
                           <div className="text-xs text-orange-600 font-medium">
                             ⚠️ Se actualizará precio del producto
                           </div>
                         )}
                       </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => removeProd(idx)}
                         className="text-red-600 hover:text-red-700"
                       >
                         <X size={16} />
                       </Button>
                     </div>
-                    
+
                     {/* 🔥 Controles de cantidad y precio - CAMBIADO A 3 COLUMNAS */}
                     <div className="grid grid-cols-3 gap-3 items-center">
                       <div>
@@ -443,7 +487,7 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
                           </div>
                         )}
                       </div>
-                      
+
                       <div>
                         <Label className="text-xs">Nuevo Precio Compra</Label>
                         <div className="relative">
@@ -467,14 +511,16 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
                           Actualizará precio del producto
                         </div>
                       </div>
-                      
+
                       <div className="text-center">
-                        <Label className="text-xs text-gray-600">Subtotal</Label>
+                        <Label className="text-xs text-gray-600">
+                          Subtotal
+                        </Label>
                         <div className="font-semibold text-green-600">
                           {formatCurrency(it.cantidad * it.precio)}
                         </div>
                       </div>
-                      
+
                       {/* 🔥 REMOVIDA LA CUARTA COLUMNA */}
                     </div>
                   </div>
@@ -489,7 +535,7 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
                 {/* 🎯 Botón para crear nuevo producto */}
                 <CreateProductModal onProductCreated={handleProductCreated} />
               </div>
-              
+
               <Input
                 placeholder="Buscar producto por nombre..."
                 value={searchTerm}
@@ -500,26 +546,33 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
                 onFocus={() => setShowDropdown(searchTerm.length > 0)}
                 className="mt-1"
               />
-              
+
               {showDropdown && (
                 <div className="absolute top-full left-0 right-0 bg-white dark:bg-gray-800 border rounded shadow-lg max-h-40 overflow-auto z-10 mt-1">
-                  {(filtered.length > 0 ? filtered : [
-                    { id: "", nombre: "No hay resultados", precio: 0 }
-                  ]).slice(0, 10).map((p) => (
-                    <button
-                      key={p.id || "no-results"}
-                      type="button"
-                      disabled={!p.id}
-                      onClick={() => p.id && addProduct(p)}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 flex justify-between"
-                    >
-                      <span>{p.nombre}</span>
-                      {p.id && <span className="text-green-600">{formatCurrency(p.precio)}</span>}
-                    </button>
-                  ))}
+                  {(filtered.length > 0
+                    ? filtered
+                    : [{ id: "", nombre: "No hay resultados", precio: 0 }]
+                  )
+                    .slice(0, 10)
+                    .map((p) => (
+                      <button
+                        key={p.id || "no-results"}
+                        type="button"
+                        disabled={!p.id}
+                        onClick={() => p.id && addProduct(p)}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 flex justify-between"
+                      >
+                        <span>{p.nombre}</span>
+                        {p.id && (
+                          <span className="text-green-600">
+                            {formatCurrency(p.precio)}
+                          </span>
+                        )}
+                      </button>
+                    ))}
                 </div>
               )}
-              
+
               {loadingProducts && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
                   <Loader2 className="animate-spin" size={16} />
@@ -534,7 +587,9 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
             <div className="border-t pt-4 space-y-2 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
               <div className="flex justify-between text-sm">
                 <span>Productos diferentes:</span>
-                <span className="font-medium">{formData.ProductosCompras.length}</span>
+                <span className="font-medium">
+                  {formData.ProductosCompras.length}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>Unidades totales:</span>
@@ -545,7 +600,9 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
                   <DollarSign size={18} />
                   Total Compra:
                 </span>
-                <span className="text-green-600">{formatCurrency(totalCompra)}</span>
+                <span className="text-green-600">
+                  {formatCurrency(totalCompra)}
+                </span>
               </div>
             </div>
           )}
@@ -555,8 +612,8 @@ export function NuevaCompraModal({ open, onClose, onCompraCreada }: NuevaCompraM
             <Button variant="outline" onClick={onClose} disabled={loading}>
               Cancelar
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={!formData.ProductosCompras.length || loading}
               className="min-w-[130px]"
             >

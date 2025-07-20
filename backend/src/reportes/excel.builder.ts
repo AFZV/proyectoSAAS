@@ -17,16 +17,16 @@ export function buildExcel<T>(
   const sheet = wb.addWorksheet(sheetName);
 
   // 1) Cabecera
-  sheet.addRow(columns.map(col => col.header));
+  sheet.addRow(columns.map((col) => col.header));
   sheet.getRow(1).font = { bold: true };
 
   // 2) Filas de datos
-  rows.forEach(row => {
-    sheet.addRow(columns.map(col => row[col.key]));
+  rows.forEach((row) => {
+    sheet.addRow(columns.map((col) => row[col.key]));
   });
 
   // 3) Anchos y formatos
-  sheet.columns = columns.map(col => ({
+  sheet.columns = columns.map((col) => ({
     key: String(col.key),
     width: col.width,
     style: col.numFmt ? { numFmt: col.numFmt } : undefined,

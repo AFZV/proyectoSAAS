@@ -93,29 +93,16 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
   }, [opcion]);
 
   const obtenerVendedores = async () => {
+    console.log("renderSpecificFields - tipo:", tipo, "opcion:", opcion);
+
     try {
       setLoadingVendedores(true);
       const token = await getToken();
       const BACKEND_URL =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-      // ✅ USAR ENDPOINT EXISTENTE: Obtener usuario actual para extraer empresaId
-      const userResponse = await fetch(`${BACKEND_URL}/auth/usuario-actual`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!userResponse.ok) {
-        throw new Error("Error al obtener datos del usuario");
-      }
-
-      const userData = await userResponse.json();
-      const empresaId = userData.empresaId;
-
-      // ✅ USAR ENDPOINT EXISTENTE: /usuario/empresa/:empresaId
       const vendedoresResponse = await fetch(
-        `${BACKEND_URL}/usuario/empresa/${empresaId}`,
+        `${BACKEND_URL}/usuario/usuarios/empresa`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -137,6 +124,7 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       );
 
       setVendedores(vendedoresFiltrados);
+      console.log("✅ Vendedores para Select:", vendedoresFiltrados);
     } catch (error) {
       console.error("Error al cargar vendedores:", error);
 
@@ -227,11 +215,15 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
         body = {};
       } else if (opcion === "rango") {
         endpoint = `/reportes/inventario/rango/${data.formato}`;
+        console.log("datos enviados de rango:,", { data });
         method = "POST";
         body = {
           inicio: data.inicio.toUpperCase(),
           fin: data.fin.toUpperCase(),
         };
+      } else if (opcion === "productos") {
+        endpoint = `/reportes/inventario/productos/${data.formato}`;
+        method = "GET";
       }
     } else if (tipo === "clientes") {
       if (opcion === "todos") {

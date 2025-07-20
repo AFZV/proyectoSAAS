@@ -36,6 +36,9 @@ export class CreateProductoDto {
   @IsOptional()
   @IsString()
   manifiestoUrl: string;
+  @IsOptional()
+  @IsString()
+  descripcion: string;
 }
 
 //  id          String   @id @default(uuid())

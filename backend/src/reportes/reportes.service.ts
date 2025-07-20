@@ -10,14 +10,19 @@ import { CrearReporteRangoProductoDto } from './dto/crear-reporte-rango-producto
 export class ReportesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async inventarioValor(
-    usuario: UsuarioPayload
-  ): Promise<
-    Array<{ nombre: string; cantidades: number; precio: number; total: number }>
+  async inventarioValor(usuario: UsuarioPayload): Promise<
+    Array<{
+      id: string;
+      nombre: string;
+      cantidades: number;
+      precio: number;
+      total: number;
+    }>
   > {
     const productos = await this.prisma.producto.findMany({
       where: {
         empresaId: usuario.empresaId,
+        estado: 'activo',
         inventario: { some: { stockActual: { gt: 0 } } }, // Solo productos con stock
       },
       orderBy: {
@@ -26,9 +31,10 @@ export class ReportesService {
       include: { inventario: { select: { stockActual: true } } },
     });
 
-    return productos.map(({ nombre, precioCompra, inventario }) => {
+    return productos.map(({ id, nombre, precioCompra, inventario }) => {
       const stock = inventario?.[0]?.stockActual ?? 0;
       return {
+        id,
         nombre,
         cantidades: stock,
         precio: precioCompra,
@@ -37,10 +43,14 @@ export class ReportesService {
     });
   }
   /** Todos los productos, sin importar si su stock es 0 */
-  async inventarioCompleto(
-    usuario: UsuarioPayload
-  ): Promise<
-    Array<{ nombre: string; cantidades: number; precio: number; total: number }>
+  async inventarioCompleto(usuario: UsuarioPayload): Promise<
+    Array<{
+      id: string;
+      nombre: string;
+      cantidades: number;
+      precio: number;
+      total: number;
+    }>
   > {
     const productos = await this.prisma.producto.findMany({
       where: {
@@ -52,9 +62,10 @@ export class ReportesService {
       include: { inventario: { select: { stockActual: true } } },
     });
 
-    return productos.map(({ nombre, precioCompra, inventario }) => {
+    return productos.map(({ id, nombre, precioCompra, inventario }) => {
       const stock = inventario?.[0]?.stockActual ?? 0;
       return {
+        id,
         nombre,
         cantidades: stock,
         precio: precioCompra,
@@ -419,10 +430,7 @@ export class ReportesService {
           (s, d) => s + d.valorTotal,
           0
         );
-        const totalAbonado = pedido.detalleRecibo.reduce(
-          (s, d) => s + d.valorTotal,
-          0
-        );
+
         const ajusteManual = ajustesPorPedido[pedido.id] || 0;
         const saldoPendiente = pedido.total - totalAbonado - ajusteManual;
 
@@ -491,14 +499,7 @@ export class ReportesService {
           (sum, d) => sum + d.valorTotal,
           0
         );
-        const ajusteManual = pedido.detalleAjusteCartera.reduce(
-          (sum, a) => sum + a.valor,
-          0
-        );
-        const totalAbonado = pedido.detalleRecibo.reduce(
-          (sum, d) => sum + d.valorTotal,
-          0
-        );
+
         const ajusteManual = pedido.detalleAjusteCartera.reduce(
           (sum, a) => sum + a.valor,
           0
@@ -528,18 +529,40 @@ export class ReportesService {
     }>
   > {
     const { empresaId } = usuario;
+    if (!empresaId) throw new Error('empresaId requerido');
 
-    // 1) Agrupamos saldos >0
-    const saldos = await this.prisma.movimientosCartera.groupBy({
-      by: ['idCliente'],
-      _sum: { valorMovimiento: true },
+    // 1) Obtener todos los movimientos de cartera relevantes
+    const movimientos = await this.prisma.movimientosCartera.findMany({
       where: { empresaId },
-      having: { valorMovimiento: { _sum: { gt: 0 } } },
+      select: {
+        idCliente: true,
+        valorMovimiento: true,
+        tipoMovimientoOrigen: true,
+      },
     });
 
-    const clienteIds = saldos.map((s) => s.idCliente);
+    // 2) Agrupar y calcular el saldo manualmente
+    const saldoPorCliente: Record<string, number> = {};
 
-    // 2) Obtengo datos de clientes
+    for (const mov of movimientos) {
+      if (!saldoPorCliente[mov.idCliente]) saldoPorCliente[mov.idCliente] = 0;
+
+      if (mov.tipoMovimientoOrigen === 'PEDIDO') {
+        saldoPorCliente[mov.idCliente] += mov.valorMovimiento;
+      } else if (
+        mov.tipoMovimientoOrigen === 'RECIBO' ||
+        mov.tipoMovimientoOrigen === 'AJUSTE_MANUAL'
+      ) {
+        saldoPorCliente[mov.idCliente] -= mov.valorMovimiento;
+      }
+    }
+
+    // 3) Filtrar solo clientes con deuda > 0
+    const clienteIds = Object.entries(saldoPorCliente)
+      .filter(([_, saldo]) => saldo > 0)
+      .map(([id]) => id);
+
+    // 4) Obtener información de los clientes
     const clientes = await this.prisma.cliente.findMany({
       where: { id: { in: clienteIds } },
       select: {
@@ -552,7 +575,7 @@ export class ReportesService {
       },
     });
 
-    // 3) Obtengo asignación (clienteEmpresa → usuario/vendedor)
+    // 5) Obtener asignaciones cliente → vendedor
     const asignaciones = await this.prisma.clienteEmpresa.findMany({
       where: {
         empresaId,
@@ -563,22 +586,22 @@ export class ReportesService {
       },
     });
 
-    // 4) Mapeo al formato plano
-    const resultado = saldos.map((saldo) => {
-      const c = clientes.find((cli) => cli.id === saldo.idCliente);
-      const a = asignaciones.find((a) => a.clienteId === saldo.idCliente);
+    // 6) Combinar todo
+    const resultado = clienteIds.map((clienteId) => {
+      const c = clientes.find((cli) => cli.id === clienteId);
+      const a = asignaciones.find((a) => a.clienteId === clienteId);
+
       return {
-        vendedor: a?.usuario.nombre ?? '—',
-        clienteId: saldo.idCliente,
+        vendedor: a?.usuario?.nombre ?? '—',
+        clienteId,
         nombre: `${c?.nombre ?? ''} ${c?.apellidos ?? ''}`.trim(),
         razonSocial: c?.rasonZocial,
         nit: c?.nit,
         ciudad: c?.ciudad,
-        totalDeuda: saldo._sum.valorMovimiento ?? 0,
+        totalDeuda: saldoPorCliente[clienteId],
       };
     });
 
-    // 5) Ordeno por nombre
     return resultado.sort((a, b) => a.nombre.localeCompare(b.nombre));
   }
 }
