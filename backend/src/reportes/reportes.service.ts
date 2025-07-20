@@ -419,6 +419,10 @@ export class ReportesService {
           (s, d) => s + d.valorTotal,
           0
         );
+        const totalAbonado = pedido.detalleRecibo.reduce(
+          (s, d) => s + d.valorTotal,
+          0
+        );
         const ajusteManual = ajustesPorPedido[pedido.id] || 0;
         const saldoPendiente = pedido.total - totalAbonado - ajusteManual;
 
@@ -483,6 +487,14 @@ export class ReportesService {
     // 2) Calculo saldo pendiente
     return pedidos
       .map((pedido) => {
+        const totalAbonado = pedido.detalleRecibo.reduce(
+          (sum, d) => sum + d.valorTotal,
+          0
+        );
+        const ajusteManual = pedido.detalleAjusteCartera.reduce(
+          (sum, a) => sum + a.valor,
+          0
+        );
         const totalAbonado = pedido.detalleRecibo.reduce(
           (sum, d) => sum + d.valorTotal,
           0

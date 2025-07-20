@@ -237,7 +237,6 @@ export class RespaldosService {
 
     return { buffer, fileName };
   }
-
   async restaurarDesdeRespaldo(usuario: UsuarioPayload, base64: string) {
     if (!usuario || usuario.rol !== 'admin') {
       throw new UnauthorizedException('No autorizado');
@@ -246,99 +245,97 @@ export class RespaldosService {
     const { empresaId } = usuario;
 
     const jsonString = Buffer.from(base64, 'base64').toString('utf-8');
-    const parsed = JSON.parse(jsonString) as RespaldoData;
+    const data = JSON.parse(jsonString) as RespaldoData;
 
-    if (parsed.meta?.empresaId !== empresaId) {
+    if (data.meta?.empresaId !== empresaId) {
       throw new UnauthorizedException(
         'El respaldo no pertenece a esta empresa'
       );
     }
 
-    const data = parsed;
-
-    // 🔁 1. Eliminación ordenada en transacción independiente
+    // 🧹 Eliminación ordenada
     await this.prisma.$transaction(async (tx) => {
+      const idsPedidos = data.pedidos.map((p) => p.id);
+      const idsUsuarios = data.usuarios?.map((u) => u.id) || [];
+      const idsClientes = data.clientes.map((c) => c.id);
+      const idsProveedores = data.proveedores.map((p) => p.idProveedor);
+      const idsCompras = data.compras.map((c) => c.idCompra);
+      const idsMovimientos = data.movimientosCartera.map(
+        (m) => m.idMovimientoCartera
+      );
+
       await tx.detalleAjusteCartera.deleteMany({
-        where: {
-          idMovimiento: {
-            in: data.movimientosCartera.map((m) => m.idMovimientoCartera),
-          },
-        },
+        where: { idMovimiento: { in: idsMovimientos } },
       });
 
-      await tx.movimientosCartera.deleteMany({ where: { empresaId } });
+      const recibosEmpresa = await tx.recibo.findMany({
+        where: { empresaId },
+        select: { id: true },
+      });
+      const idsRecibosEmpresa = recibosEmpresa.map((r) => r.id);
 
       await tx.detalleRecibo.deleteMany({
-        where: {
-          recibo: { empresaId },
-        },
+        where: { idRecibo: { in: idsRecibosEmpresa } },
       });
+      await tx.recibo.deleteMany({ where: { id: { in: idsRecibosEmpresa } } });
 
-      await tx.recibo.deleteMany({ where: { empresaId } });
-
+      await tx.movimientosCartera.deleteMany({ where: { empresaId } });
       await tx.estadoPedido.deleteMany({
-        where: {
-          pedidoId: { in: data.pedidos.map((p) => p.id) },
-        },
+        where: { pedidoId: { in: idsPedidos } },
       });
-
       await tx.detallePedido.deleteMany({
-        where: {
-          pedidoId: { in: data.pedidos.map((p) => p.id) },
-        },
+        where: { pedidoId: { in: idsPedidos } },
       });
 
-      await tx.pedido.deleteMany({ where: { empresaId } });
+      const pedidosEmpresa = await tx.pedido.findMany({
+        where: { empresaId },
+        select: { id: true },
+      });
+      const idsPedidosEmpresa = pedidosEmpresa.map((p) => p.id);
+      await tx.detalleRecibo.deleteMany({
+        where: { idPedido: { in: idsPedidosEmpresa } },
+      });
+      await tx.pedido.deleteMany({ where: { id: { in: idsPedidosEmpresa } } });
 
       await tx.detalleCompra.deleteMany({
-        where: {
-          idCompra: { in: data.compras.map((c) => c.idCompra) },
-        },
+        where: { idCompra: { in: idsCompras } },
       });
-
-      await tx.compras.deleteMany({ where: { idEmpresa: empresaId } });
+      await tx.compras.deleteMany({ where: { idCompra: { in: idsCompras } } });
 
       await tx.movimientoInventario.deleteMany({
         where: { idEmpresa: empresaId },
       });
       await tx.inventario.deleteMany({ where: { idEmpresa: empresaId } });
+
       await tx.producto.deleteMany({ where: { empresaId } });
       await tx.categoriasProducto.deleteMany({ where: { empresaId } });
+
       await tx.clienteEmpresa.deleteMany({ where: { empresaId } });
       await tx.proveedorEmpresa.deleteMany({ where: { empresaId } });
-      await tx.usuario.deleteMany({ where: { empresaId } });
 
-      await tx.cliente.deleteMany({
-        where: { id: { in: data.clientes.map((c) => c.id) } },
-      });
+      await tx.recibo.deleteMany({ where: { usuarioId: { in: idsUsuarios } } });
 
+      await tx.cliente.deleteMany({ where: { id: { in: idsClientes } } });
       await tx.proveedores.deleteMany({
-        where: {
-          idProveedor: { in: data.proveedores.map((p) => p.idProveedor) },
-        },
+        where: { idProveedor: { in: idsProveedores } },
       });
     });
 
-    // 📥 2. Inserción del respaldo
+    // ✅ Inserción
     await this.prisma.$transaction(async (tx) => {
-      await tx.tipoMovimientos.createMany({
-        data: data.tipoMovimientos,
-        skipDuplicates: true,
-      });
-
-      await tx.empresa.upsert({
-        where: { id: data.empresa.id },
-        create: data.empresa,
-        update: {},
-      });
-
-      await tx.usuario.createMany({
-        data: data.usuarios,
-        skipDuplicates: true,
-      });
-
       await tx.cliente.createMany({
         data: data.clientes,
+        skipDuplicates: true,
+      });
+
+      const clientesEmpresaFlat = data.clientesEmpresa.map((c) => ({
+        id: c.id,
+        clienteId: c.clienteId,
+        empresaId: c.empresaId,
+        usuarioId: c.usuarioId,
+      }));
+      await tx.clienteEmpresa.createMany({
+        data: clientesEmpresaFlat,
         skipDuplicates: true,
       });
 
@@ -346,54 +343,77 @@ export class RespaldosService {
         data: data.proveedores,
         skipDuplicates: true,
       });
+      await tx.proveedorEmpresa.createMany({
+        data: data.proveedoresEmpresa,
+        skipDuplicates: true,
+      });
 
       await tx.categoriasProducto.createMany({
         data: data.categorias,
         skipDuplicates: true,
       });
-
       await tx.producto.createMany({
         data: data.productos,
         skipDuplicates: true,
       });
-
       await tx.inventario.createMany({
         data: data.inventario,
         skipDuplicates: true,
       });
-
-      await tx.clienteEmpresa.createMany({
-        data: data.clientesEmpresa.map((ce) => ({
-          id: ce.id,
-          clienteId: ce.clienteId,
-          empresaId: ce.empresaId,
-          usuarioId: ce.usuarioId,
-        })),
+      await tx.compras.createMany({ data: data.compras, skipDuplicates: true });
+      await tx.detalleCompra.createMany({
+        data: data.detalleCompra,
+        skipDuplicates: true,
+      });
+      await tx.tipoMovimientos.createMany({
+        data: data.tipoMovimientos,
         skipDuplicates: true,
       });
 
-      await tx.proveedorEmpresa.createMany({
-        data: data.proveedoresEmpresa.map((pe) => ({
-          idProveedorEmpresa: pe.idProveedorEmpresa,
-          proveedorId: pe.proveedorId,
-          empresaId: pe.empresaId,
-        })),
+      await tx.pedido.createMany({ data: data.pedidos, skipDuplicates: true });
+      await tx.detallePedido.createMany({
+        data: data.detallePedido,
+        skipDuplicates: true,
+      });
+      await tx.estadoPedido.createMany({
+        data: data.estadoPedido,
+        skipDuplicates: true,
+      });
+      // const idsPedidosValidos = data.movimientosInventario
+      //   .map((m) => m.IdPedido)
+      //   .filter((id): id is string => id !== null);
+
+      // const pedidosExistentes = await tx.pedido.findMany({
+      //   where: {
+      //     id: {
+      //       in: data.movimientosInventario.map((m) => m.IdPedido),
+      //     },
+      //   },
+      //   select: { id: true },
+      // });
+      // const pedidosValidos = new Set(pedidosExistentes.map((p) => p.id));
+      // const movimientosValidos = data.movimientosInventario.filter((m) =>
+      //   pedidosValidos.has(m.IdPedido)
+      // );
+
+      await tx.movimientoInventario.createMany({
+        data: data.movimientosInventario.filter((m) => m.IdPedido !== null),
         skipDuplicates: true,
       });
 
-      await tx.compras.createMany({ data: data.compras });
-      await tx.detalleCompra.createMany({ data: data.detalleCompra });
-      await tx.pedido.createMany({ data: data.pedidos });
-      await tx.detallePedido.createMany({ data: data.detallePedido });
-      await tx.estadoPedido.createMany({ data: data.estadoPedido });
-      await tx.recibo.createMany({ data: data.recibos });
-      await tx.detalleRecibo.createMany({ data: data.detalleRecibo });
-      await tx.movimientosCartera.createMany({ data: data.movimientosCartera });
+      await tx.recibo.createMany({ data: data.recibos, skipDuplicates: true });
+      await tx.detalleRecibo.createMany({
+        data: data.detalleRecibo,
+        skipDuplicates: true,
+      });
+
+      await tx.movimientosCartera.createMany({
+        data: data.movimientosCartera,
+        skipDuplicates: true,
+      });
       await tx.detalleAjusteCartera.createMany({
         data: data.detalleAjusteCartera,
-      });
-      await tx.movimientoInventario.createMany({
-        data: data.movimientosInventario,
+        skipDuplicates: true,
       });
     });
   }

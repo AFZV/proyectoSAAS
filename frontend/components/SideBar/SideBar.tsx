@@ -5,7 +5,6 @@ import { getToken } from "@/lib/getToken";
 
 export async function SideBar() {
   const token = await getToken();
-
   if (!token) redirect("/sign-in");
 
   const res = await fetch(
@@ -18,7 +17,7 @@ export async function SideBar() {
 
   const usuario = await res.json();
   const rol = usuario.rol as string;
-  
+
   return (
     <div className="h-screen overflow-hidden">
       <div className="h-full flex flex-col bg-card border-r shadow-sm">
@@ -26,8 +25,8 @@ export async function SideBar() {
         <div className="border-b bg-card">
           <Logo logoUrl={usuario.logoUrl} empresaName={usuario.nombreEmpresa} />
         </div>
-        
-        {/* Navegación - Con scroll interno */}
+
+        {/* Navegación */}
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
           <SideBarRoutes rol={rol} />
         </div>

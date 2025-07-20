@@ -131,7 +131,6 @@ export function FormCrearRecibo({
   useEffect(() => {
     if (!clienteInfo?.id) return;
     const clienteId = clienteInfo.id;
-    console.log("cliente id enviado al backend:", clienteId);
     if (!clienteId || !token) return;
 
     const fetchPedidos = async () => {

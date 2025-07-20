@@ -8,7 +8,7 @@ import { useAuth } from "@clerk/nextjs";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-export function CargarInventarioPanel({ onClose }: { onClose: () => void }) {
+export function CargarClientesPanel({ onClose }: { onClose: () => void }) {
   const [data, setData] = useState<any[]>([]);
   const [fileName, setFileName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,21 +26,8 @@ export function CargarInventarioPanel({ onClose }: { onClose: () => void }) {
       const bstr = evt.target?.result;
       const wb = XLSX.read(bstr, { type: "binary" });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-      const mapped = raw
-        .map((row: any) => ({
-          idProducto: row["ID Producto"]?.toString().trim(),
-          stock: Number(row["Stock Inicial"]),
-        }))
-        .filter(
-          (item) =>
-            item.idProducto &&
-            item.idProducto.toLowerCase() !== "id producto" && // evita encabezado como fila
-            !isNaN(item.stock)
-        );
-
-      setData(mapped);
+      const parsed = XLSX.utils.sheet_to_json(ws, { defval: "" });
+      setData(parsed);
     };
     reader.readAsBinaryString(file);
   };
@@ -52,7 +39,7 @@ export function CargarInventarioPanel({ onClose }: { onClose: () => void }) {
       if (!token) throw new Error("No hay token disponible");
 
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/importar/carga-masiva/inventario`,
+        `${process.env.NEXT_PUBLIC_API_URL}/importar/carga-masiva/clientes`,
         {
           method: "POST",
           headers: {
@@ -65,20 +52,22 @@ export function CargarInventarioPanel({ onClose }: { onClose: () => void }) {
 
       if (!res.ok) throw new Error("Error al enviar datos");
 
-      toast({ title: "Inventario actualizado con éxito", duration: 2000 });
+      toast({ title: "Clientes creados con éxito", duration: 2000 });
 
       setData([]);
       setFileName("");
 
+      // Esperar 2s y cerrar modal
       setTimeout(() => {
         onClose();
       }, 2000);
     } catch (error) {
       console.error("Error:", error);
+
       toast({
-        title: "Error al cargar inventario",
+        title: "Clientes creados con éxito",
+        duration: 2000,
         variant: "destructive",
-        duration: 3000,
       });
     } finally {
       setLoading(false);
@@ -108,7 +97,7 @@ export function CargarInventarioPanel({ onClose }: { onClose: () => void }) {
                 Enviando...
               </>
             ) : (
-              "Enviar inventario"
+              "Enviar clientes"
             )}
           </Button>
         </div>
