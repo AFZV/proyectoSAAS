@@ -29,8 +29,8 @@ async function bootstrap() {
   app.use(bodyParser.json({ limit: '10mb' }));
   app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
-  await app.listen(4000);
-  console.log('🚀 Servidor iniciado en http://localhost:4000');
+  await app.listen(4000, '0.0.0.0');
+  console.log('🚀 Servidor iniciado en http://0.0.0.0:4000');
 }
 
 bootstrap();
