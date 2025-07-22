@@ -348,6 +348,7 @@ export class PedidosService {
       console.log('✅ Estado ENVIADO creado exitosamente');
       return estadoNuevo;
     }
+
     const accionesReversibles: any[] = [];
 
     if (estadoNormalizado === 'CANCELADO') {
@@ -379,29 +380,35 @@ export class PedidosService {
               direccion: true,
             },
           },
+          estados: true,
         },
       });
       if (!pedidoExistente) throw new Error('no se encontro pedido');
-      for (const item of pedidoExistente.productos) {
-        accionesReversibles.push(
-          this.prisma.inventario.updateMany({
-            where: {
-              idProducto: item.productoId,
-              idEmpresa: pedidoExistente.empresaId,
-            },
-            data: {
-              stockActual: { increment: item.cantidad },
-            },
-          })
-        );
 
-        accionesReversibles.push(
-          this.prisma.movimientoInventario.deleteMany({
-            where: { IdPedido: pedidoExistente.id },
-          })
-        );
+      const tuvoEstadoFacturado = pedidoExistente.estados.some(
+        (estado) => estado.estado === 'FACTURADO'
+      );
+      if (tuvoEstadoFacturado) {
+        for (const item of pedidoExistente.productos) {
+          accionesReversibles.push(
+            this.prisma.inventario.updateMany({
+              where: {
+                idProducto: item.productoId,
+                idEmpresa: pedidoExistente.empresaId,
+              },
+              data: {
+                stockActual: { increment: item.cantidad },
+              },
+            })
+          );
+
+          accionesReversibles.push(
+            this.prisma.movimientoInventario.deleteMany({
+              where: { IdPedido: pedidoExistente.id },
+            })
+          );
+        }
       }
-
       accionesReversibles.push(
         this.prisma.detallePedido.deleteMany({
           where: { pedidoId },
@@ -428,6 +435,7 @@ export class PedidosService {
         where: { id: pedidoExistente.id },
         data: { guiaTransporte: '', flete: 0, total: 0 },
       });
+
       return pedidoActualizado;
     }
 
