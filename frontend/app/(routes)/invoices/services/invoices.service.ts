@@ -378,9 +378,12 @@ export class InvoicesService {
         tiempoPromedioEnvio: Math.round(tiempoPromedioEnvio * 10) / 10, // redondear a 1 decimal
         tasaCancelacion:
           estadisticas.totalPedidos > 0
-            ? (estadisticas.pedidosCancelados / estadisticas.totalPedidos) * 100
+            ? ((estadisticas.pedidosCancelados ?? 0) /
+                estadisticas.totalPedidos) *
+              100
             : 0,
-        tasaExito: estadisticas.porcentajeExito || 0, // % que llegan a ENVIADO
+
+        //  tasaExito: estadisticas.porcentajeExito || 0, // % que llegan a ENVIADO
         valorPromedioPedido:
           estadisticas.totalPedidos > 0
             ? estadisticas.ventasTotal / estadisticas.totalPedidos

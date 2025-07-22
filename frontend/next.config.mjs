@@ -2,7 +2,7 @@
 const nextConfig = {
   images: {
     domains: [
-      "res.cloudinary.com", // ✅ Cloudinary
+      "res.cloudinary.com",
       "utfs.io",
       "xqtnsjfw0c.ufs.sh",
       "example.com",

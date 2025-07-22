@@ -143,11 +143,13 @@ export function SearchBar({
           <span className="text-sm text-muted-foreground">
             {resultCount === 0
               ? "No se encontraron productos"
-              : `${resultCount} producto${resultCount === 1 ? "" : "s"} encontrado${resultCount === 1 ? "" : "s"}`}
+              : `${resultCount} producto${
+                  resultCount === 1 ? "" : "s"
+                } encontrado${resultCount === 1 ? "" : "s"}`}
           </span>
           {searchTerm && (
             <Badge variant="secondary" className="text-xs">
-              "{searchTerm}"
+              {searchTerm}
             </Badge>
           )}
         </div>

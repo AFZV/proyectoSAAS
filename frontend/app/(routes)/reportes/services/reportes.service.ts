@@ -31,27 +31,21 @@ export class ReportesService {
   /**
    * Obtiene headers con token de autenticación (para client components)
    */
-  private static async getHeaders() {
-    // En client components, necesitamos usar useAuth de otra manera
-    // Por ahora usamos una implementación básica
+  private static async getHeaders(): Promise<Record<string, string>> {
     try {
-      // Intentamos obtener el token del sessionStorage o localStorage
       const token =
         localStorage.getItem("clerk_token") ||
         sessionStorage.getItem("clerk_token");
 
-      if (!token) {
-        // Si no hay token, intentamos hacer la llamada sin Authorization
-        // El backend debería manejar esto apropiadamente
-        return {
-          "Content-Type": "application/json",
-        };
-      }
-
-      return {
-        Authorization: `Bearer ${token}`,
+      const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
+
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      return headers;
     } catch (error) {
       console.warn("No se pudo obtener el token:", error);
       return {

@@ -35,6 +35,12 @@ import { useAuth } from "@clerk/nextjs";
 // ✅ SCHEMAS ESPECÍFICOS
 const formatoBaseSchema = z.object({
   formato: z.enum(["excel", "pdf"]),
+  fechaInicio: z.string().optional(),
+  fechaFin: z.string().optional(),
+  inicio: z.string().optional(),
+  fin: z.string().optional(),
+  ciudad: z.string().optional(),
+  vendedorId: z.string().optional(),
 });
 
 const inventarioGeneralSchema = formatoBaseSchema;
