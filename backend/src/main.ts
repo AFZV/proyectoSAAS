@@ -10,8 +10,8 @@ async function bootstrap() {
   //  Permitir CORS solo desde el frontend en desarrollo
   app.enableCors({
     origin: [
-      'http://g844cwsocsw44ck8s88oocgg.69.62.65.126.sslip.io',
-      'http://69.62.65.126:3000',
+      'https://bgacloudsaas.com', // dominio principal del frontend
+      'https://www.bgacloudsaas.com', // por si también usas la versión www
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
