@@ -9,7 +9,7 @@ async function bootstrap() {
 
   //  Permitir CORS solo desde el frontend en desarrollo
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: 'http://g844cwsocsw44ck8s88oocgg.69.62.65.126.sslip.io',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });
