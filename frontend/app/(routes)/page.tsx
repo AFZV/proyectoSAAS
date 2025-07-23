@@ -37,7 +37,6 @@ export default async function Home() {
   if (!data) {
     return <Loading title="Cargando datos..." />;
   }
-  console.log("Datos del dashboard:", data);
 
   // Formatear los valores numéricos para mostrar en las tarjetas
   const totalCobrosFormat = formatValue(data.totalValorRecibos);

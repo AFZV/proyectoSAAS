@@ -98,7 +98,7 @@ export function FormUpdateUsuario({
       if (res.status !== 200) throw new Error();
 
       const usuario = await res.json();
-      console.log("usuario enncontrado por correo:", usuario);
+
       setUsuarioActual({
         ...usuario,
       });

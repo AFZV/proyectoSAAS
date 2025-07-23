@@ -430,12 +430,12 @@ export function FormUpdateCliente({
                 </span>
                 <span
                   className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
-                    (clienteActual?.estado ?? true)
+                    clienteActual?.estado ?? true
                       ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
                       : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
                   }`}
                 >
-                  {(clienteActual?.estado ?? true) ? "Activo" : "Inactivo"}
+                  {clienteActual?.estado ?? true ? "Activo" : "Inactivo"}
                 </span>
               </div>
             </div>

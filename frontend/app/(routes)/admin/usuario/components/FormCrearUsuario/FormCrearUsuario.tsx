@@ -46,7 +46,6 @@ export function FormCrearUsuario({
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmiting, setIsSubmiting] = useState(false);
-  console.log("empresas del backend :", empresas);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),

@@ -54,7 +54,7 @@ export function HeaderUsuario() {
   useEffect(() => {
     fetchData();
   }, []);
-  console.log("lo que llega a empresas:", UsuariosActivos);
+
   return (
     <div className="border-b bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20">
       <div className="max-w-6xl mx-auto px-4 py-6">

@@ -49,11 +49,8 @@ function EmpresaActions({ empresa }: { empresa: Empresa }) {
   const { getToken } = useAuth();
 
   const handleChangeEstado = async () => {
-    console.log("🟢 Entrando a cambiar estado");
-
     try {
       const token = await getToken();
-      console.log("✅ Token obtenido:", token);
 
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/empresa/estado-cambiar/${empresa.id}`,
@@ -66,7 +63,6 @@ function EmpresaActions({ empresa }: { empresa: Empresa }) {
       );
 
       if (!res.ok) throw new Error("Error al cambiar estado");
-      console.log("📦 Response recibido:", res);
 
       toast({ title: "Estado actualizado ✅" });
       router.refresh();

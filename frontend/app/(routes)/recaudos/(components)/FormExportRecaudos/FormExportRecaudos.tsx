@@ -77,7 +77,10 @@ export function DatePickerWithRange({
           <div className="text-sm text-muted-foreground">
             Rango seleccionado:{" "}
             {date?.from && date?.to
-              ? `${format(date.from, "LLL dd, y")} - ${format(date.to, "LLL dd, y")}`
+              ? `${format(date.from, "LLL dd, y")} - ${format(
+                  date.to,
+                  "LLL dd, y"
+                )}`
               : "Ninguno"}
           </div>
           <Calendar

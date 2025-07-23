@@ -34,7 +34,7 @@ export async function getEmpresas(): Promise<Empresa[]> {
 
 export default async function ListEmpresasPage() {
   const data = await getEmpresas();
-  console.log("clientes que llegan al front:", data);
+
   return (
     <section className="min-h-screen bg-background text-foreground px-4 py-6">
       <div className="max-w-6xl mx-auto">

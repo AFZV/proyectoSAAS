@@ -65,12 +65,17 @@ export class CatalogService {
         stock: producto.inventario?.[0]?.stockActual ?? 0,
       }))
       // ✅ ORDENAR ALFABÉTICAMENTE POR NOMBRE (A-Z)
-      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', {
-        sensitivity: 'base', // Ignora mayúsculas/minúsculas y acentos
-        numeric: true,       // Maneja números correctamente (ej: "Producto 2" antes que "Producto 10")
-      }));
+      .sort((a, b) =>
+        a.nombre.localeCompare(b.nombre, "es", {
+          sensitivity: "base", // Ignora mayúsculas/minúsculas y acentos
+          numeric: true, // Maneja números correctamente (ej: "Producto 2" antes que "Producto 10")
+        })
+      );
 
-    console.log("✅ Productos ordenados alfabéticamente:", productosOrdenados.length);
+    console.log(
+      "✅ Productos ordenados alfabéticamente:",
+      productosOrdenados.length
+    );
 
     return productosOrdenados;
   }
@@ -87,7 +92,10 @@ export class CatalogService {
   }
 
   // Crear nuevo producto
-  async createProducto(token: string, productoData: CreateProductoDto): Promise<any> {
+  async createProducto(
+    token: string,
+    productoData: CreateProductoDto
+  ): Promise<any> {
     return this.makeRequest("/productos/create", token, {
       method: "POST",
       body: JSON.stringify(productoData),

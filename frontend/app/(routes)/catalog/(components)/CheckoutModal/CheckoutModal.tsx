@@ -290,7 +290,9 @@ export function CheckoutModal({
 
       toast({
         title: "¡Pedido creado exitosamente!",
-        description: `Pedido por ${formatValue(totalPrecio)} registrado correctamente`,
+        description: `Pedido por ${formatValue(
+          totalPrecio
+        )} registrado correctamente`,
       });
 
       // Limpiar estados y cerrar modal

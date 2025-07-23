@@ -27,7 +27,7 @@ export type Compra = {
 // Componente de acciones para cada fila - SOLO BOTÓN VER
 function CompraActions({ compra }: { compra: Compra }) {
   const [openModal, setOpenModal] = useState(false);
-  
+
   const handleView = () => {
     console.log("Abriendo modal para compra:", compra.idCompra);
     setOpenModal(true);
@@ -51,12 +51,12 @@ function CompraActions({ compra }: { compra: Compra }) {
           <Eye className="h-4 w-4" />
         </Button>
       </div>
-      
+
       {/* Modal fuera de los botones */}
-      <CompraDetalleModal 
-        open={openModal} 
-        onClose={handleCloseModal} 
-        idCompra={compra.idCompra} 
+      <CompraDetalleModal
+        open={openModal}
+        onClose={handleCloseModal}
+        idCompra={compra.idCompra}
       />
     </>
   );
@@ -79,7 +79,11 @@ export const columns: ColumnDef<Compra>[] = [
     },
     cell: ({ row }) => {
       const id = row.getValue("idCompra") as string;
-      return <div className="font-medium font-mono">{id ? `...${id.slice(-8)}` : 'N/A'}</div>;
+      return (
+        <div className="font-medium font-mono">
+          {id ? `...${id.slice(-8)}` : "N/A"}
+        </div>
+      );
     },
   },
   {
@@ -115,19 +119,22 @@ export const columns: ColumnDef<Compra>[] = [
     cell: ({ row }) => {
       const fecha = row.getValue("FechaCompra") as string;
       if (!fecha) return <div className="text-muted-foreground">Sin fecha</div>;
-      
+
       const fechaObj = new Date(fecha);
-      const fechaFormateada = fechaObj.toLocaleDateString('es-CO', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit'
+      const fechaFormateada = fechaObj.toLocaleDateString("es-CO", {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
       });
-      
+
       return (
         <div>
           <div className="font-medium">{fechaFormateada}</div>
           <div className="text-xs text-muted-foreground">
-            {fechaObj.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+            {fechaObj.toLocaleTimeString("es-CO", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </div>
         </div>
       );
@@ -137,8 +144,8 @@ export const columns: ColumnDef<Compra>[] = [
     accessorKey: "productos",
     header: "Productos",
     cell: ({ row }) => {
-      const productos = row.getValue("productos") as Compra['productos'];
-      
+      const productos = row.getValue("productos") as Compra["productos"];
+
       if (!productos || productos.length === 0) {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -147,16 +154,17 @@ export const columns: ColumnDef<Compra>[] = [
           </div>
         );
       }
-      
+
       const primerProducto = productos[0];
       const productosRestantes = productos.length - 1;
-      
+
       return (
         <div className="flex flex-col">
           <span className="font-medium">{primerProducto.nombre}</span>
           {productosRestantes > 0 && (
             <span className="text-xs text-muted-foreground">
-              +{productosRestantes} producto{productosRestantes > 1 ? 's' : ''} más
+              +{productosRestantes} producto{productosRestantes > 1 ? "s" : ""}{" "}
+              más
             </span>
           )}
         </div>

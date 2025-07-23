@@ -423,7 +423,9 @@ export function EditPedidoModal({
                 <h3 className="font-medium text-gray-900 mb-2">Cliente</h3>
                 <p className="text-sm">
                   {pedido.cliente?.rasonZocial ||
-                    `${pedido.cliente?.nombre || ""} ${pedido.cliente?.apellidos || ""}`}
+                    `${pedido.cliente?.nombre || ""} ${
+                      pedido.cliente?.apellidos || ""
+                    }`}
                 </p>
                 <p className="text-sm text-gray-500">
                   {pedido.cliente?.ciudad}

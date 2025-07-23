@@ -48,11 +48,8 @@ function UsuarioActions({ usuario }: { usuario: Usuario }) {
   const { getToken } = useAuth();
 
   const handleChangeEstado = async () => {
-    console.log("🟢 Entrando a cambiar estado");
-
     try {
       const token = await getToken();
-      console.log("✅ Token obtenido:", token);
 
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/usuario/estado/${usuario.id}`,
