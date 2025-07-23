@@ -155,13 +155,15 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
 
     // Esperar que cargue al menos una imagen
     await page.evaluate(() => {
-      return new Promise<void>((resolve) => {
-        const img = document.querySelector('img');
-        if (!img) return resolve();
-        if (img.complete) return resolve();
-        img.addEventListener('load', () => resolve(), { once: true });
-        img.addEventListener('error', () => resolve(), { once: true });
-      });
+      return Promise.all(
+        Array.from(document.images).map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise<void>((resolve) => {
+            img.addEventListener('load', () => resolve(), { once: true });
+            img.addEventListener('error', () => resolve(), { once: true });
+          });
+        })
+      );
     });
   }
 
