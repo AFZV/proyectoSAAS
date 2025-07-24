@@ -19,6 +19,7 @@ export class RespaldosService {
     }
   }
 
+  /** ✅ Generar respaldo comprimido (.sql.gz) */
   async generarRespaldoPorEmpresa(empresaId: string) {
     if (!/^[a-f0-9-]{36}$/.test(empresaId)) {
       throw new Error('ID de empresa inválido');
@@ -67,6 +68,7 @@ export class RespaldosService {
     }
   }
 
+  /** ✅ Restaurar respaldo comprimido (.sql.gz) */
   async restaurarDesdeArchivo(filePath: string, empresaId: string) {
     if (!fs.existsSync(filePath)) {
       throw new Error(`Archivo no encontrado: ${filePath}`);
@@ -106,7 +108,7 @@ EOF
     try {
       const { stdout, stderr } = await execPromise(restoreCmd);
       fs.unlinkSync(filePath);
-      return { message: 'Restauración completada', logs: stdout || stderr };
+      return { message: '✅ Restauración completada', logs: stdout || stderr };
     } catch (error) {
       throw new Error(
         `Error restaurando respaldo: ${(error as Error).message}`

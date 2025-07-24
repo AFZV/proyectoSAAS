@@ -27,16 +27,14 @@ export default function RespaldosPage() {
         throw new Error("Error al generar respaldo");
       }
 
-      // Obtener nombre del archivo desde header
       const disposition = respuesta.headers.get("Content-Disposition");
       const fileName =
         disposition?.split("filename=")[1]?.replace(/"/g, "") ??
-        `respaldo-${new Date().toISOString().replace(/[:.]/g, "-")}.backup`;
+        `respaldo-${new Date().toISOString().replace(/[:.]/g, "-")}.sql.gz`;
 
       const blob = await respuesta.blob();
       const url = URL.createObjectURL(blob);
 
-      // Forzar descarga con el nombre proporcionado por el backend
       const a = document.createElement("a");
       a.href = url;
       a.download = fileName;

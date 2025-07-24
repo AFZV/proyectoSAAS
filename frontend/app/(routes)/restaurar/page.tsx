@@ -65,10 +65,10 @@ export default function RestaurarRespaldoPage() {
 
         <label className="cursor-pointer inline-block bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm font-medium border border-gray-300 transition-all">
           <UploadCloud className="inline-block w-4 h-4 mr-2" />
-          Seleccionar archivo .dump
+          Seleccionar archivo .sql.gz
           <input
             type="file"
-            accept=".dump"
+            accept=".sql.gz"
             onChange={handleArchivo}
             className="hidden"
           />
