@@ -7,6 +7,7 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
 import { RespaldosService } from './respaldos.service';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
@@ -28,11 +29,14 @@ export class RespaldosController {
     const { filePath, fileName } =
       await this.respaldosService.generarRespaldoPorEmpresa(usuario.empresaId);
 
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+    res.setHeader('Content-Type', 'application/gzip');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
 
     res.download(filePath, fileName, (err) => {
-      if (err) console.error('Error al enviar respaldo:', err);
+      if (err) {
+        console.error('Error al enviar respaldo:', err);
+        res.status(500).send('Error enviando respaldo');
+      }
     });
   }
 
@@ -42,11 +46,14 @@ export class RespaldosController {
     @UploadedFile() file: Express.Multer.File,
     @Req() req: UsuarioRequest
   ) {
+    if (!file || !file.originalname.endsWith('.sql.gz')) {
+      throw new BadRequestException('El archivo debe ser un .sql.gz válido');
+    }
+
     const usuario = req.usuario;
-    const { empresaId } = usuario;
     return await this.respaldosService.restaurarDesdeArchivo(
       file.path,
-      empresaId
+      usuario.empresaId
     );
   }
 }

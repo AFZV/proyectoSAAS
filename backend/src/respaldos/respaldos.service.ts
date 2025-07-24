@@ -25,7 +25,7 @@ export class RespaldosService {
     }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const fileName = `respaldo-${empresaId}-${timestamp}.dump`;
+    const fileName = `respaldo-${empresaId}-${timestamp}.sql.gz`;
     const filePath = path.join(this.uploadDir, fileName);
 
     const tablas = [
@@ -53,12 +53,10 @@ export class RespaldosService {
     const dumpCmd = `
       PGPASSWORD=${this.dbPassword} \
       pg_dump -U ${this.dbUser} -d ${this.dbName} \
-      --format=c \
-      --data-only \
+      --data-only --inserts --column-inserts \
       ${tablas} \
       --no-owner \
-      --file=${filePath} \
-      --where="empresa_id='${empresaId}'"
+      --where="empresa_id='${empresaId}'" | gzip > ${filePath}
     `;
 
     try {
@@ -69,9 +67,6 @@ export class RespaldosService {
     }
   }
 
-  /**
-   * ✅ Restauración segura: DELETE + RESTORE en la misma transacción
-   */
   async restaurarDesdeArchivo(filePath: string, empresaId: string) {
     if (!fs.existsSync(filePath)) {
       throw new Error(`Archivo no encontrado: ${filePath}`);
@@ -81,7 +76,6 @@ export class RespaldosService {
       throw new Error('ID de empresa inválido');
     }
 
-    // SQL para borrar datos (dentro del mismo BEGIN)
     const deletes = `
       DELETE FROM detalleajustecartera WHERE idmovimiento IN (SELECT idmovimiento FROM movimientoscartera WHERE empresa_id='${empresaId}');
       DELETE FROM detallerecibo WHERE idrecibo IN (SELECT id FROM recibo WHERE empresa_id='${empresaId}');
@@ -104,21 +98,15 @@ export class RespaldosService {
       psql -U ${this.dbUser} -d ${this.dbName} <<EOF
       BEGIN;
       ${deletes}
-      \\! pg_restore --disable-triggers --single-transaction --data-only --no-owner ${filePath}
+      \\! gunzip -c ${filePath} | psql -U ${this.dbUser} -d ${this.dbName}
       COMMIT;
 EOF
     `;
 
     try {
       const { stdout, stderr } = await execPromise(restoreCmd);
-
-      // ✅ Borrar archivo después
       fs.unlinkSync(filePath);
-
-      return {
-        message: 'Restauración completada con atomicidad total',
-        logs: stdout || stderr,
-      };
+      return { message: 'Restauración completada', logs: stdout || stderr };
     } catch (error) {
       throw new Error(
         `Error restaurando respaldo: ${(error as Error).message}`
