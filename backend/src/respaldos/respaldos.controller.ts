@@ -1,12 +1,12 @@
 import {
-  BadRequestException,
-  Body,
   Controller,
   Get,
   Post,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { RespaldosService } from './respaldos.service';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
@@ -14,6 +14,7 @@ import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Roles('admin')
@@ -22,31 +23,30 @@ export class RespaldosController {
   constructor(private readonly respaldosService: RespaldosService) {}
 
   @Get('copia')
-  async doCopy(@Req() req: UsuarioRequest, @Res() res: Response) {
+  async generarCopia(@Req() req: UsuarioRequest, @Res() res: Response) {
     const usuario = req.usuario;
+    const { filePath, fileName } =
+      await this.respaldosService.generarRespaldoPorEmpresa(usuario.empresaId);
 
-    // ✅ Usamos el método que genera y guarda el respaldo
-    const { buffer, fileName } =
-      await this.respaldosService.exportarRespaldoYGuardar(usuario);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
 
-    // Enviar el archivo como descarga
-    res.set({
-      'Content-Type': 'application/json',
-      'Content-Disposition': `attachment; filename="${fileName}"`,
-      'Content-Length': buffer.length,
+    res.download(filePath, fileName, (err) => {
+      if (err) console.error('Error al enviar respaldo:', err);
     });
-
-    res.end(buffer);
   }
+
   @Post('restaurar')
-  async restaurarRespaldo(
-    @Req() req: UsuarioRequest,
-    @Body('base64') base64: string
+  @UseInterceptors(FileInterceptor('file'))
+  async restaurarDesdeArchivo(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: UsuarioRequest
   ) {
     const usuario = req.usuario;
-    if (!base64) throw new BadRequestException('Archivo inválido');
-
-    await this.respaldosService.restaurarDesdeRespaldo(usuario, base64);
-    return { message: 'Restauración exitosa' };
+    const { empresaId } = usuario;
+    return await this.respaldosService.restaurarDesdeArchivo(
+      file.path,
+      empresaId
+    );
   }
 }
