@@ -1,118 +1,288 @@
 import { Injectable } from '@nestjs/common';
-import { exec } from 'child_process';
-import * as util from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import { PrismaService } from 'src/prisma/prisma.service';
+import {
+  Empresa,
+  Usuario,
+  CategoriasProducto,
+  Cliente,
+  ClienteEmpresa,
+  Proveedores,
+  ProveedorEmpresa,
+  Producto,
+  Inventario,
+  Pedido,
+  DetallePedido,
+  EstadoPedido,
+  Recibo,
+  DetalleRecibo,
+  Compras,
+  DetalleCompra,
+  MovimientoInventario,
+  TipoMovimientos,
+  MovimientosCartera,
+  DetalleAjusteCartera,
+} from '@prisma/client';
 
-const execPromise = util.promisify(exec);
+interface BackupData {
+  empresa: Empresa | null;
+  usuarios: Usuario[];
+  tipoMovimientos: TipoMovimientos[];
+  categoriasProducto: CategoriasProducto[];
+  clientes: Cliente[];
+  clienteEmpresa: ClienteEmpresa[];
+  proveedores: Proveedores[];
+  proveedorEmpresa: ProveedorEmpresa[];
+  productos: Producto[];
+  inventario: Inventario[];
+  pedidos: Pedido[];
+  detallePedido: DetallePedido[];
+  estadoPedido: EstadoPedido[];
+  recibos: Recibo[];
+  detalleRecibo: DetalleRecibo[];
+  compras: Compras[];
+  detalleCompra: DetalleCompra[];
+  movimientoInventario: MovimientoInventario[];
+  movimientosCartera: MovimientosCartera[];
+  detalleAjusteCartera: DetalleAjusteCartera[];
+}
 
 @Injectable()
 export class RespaldosService {
-  private dbUser = process.env.DB_USER || 'postgres';
-  private dbPassword = process.env.DB_PASSWORD || '';
-  private dbName = process.env.DB_NAME || 'mi_saas';
   private uploadDir = path.resolve('./uploads');
 
-  constructor() {
+  constructor(private prisma: PrismaService) {
     if (!fs.existsSync(this.uploadDir)) {
       fs.mkdirSync(this.uploadDir, { recursive: true });
     }
   }
 
-  /** ✅ Generar respaldo comprimido (.sql.gz) */
-  async generarRespaldoPorEmpresa(empresaId: string) {
-    if (!/^[a-f0-9-]{36}$/.test(empresaId)) {
-      throw new Error('ID de empresa inválido');
-    }
-
+  /**
+   * ✅ Generar respaldo JSON y SQL para una empresa específica.
+   * Archivo SQL incluye UPSERT (INSERT ON CONFLICT DO UPDATE)
+   */
+  async generarRespaldoEmpresa(empresaId: string): Promise<{
+    jsonPath: string;
+    sqlPath: string;
+    fileNameJson: string;
+    fileNameSql: string;
+  }> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const fileName = `respaldo-${empresaId}-${timestamp}.sql.gz`;
-    const filePath = path.join(this.uploadDir, fileName);
 
-    const tablas = [
-      'clientes',
-      'clienteempresa',
-      'proveedores',
-      'proveedoresempresa',
-      'categoriasproducto',
-      'producto',
-      'inventario',
-      'compras',
-      'detallecompra',
-      'pedido',
-      'detallepedido',
-      'estadopedido',
-      'recibo',
-      'detallerecibo',
-      'movimientoscartera',
-      'detalleajustecartera',
-      'movimientoinventario',
-    ]
-      .map((t) => `--table=${t}`)
-      .join(' ');
+    const fileNameJson = `backup-empresa-${empresaId}-${timestamp}.json`;
+    const fileNameSql = `backup-empresa-${empresaId}-${timestamp}.sql`;
 
-    const dumpCmd = `
-      PGPASSWORD=${this.dbPassword} \
-      pg_dump -U ${this.dbUser} -d ${this.dbName} \
-      --data-only --inserts --column-inserts \
-      ${tablas} \
-      --no-owner \
-      --where="empresa_id='${empresaId}'" | gzip > ${filePath}
-    `;
+    const jsonPath = path.join(this.uploadDir, fileNameJson);
+    const sqlPath = path.join(this.uploadDir, fileNameSql);
+
+    const backupData: BackupData = {
+      empresa: null,
+      usuarios: [],
+      tipoMovimientos: [],
+      categoriasProducto: [],
+      clientes: [],
+      clienteEmpresa: [],
+      proveedores: [],
+      proveedorEmpresa: [],
+      productos: [],
+      inventario: [],
+      pedidos: [],
+      detallePedido: [],
+      estadoPedido: [],
+      recibos: [],
+      detalleRecibo: [],
+      compras: [],
+      detalleCompra: [],
+      movimientoInventario: [],
+      movimientosCartera: [],
+      detalleAjusteCartera: [],
+    };
 
     try {
-      await execPromise(dumpCmd);
-      return { filePath, fileName };
+      // ✅ 1. Obtener todos los datos
+      const empresa = await this.prisma.empresa.findUnique({
+        where: { id: empresaId },
+      });
+      if (!empresa) throw new Error(`Empresa ${empresaId} no encontrada`);
+      backupData.empresa = empresa;
+
+      backupData.tipoMovimientos = await this.prisma.tipoMovimientos.findMany();
+      backupData.usuarios = await this.prisma.usuario.findMany({
+        where: { empresaId },
+      });
+      backupData.categoriasProducto =
+        await this.prisma.categoriasProducto.findMany({ where: { empresaId } });
+      backupData.clientes = await this.prisma.cliente.findMany({
+        where: { empresas: { some: { empresaId } } },
+      });
+      backupData.clienteEmpresa = await this.prisma.clienteEmpresa.findMany({
+        where: { empresaId },
+      });
+      backupData.proveedores = await this.prisma.proveedores.findMany({
+        where: { proveedorEmpresa: { some: { empresaId } } },
+      });
+      backupData.proveedorEmpresa = await this.prisma.proveedorEmpresa.findMany(
+        { where: { empresaId } }
+      );
+      backupData.productos = await this.prisma.producto.findMany({
+        where: { empresaId },
+      });
+      backupData.inventario = await this.prisma.inventario.findMany({
+        where: { idEmpresa: empresaId },
+      });
+      backupData.compras = await this.prisma.compras.findMany({
+        where: { idEmpresa: empresaId },
+      });
+      backupData.detalleCompra = await this.prisma.detalleCompra.findMany({
+        where: { compra: { idEmpresa: empresaId } },
+      });
+      backupData.pedidos = await this.prisma.pedido.findMany({
+        where: { empresaId },
+      });
+      backupData.detallePedido = await this.prisma.detallePedido.findMany({
+        where: { pedido: { empresaId } },
+      });
+      backupData.estadoPedido = await this.prisma.estadoPedido.findMany({
+        where: { pedido: { empresaId } },
+      });
+      backupData.recibos = await this.prisma.recibo.findMany({
+        where: { empresaId },
+      });
+      backupData.detalleRecibo = await this.prisma.detalleRecibo.findMany({
+        where: { recibo: { empresaId } },
+      });
+      backupData.movimientoInventario =
+        await this.prisma.movimientoInventario.findMany({
+          where: { idEmpresa: empresaId },
+        });
+      backupData.movimientosCartera =
+        await this.prisma.movimientosCartera.findMany({ where: { empresaId } });
+      backupData.detalleAjusteCartera =
+        await this.prisma.detalleAjusteCartera.findMany({
+          where: { movimiento: { empresaId } },
+        });
+
+      // ✅ 2. Guardar archivo JSON
+      fs.writeFileSync(jsonPath, JSON.stringify(backupData, null, 2), 'utf-8');
+
+      // ✅ 3. Generar archivo SQL con UPSERT
+      const sqlScript = this.generarSQLConUpsert(backupData);
+      fs.writeFileSync(sqlPath, sqlScript, 'utf-8');
+
+      return { jsonPath, sqlPath, fileNameJson, fileNameSql };
     } catch (error) {
-      throw new Error(`Error en pg_dump: ${(error as Error).message}`);
+      throw new Error(`Error generando respaldo: ${(error as Error).message}`);
     }
   }
 
-  /** ✅ Restaurar respaldo comprimido (.sql.gz) */
-  async restaurarDesdeArchivo(filePath: string, empresaId: string) {
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`Archivo no encontrado: ${filePath}`);
-    }
+  /**
+   * ✅ Genera el script SQL con INSERT ... ON CONFLICT (id) DO UPDATE
+   */
+  /**
+   * ✅ Genera script SQL con UPSERT para evitar duplicados.
+   * Si el registro existe → UPDATE, si no → INSERT.
+   */
+  private generarSQLConUpsert(data: BackupData): string {
+    const lines: string[] = [];
+    lines.push('-- Respaldo generado automáticamente con UPSERT\n');
+    lines.push('BEGIN;');
 
-    if (!/^[a-f0-9-]{36}$/.test(empresaId)) {
-      throw new Error('ID de empresa inválido');
-    }
+    // ✅ Función genérica para generar los INSERT con ON CONFLICT
+    const generarInsert = (
+      table: string,
+      rows: Array<Record<string, unknown>>,
+      pk: string
+    ) => {
+      for (const row of rows) {
+        const keys = Object.keys(row);
+        const values = keys
+          .map((key) => {
+            const val = row[key];
+            if (val === null || val === undefined) return 'NULL';
+            if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
+            if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+            if (val instanceof Date) return `'${val.toISOString()}'`;
+            if (typeof val === 'number') return val;
+            return `'${JSON.stringify(val).replace(/'/g, "''")}'`; // ✅ Manejo seguro
+          })
+          .join(', ');
 
-    const deletes = `
-      DELETE FROM detalleajustecartera WHERE idmovimiento IN (SELECT idmovimiento FROM movimientoscartera WHERE empresa_id='${empresaId}');
-      DELETE FROM detallerecibo WHERE idrecibo IN (SELECT id FROM recibo WHERE empresa_id='${empresaId}');
-      DELETE FROM detallepedido WHERE pedidoid IN (SELECT id FROM pedido WHERE empresa_id='${empresaId}');
-      DELETE FROM estadopedido WHERE pedidoid IN (SELECT id FROM pedido WHERE empresa_id='${empresaId}');
-      DELETE FROM pedido WHERE empresa_id='${empresaId}';
-      DELETE FROM recibo WHERE empresa_id='${empresaId}';
-      DELETE FROM movimientoscartera WHERE empresa_id='${empresaId}';
-      DELETE FROM detallecompra WHERE idcompra IN (SELECT idcompra FROM compras WHERE idempresa='${empresaId}');
-      DELETE FROM compras WHERE idempresa='${empresaId}';
-      DELETE FROM inventario WHERE idempresa='${empresaId}';
-      DELETE FROM producto WHERE empresa_id='${empresaId}';
-      DELETE FROM categoriasproducto WHERE empresa_id='${empresaId}';
-      DELETE FROM clienteempresa WHERE empresa_id='${empresaId}';
-      DELETE FROM proveedoresempresa WHERE empresa_id='${empresaId}';
-    `;
+        const updateSet = keys
+          .filter((k) => k !== pk) // ✅ No actualiza la PK
+          .map((k) => `"${k}" = EXCLUDED."${k}"`)
+          .join(', ');
 
-    const restoreCmd = `
-      PGPASSWORD=${this.dbPassword} \
-      psql -U ${this.dbUser} -d ${this.dbName} <<EOF
-      BEGIN;
-      ${deletes}
-      \\! gunzip -c ${filePath} | psql -U ${this.dbUser} -d ${this.dbName}
-      COMMIT;
-EOF
-    `;
+        lines.push(
+          `INSERT INTO "${table}" (${keys
+            .map((k) => `"${k}"`)
+            .join(
+              ', '
+            )}) VALUES (${values}) ON CONFLICT ("${pk}") DO UPDATE SET ${updateSet};`
+        );
+      }
+    };
 
-    try {
-      const { stdout, stderr } = await execPromise(restoreCmd);
-      fs.unlinkSync(filePath);
-      return { message: '✅ Restauración completada', logs: stdout || stderr };
-    } catch (error) {
-      throw new Error(
-        `Error restaurando respaldo: ${(error as Error).message}`
+    // ✅ Orden correcto para evitar errores de FK
+    if (data.empresa) generarInsert('Empresa', [data.empresa], 'id');
+    if (data.tipoMovimientos.length)
+      generarInsert(
+        'TipoMovimientos',
+        data.tipoMovimientos,
+        'idTipoMovimiento'
       );
-    }
+    if (data.categoriasProducto.length)
+      generarInsert(
+        'CategoriasProducto',
+        data.categoriasProducto,
+        'idCategoria'
+      );
+    if (data.clientes.length) generarInsert('Cliente', data.clientes, 'id');
+    if (data.usuarios.length) generarInsert('Usuario', data.usuarios, 'id');
+    if (data.clienteEmpresa.length)
+      generarInsert('ClienteEmpresa', data.clienteEmpresa, 'id');
+    if (data.proveedores.length)
+      generarInsert('Proveedores', data.proveedores, 'idProveedor');
+    if (data.proveedorEmpresa.length)
+      generarInsert(
+        'ProveedorEmpresa',
+        data.proveedorEmpresa,
+        'idProveedorEmpresa'
+      );
+    if (data.productos.length) generarInsert('Producto', data.productos, 'id');
+    if (data.inventario.length)
+      generarInsert('Inventario', data.inventario, 'idInventario');
+    if (data.compras.length) generarInsert('Compras', data.compras, 'idCompra');
+    if (data.detalleCompra.length)
+      generarInsert('DetalleCompra', data.detalleCompra, 'idDetalleCompra');
+    if (data.pedidos.length) generarInsert('Pedido', data.pedidos, 'id');
+    if (data.detallePedido.length)
+      generarInsert('DetallePedido', data.detallePedido, 'id');
+    if (data.estadoPedido.length)
+      generarInsert('EstadoPedido', data.estadoPedido, 'id');
+    if (data.recibos.length) generarInsert('Recibo', data.recibos, 'id');
+    if (data.detalleRecibo.length)
+      generarInsert('DetalleRecibo', data.detalleRecibo, 'idDetalleRecibo');
+    if (data.movimientoInventario.length)
+      generarInsert(
+        'MovimientoInventario',
+        data.movimientoInventario,
+        'idMovimiento'
+      );
+    if (data.movimientosCartera.length)
+      generarInsert(
+        'MovimientosCartera',
+        data.movimientosCartera,
+        'idMovimientoCartera'
+      );
+    if (data.detalleAjusteCartera.length)
+      generarInsert(
+        'DetalleAjusteCartera',
+        data.detalleAjusteCartera,
+        'idDetalleAjuste'
+      );
+
+    lines.push('COMMIT;');
+    return lines.join('\n');
   }
 }

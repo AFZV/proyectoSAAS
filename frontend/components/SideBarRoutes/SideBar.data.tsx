@@ -98,11 +98,6 @@ export const dataHerramientasSideBar = [
     href: "respaldos",
   },
   {
-    icon: UploadCloud,
-    label: "Restaurar",
-    href: "restaurar",
-  },
-  {
     icon: FileUp,
     label: "Importar",
     href: "importar",

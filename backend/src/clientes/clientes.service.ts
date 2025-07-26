@@ -17,17 +17,46 @@ export class ClienteService {
   /// crea un cliente y lo asocia a una empresa y un usuario de esa empresa
   async crearCliente(data: CreateClienteDto, usuario: UsuarioPayload) {
     if (!usuario) throw new BadRequestException('EL USUARIO ES REQUERIDO');
+
     const { empresaId, id: usuarioId } = usuario;
+
+    // Buscar cliente por NIT
     const existente = await this.prisma.cliente.findFirst({
       where: { nit: data.nit },
     });
 
     if (existente) {
+      // Verificar si ya está asociado a la empresa actual
+      const relacionExistente = await this.prisma.clienteEmpresa.findFirst({
+        where: {
+          clienteId: existente.id,
+          empresaId,
+        },
+      });
+
+      if (relacionExistente) {
+        throw new BadRequestException(
+          'El cliente ya está registrado en esta empresa'
+        );
+      }
+
+      // Si existe el cliente pero no está asociado, creamos la relación
+      const relacion = await this.prisma.clienteEmpresa.create({
+        data: {
+          clienteId: existente.id,
+          empresaId,
+          usuarioId,
+        },
+      });
+
       return {
-        messagge: 'el cliente ya existe cliente:',
-        existente,
+        message: 'Cliente vinculado a la empresa correctamente',
+        cliente: existente,
+        relacion,
       };
     }
+
+    // Si no existe el cliente, lo creamos
     const dataCleaned = {
       ...data,
       departamento: formatearTexto(data.departamento),
@@ -47,11 +76,13 @@ export class ClienteService {
     const relacion = await this.prisma.clienteEmpresa.create({
       data: {
         clienteId: cliente.id,
-        empresaId: empresaId,
-        usuarioId: usuarioId,
+        empresaId,
+        usuarioId,
       },
     });
+
     return {
+      message: 'Cliente creado y vinculado correctamente',
       cliente,
       relacion,
     };

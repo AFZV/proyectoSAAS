@@ -27,14 +27,22 @@ export default function RespaldosPage() {
         throw new Error("Error al generar respaldo");
       }
 
+      // ✅ Obtener nombre del archivo desde el header
       const disposition = respuesta.headers.get("Content-Disposition");
-      const fileName =
-        disposition?.split("filename=")[1]?.replace(/"/g, "") ??
-        `respaldo-${new Date().toISOString().replace(/[:.]/g, "-")}.sql.gz`;
+      let fileName =
+        disposition?.split("filename=")[1]?.replace(/"/g, "") ?? "";
+
+      // ✅ Forzar extensión .json si no existe
+      if (!fileName.endsWith(".json")) {
+        fileName = `respaldo-${new Date()
+          .toISOString()
+          .replace(/[:.]/g, "-")}.json`;
+      }
 
       const blob = await respuesta.blob();
       const url = URL.createObjectURL(blob);
 
+      // ✅ Forzar descarga con la extensión correcta (.json)
       const a = document.createElement("a");
       a.href = url;
       a.download = fileName;
