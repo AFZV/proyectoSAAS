@@ -50,7 +50,7 @@ export class ClienteController {
     @Req() req: UsuarioRequest
   ) {
     const usuario = req.usuario;
-    console.log('nit recibido en backend:', filtro);
+
     if (!usuario) throw new UnauthorizedException('Usuario requerido');
     return this.clienteService.getClientesPorFiltro(filtro, usuario);
   }
@@ -58,7 +58,6 @@ export class ClienteController {
   @Roles('admin', 'vendedor')
   @Get('getByNit/:nit')
   getByNiT(@Param('nit') nit: string, @Req() req: UsuarioRequest) {
-    console.log('nit que llega al backend:', nit);
     if (!req.usuario) throw new UnauthorizedException('Usuario requerido');
     const usuario = req.usuario;
     return this.clienteService.getClientePorNit(nit, usuario);

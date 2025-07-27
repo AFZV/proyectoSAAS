@@ -24,14 +24,9 @@ export class ClienteEmpresaService {
 
     if (existe) {
       throw new ConflictException(
-        'El cliente ya está asociado a esta empresa.',
+        'El cliente ya está asociado a esta empresa.'
       );
     }
-    console.log('🔍 Asociando cliente con:', {
-      clienteId,
-      empresaId,
-      vendedorId,
-    });
 
     // Crear asociación
     return await this.prisma.clienteEmpresa.create({

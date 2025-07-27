@@ -126,15 +126,11 @@ export function FormCreateCliente({
 
   // Envío del formulario - CORREGIDO
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    console.log("🚀 Iniciando creación de cliente...");
-    console.log("📝 Datos del formulario:", values);
-
     setIsSubmiting(true);
 
     try {
       // 🔑 OBTENER TOKEN
       const token = await getToken();
-      console.log("🔑 Token obtenido:", token ? "✅ Sí" : "❌ No");
 
       if (!token) {
         throw new Error("No se pudo obtener el token de autenticación");
@@ -159,8 +155,6 @@ export function FormCreateCliente({
         ciudad: nombreCiud,
       };
 
-      console.log("📦 Payload a enviar:", clientePayload);
-
       // 🌐 HACER PETICIÓN CON HEADERS CORRECTOS
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/clientes`,
@@ -173,9 +167,6 @@ export function FormCreateCliente({
           body: JSON.stringify(clientePayload),
         }
       );
-
-      console.log("📡 Response status:", response.status);
-      console.log("📡 Response ok:", response.ok);
 
       if (!response.ok) {
         const errorData = await response.text();
@@ -191,7 +182,6 @@ export function FormCreateCliente({
       }
 
       const cliente = await response.json();
-      console.log("✅ Cliente creado:", cliente);
 
       toast({
         title: "¡Cliente creado exitosamente!",

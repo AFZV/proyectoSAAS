@@ -96,7 +96,6 @@ export class UsuarioController {
   @Roles('admin')
   @Get('usuarios/empresa')
   getUsuariosPorEmpresa(@Req() req: UsuarioRequest) {
-    console.log('entrando al controller de usuario');
     const usuario = req.usuario;
     return this.usuarioService.getUsuariosPorEmpresa(usuario);
   }

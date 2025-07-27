@@ -27,7 +27,7 @@ async function fetchCompras(token: string): Promise<Compra[]> {
     }
 
     const data = await res.json();
-    console.log("Datos de compras recibidos:", data);
+
     return data.compras || data || [];
   } catch (error) {
     console.error("Error en fetchCompras:", error);

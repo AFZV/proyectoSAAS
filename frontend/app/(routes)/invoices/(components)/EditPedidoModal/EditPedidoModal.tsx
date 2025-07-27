@@ -64,14 +64,6 @@ function ModalBuscarProducto({
   const [busqueda, setBusqueda] = useState("");
 
   // Debug logs
-  console.log("🔍 ModalBuscarProducto - Props recibidas:", {
-    open,
-    productos,
-    productosLength: Array.isArray(productos)
-      ? productos.length
-      : "No es array",
-    productosType: typeof productos,
-  });
 
   // Verificar que productos sea un array antes de filtrar
   const productosFiltrados = Array.isArray(productos)
@@ -79,12 +71,6 @@ function ModalBuscarProducto({
         p.nombre.toLowerCase().includes(busqueda.toLowerCase())
       )
     : [];
-
-  console.log("🔍 Productos filtrados:", {
-    busqueda,
-    productosFiltrados,
-    cantidadFiltrados: productosFiltrados.length,
-  });
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -165,44 +151,23 @@ export function EditPedidoModal({
   // Cargar catálogo de productos
   const cargarCatalogo = async () => {
     try {
-      console.log("🔄 Iniciando carga de catálogo...");
       const token = await getToken();
-      console.log("🔑 Token obtenido:", token ? "Token válido" : "Sin token");
 
       const url = `${process.env.NEXT_PUBLIC_API_URL}/productos/empresa/activos`;
-      console.log("🌐 URL de la API:", url);
 
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      console.log("📡 Respuesta del servidor:", {
-        status: res.status,
-        statusText: res.statusText,
-        ok: res.ok,
-      });
-
       if (res.ok) {
         const data = await res.json();
-        console.log("📦 Productos recibidos del backend:", data);
-        console.log(
-          "📊 Tipo de datos recibidos:",
-          typeof data,
-          Array.isArray(data)
-        );
 
         // ✅ CORRECCIÓN: Extraer el array de productos del objeto respuesta
         const productos = data.productos || data || [];
-        console.log("🔍 Array de productos extraído:", productos);
-        console.log(
-          "📈 Cantidad de productos:",
-          Array.isArray(productos) ? productos.length : "No es array"
-        );
 
         // Extraer solo las propiedades necesarias y asegurar que productos sea un array
         const productosFormateados = Array.isArray(productos)
           ? productos.map((producto: any) => {
-              console.log("🔍 Mapeando producto individual:", producto);
               const productoFormateado = {
                 id: producto.id,
                 nombre: producto.nombre || "Sin nombre",
@@ -215,16 +180,10 @@ export function EditPedidoModal({
                   "Sin categoría",
                 imagenUrl: producto.imagenUrl || undefined,
               };
-              console.log("✅ Producto formateado:", productoFormateado);
+
               return productoFormateado;
             })
           : [];
-
-        console.log("✅ Productos formateados:", productosFormateados);
-        console.log(
-          "🔢 Cantidad de productos formateados:",
-          productosFormateados.length
-        );
 
         setCatalogoProductos(productosFormateados);
         setShowProductCatalog(true);

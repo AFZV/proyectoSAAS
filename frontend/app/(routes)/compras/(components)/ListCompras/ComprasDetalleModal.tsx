@@ -80,7 +80,6 @@ export function CompraDetalleModal({
 
     // Si tenemos datos directos, usarlos
     if (compraData) {
-      console.log("Using direct data:", compraData);
       setCompra(compraData);
       // Inicializar productos para edición
       if (compraData.productos) {
@@ -107,20 +106,14 @@ export function CompraDetalleModal({
       setError(null);
 
       try {
-        console.log("Fetching compra with ID:", idCompra);
-
         // Intentar obtener el token
         let token;
         try {
           token = await getToken();
-          console.log("Token con getToken():", token ? "✓" : "✗");
         } catch (tokenError) {
-          console.log("Error con getToken():", tokenError);
           try {
             token = await getToken({ template: "default" });
-            console.log("Token con template default:", token ? "✓" : "✗");
           } catch (templateError) {
-            console.log("Error con template default:", templateError);
             throw new Error("No se pudo obtener el token de autenticación");
           }
         }
@@ -130,7 +123,6 @@ export function CompraDetalleModal({
         }
 
         const url = `${process.env.NEXT_PUBLIC_API_URL?.trim()}/compras/find/${idCompra}`;
-        console.log("Full URL:", url);
 
         const res = await fetch(url, {
           method: "GET",
@@ -140,9 +132,6 @@ export function CompraDetalleModal({
           },
         });
 
-        console.log("Response status:", res.status);
-        console.log("Response ok:", res.ok);
-
         if (!res.ok) {
           const errorText = await res.text();
           console.error("Error response:", errorText);
@@ -150,11 +139,9 @@ export function CompraDetalleModal({
         }
 
         const data = await res.json();
-        console.log("Data received:", data);
 
         // Los datos vienen envueltos en un objeto 'compra'
         if (data && data.compra && data.compra.idCompra) {
-          console.log("Setting compra data:", data.compra);
           setCompra(data.compra);
           // Inicializar productos para edición
           if (data.compra.productos) {
@@ -169,7 +156,7 @@ export function CompraDetalleModal({
           }
         } else if (data && data.idCompra) {
           // Fallback si vienen directamente
-          console.log("Setting direct data:", data);
+
           setCompra(data);
           if (data.productos) {
             setEditingProducts(
@@ -231,7 +218,7 @@ export function CompraDetalleModal({
       );
       if (res.ok) {
         const data = await res.json();
-        console.log("Productos disponibles:", data);
+
         // Ajustar según la estructura de respuesta de tu API
         const products = data.productos || data || [];
         setAvailableProducts(
@@ -263,8 +250,6 @@ export function CompraDetalleModal({
             precio: p.precio, // 👈 INCLUIR PRECIO
           })),
       };
-
-      console.log("Updating compra with:", body);
 
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL?.trim()}/compras/update/${

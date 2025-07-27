@@ -122,7 +122,6 @@ export class ProveedoresService {
       throw new NotFoundException('Proveedor no encontrado');
     }
 
-    console.log('respondió el service:', relacion.proveedor);
     return relacion.proveedor;
   }
 }

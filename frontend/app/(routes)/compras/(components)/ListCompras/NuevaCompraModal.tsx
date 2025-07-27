@@ -156,7 +156,7 @@ export function NuevaCompraModal({
         );
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const data = await res.json();
-        console.log("esto llega al front de proveedores desde backend:", data);
+
         const list: Proveedor[] = Array.isArray(data)
           ? data
           : data.proveedores || [];
@@ -327,8 +327,6 @@ export function NuevaCompraModal({
         })),
       };
 
-      console.log("📦 Enviando compra:", payload);
-
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/compras/create`,
         {
@@ -347,7 +345,6 @@ export function NuevaCompraModal({
       }
 
       const result = await res.json();
-      console.log("✅ Compra creada:", result);
 
       toast({
         title: "Compra creada exitosamente",

@@ -34,7 +34,6 @@ export class RespaldosController {
       }
 
       const empresaId = usuario.empresaId;
-      console.log('➡ Generando copia de seguridad para empresa:', empresaId);
 
       // ✅ Llamar al servicio para crear archivo SQL y JSON
       const { sqlPath, fileNameSql } =

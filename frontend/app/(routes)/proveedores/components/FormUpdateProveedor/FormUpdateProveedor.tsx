@@ -70,7 +70,6 @@ export function FormUpdateProveedor({
       );
       const proveedor: Proveedor = res.data;
       setProveedorActual(proveedor);
-      console.log("datos de proveedor que llegan del backend:", proveedor);
 
       editForm.reset({
         identificacion: proveedor.identificacion,
@@ -89,7 +88,6 @@ export function FormUpdateProveedor({
   };
 
   const onUpdate = async (values: z.infer<typeof formSchema>) => {
-    console.log("se envia este id al backend:", proveedorActual?.idProveedor);
     if (!proveedorActual) return;
     setIsUpdating(true);
     try {
@@ -121,10 +119,6 @@ export function FormUpdateProveedor({
   };
 
   if (isUpdating) return <Loading title="Actualizando proveedor..." />;
-  console.log(
-    "datos de proveedor que llegan del backend proveedorActual:",
-    proveedorActual
-  );
 
   return (
     <div className="space-y-6">

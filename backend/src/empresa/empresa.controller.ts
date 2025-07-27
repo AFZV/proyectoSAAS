@@ -25,7 +25,6 @@ export class EmpresaController {
 
   @Post('create')
   create(@Body() data: CreateEmpresaDto) {
-    console.log('datos recibidos para crear empresa:', data);
     return this.empresaService.create(data);
   }
   @Get('summary')
@@ -41,7 +40,6 @@ export class EmpresaController {
 
   @Get('nit/:nit')
   findByNit(@Param('nit') nit: string) {
-    console.log('nit enviado al backend:', nit);
     return this.empresaService.obtenerPorNit(nit);
   }
 
@@ -57,7 +55,6 @@ export class EmpresaController {
 
   @Patch('estado-cambiar/:idEmpresa')
   cambiarEstado(@Param('idEmpresa') idEmpresa: string) {
-    console.log('llega este id al patch:', idEmpresa);
     return this.empresaService.CambiarEstado(idEmpresa);
   }
 }

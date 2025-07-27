@@ -15,7 +15,6 @@ export async function SalesDistribution() {
     next: { revalidate: 0 },
   });
   const dataVentas = await resventas.json();
-  console.log("Respuesta de ventas:", dataVentas);
 
   // Fetch cobros
   const resCobros = await fetch(`${BACKEND_URL}/dashboard/cobros`, {
@@ -23,7 +22,6 @@ export async function SalesDistribution() {
     next: { revalidate: 0 },
   });
   const dataCobros = await resCobros.json();
-  console.log("Respuesta de cobros:", dataCobros);
 
   return (
     <div className="space-y-4">

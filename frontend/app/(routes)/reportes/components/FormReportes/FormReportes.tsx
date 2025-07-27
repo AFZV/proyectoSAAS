@@ -109,8 +109,6 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
   }, [opcion]);
 
   const obtenerVendedores = async () => {
-    console.log("renderSpecificFields - tipo:", tipo, "opcion:", opcion);
-
     try {
       setLoadingVendedores(true);
       const token = await getToken();
@@ -140,7 +138,6 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       );
 
       setVendedores(vendedoresFiltrados);
-      console.log("✅ Vendedores para Select:", vendedoresFiltrados);
     } catch (error) {
       console.error("Error al cargar vendedores:", error);
 
@@ -236,7 +233,7 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
         body = {};
       } else if (opcion === "rango") {
         endpoint = `/reportes/inventario/rango/${data.formato}`;
-        console.log("datos enviados de rango:,", { data });
+
         method = "POST";
         body = {
           inicio: data.inicio.toUpperCase(),
@@ -304,7 +301,6 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
           fechaInicio: data.fechaInicio,
           fechaFin: data.fechaFin,
         };
-        console.log("📤 GENERAL configurado:", { endpoint, method, body });
       } else if (opcion === "vendedor") {
         endpoint = `/reportes/recaudo-vendedor/${data.vendedorId}/${data.formato}`;
         method = "POST";
@@ -314,12 +310,6 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
         };
       }
     }
-
-    console.log("🚀 Llamando al backend:", {
-      endpoint: `${BACKEND_URL}${endpoint}`,
-      method,
-      body,
-    });
 
     const fetchOptions: RequestInit = {
       method,
@@ -360,8 +350,6 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
-
-    console.log("✅ Descarga completada:", `reporte-${tipo}-${opcion}.xlsx`);
   };
 
   const onSubmit = async (data: any) => {

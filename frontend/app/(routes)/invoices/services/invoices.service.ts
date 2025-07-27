@@ -15,9 +15,6 @@ export class InvoicesService {
     token: string,
     options?: RequestInit
   ): Promise<T> {
-    console.log(`🌐 Haciendo request a: ${this.baseUrl}${endpoint}`);
-    console.log("📦 Opciones:", options);
-
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
       headers: {
@@ -26,8 +23,6 @@ export class InvoicesService {
         ...options?.headers,
       },
     });
-
-    console.log(`📡 Respuesta: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
@@ -38,7 +33,7 @@ export class InvoicesService {
     }
 
     const data = await response.json();
-    console.log("✅ Datos recibidos:", data);
+
     return data;
   }
 
@@ -65,14 +60,6 @@ export class InvoicesService {
       flete?: number;
     }
   ): Promise<any> {
-    console.log("🔄 Actualizando estado del pedido:");
-    console.log("📋 Datos enviados:", {
-      pedidoId,
-      estado: data.estado,
-      guiaTransporte: data.guiaTransporte,
-      flete: data.flete,
-    });
-
     // ✅ VALIDACIÓN: Solo estados permitidos (sin ENTREGADO)
     const estadosPermitidos = [
       "GENERADO",
@@ -97,8 +84,6 @@ export class InvoicesService {
       flete: data.flete || 0, // ✅ Backend espera number
     };
 
-    console.log("📤 Payload final:", payload);
-
     try {
       const result = await this.makeRequest(
         "/pedidos/estado", // ✅ Endpoint correcto según tu controller
@@ -109,7 +94,6 @@ export class InvoicesService {
         }
       );
 
-      console.log("✅ Estado actualizado exitosamente:", result);
       return result;
     } catch (error) {
       console.error("❌ Error al actualizar estado:", error);
@@ -123,8 +107,6 @@ export class InvoicesService {
     pedidoId: string,
     data: Partial<CreatePedidoDto>
   ): Promise<Pedido> {
-    console.log("📝 Actualizando pedido completo:", { pedidoId, data });
-
     return this.makeRequest<Pedido>(`/pedidos/${pedidoId}`, token, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -133,8 +115,6 @@ export class InvoicesService {
 
   // 🚫 CANCELAR PEDIDO - SOLO EN SEPARADO Y FACTURADO
   async cancelarPedido(token: string, pedidoId: string): Promise<any> {
-    console.log("🚫 Cancelando pedido:", pedidoId);
-
     try {
       const result = await this.actualizarEstadoPedido(token, pedidoId, {
         estado: "CANCELADO",
@@ -142,7 +122,6 @@ export class InvoicesService {
         flete: 0,
       });
 
-      console.log("✅ Pedido cancelado exitosamente:", result);
       return result;
     } catch (error) {
       console.error("❌ Error al cancelar pedido:", error);
@@ -166,8 +145,6 @@ export class InvoicesService {
         | "fechaPedido";
     }
   ): Promise<Pedido[]> {
-    console.log("🔍 Filtrando pedidos:", filtros);
-
     // ✅ USAR QUERY PARAMETERS - PERO VERIFICAR SI BACKEND ESPERA BODY
     // Según tu controller, usa @Body(), así que enviamos en el body
     return this.makeRequest<Pedido[]>("/pedidos/filtro", token, {

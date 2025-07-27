@@ -44,7 +44,7 @@ export class ProductosController {
   async findAll(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
     const productos = await this.productosService.findAllforEmpresa(usuario);
-    console.log('esto hay en la bdd en productos :', productos);
+
     return { productos };
   }
 
@@ -55,7 +55,7 @@ export class ProductosController {
     const usuario = req.usuario;
     const productos =
       await this.productosService.findAllforEmpresaActiva(usuario);
-    console.log('Productos activos:', productos);
+
     return { productos };
   }
   //Actualizar el Estado de  un producto (Activo/Inactivo) por su ID

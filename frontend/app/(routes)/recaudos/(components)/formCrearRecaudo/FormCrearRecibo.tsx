@@ -98,7 +98,7 @@ export function FormCrearRecibo({
 
     // Aseguramos reset del clienteId antes de nueva búsqueda
     form.setValue("id", "");
-    console.log("nit enviado al backend:", nit);
+
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/clientes/getByNit/${nit}`,

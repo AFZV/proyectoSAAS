@@ -20,16 +20,14 @@ export class PrismaService
       if (!globalThis.prisma) {
         super();
         globalThis.prisma = this;
-        console.log('✅ PrismaService instanciado (singleton en desarrollo)');
       }
 
       // 💡 Importante: TypeScript necesita que retornemos el tipo `PrismaService`
-      return globalThis.prisma!;
+      return globalThis.prisma;
     }
 
     // En producción, instanciación normal
     super();
-    console.log('✅ PrismaService instanciado (producción)');
   }
 
   async onModuleInit() {

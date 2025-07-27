@@ -15,10 +15,8 @@ export class UsuarioGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request>();
     const authHeader = req.headers.authorization;
-    console.log('🟡 Header recibido:', authHeader);
 
     const payload = await verificarTokenClerk(authHeader); // ✅ Reutilizas tu propia función
-    console.log('🟢 Payload decodificado:', payload);
 
     const userId = payload.sub;
 
@@ -28,7 +26,7 @@ export class UsuarioGuard implements CanActivate {
         estado: 'activo', // ✅ solo usuarios activos
       },
     });
-    console.log('🔵 Usuario en base de datos:', usuario);
+
     if (!usuario) {
       throw new UnauthorizedException('Usuario no encontrado en base de datos');
     }

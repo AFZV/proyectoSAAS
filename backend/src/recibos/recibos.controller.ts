@@ -45,9 +45,8 @@ export class RecibosController {
   @Roles('admin', 'vendedor')
   @Get('all')
   async getRecibos(@Req() req: UsuarioRequest) {
-    console.log('Usuario recibido en controlador:', req.usuario);
     const usuario = req.usuario;
-    //console.log('este es el usuario en back:', usuario);
+
     return this.recibosService.getRecibos(usuario);
   }
 
@@ -82,7 +81,6 @@ export class RecibosController {
   @Roles('admin', 'vendedor')
   @Get('getStats/summary')
   async resumenRecibos(@Req() req: UsuarioRequest) {
-    console.log('llego al backend', req.usuario.id);
     const usuario = req.usuario;
     return this.recibosService.getResumen(usuario);
   }

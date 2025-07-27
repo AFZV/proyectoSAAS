@@ -159,11 +159,8 @@ export function FormUpdateCliente({
   const onSearch = async (values: z.infer<typeof searchSchema>) => {
     setIsSearching(true);
 
-    console.log("🔍 Iniciando búsqueda con término:", values.searchTerm);
-
     try {
       const token = await getToken();
-      console.log("🔑 Token obtenido:", token ? "Sí" : "No");
 
       if (!token) {
         throw new Error("No se pudo obtener el token de autenticación");
@@ -171,13 +168,10 @@ export function FormUpdateCliente({
 
       // 🎯 USAR EL ENDPOINT CORRECTO
       const url = `${process.env.NEXT_PUBLIC_API_URL}/clientes/getByFilter/${values.searchTerm}`;
-      console.log("🌐 URL de búsqueda:", url);
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      console.log("📡 Response status:", response.status);
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -189,7 +183,6 @@ export function FormUpdateCliente({
       }
 
       const clientes = await response.json();
-      console.log("📋 Clientes encontrados:", clientes);
 
       // Verificar si se encontraron clientes
       if (!clientes || clientes.length === 0) {
@@ -254,9 +247,6 @@ export function FormUpdateCliente({
         throw new Error("No se pudo obtener el token de autenticación");
       }
 
-      console.log("🔄 Actualizando cliente:", clienteActual);
-      console.log("📝 Datos a actualizar:", values);
-
       // 🎯 USAR EL ID DEL CLIENTE, NO EL NIT
       const clienteId = clienteActual.id;
 
@@ -265,7 +255,6 @@ export function FormUpdateCliente({
       }
 
       const url = `${process.env.NEXT_PUBLIC_API_URL}/clientes/${clienteId}`;
-      console.log("🌐 URL de actualización (con ID):", url);
 
       const response = await fetch(url, {
         method: "PATCH",
@@ -276,8 +265,6 @@ export function FormUpdateCliente({
         body: JSON.stringify(values),
       });
 
-      console.log("📡 Response status:", response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error("❌ Error response:", errorText);
@@ -285,7 +272,6 @@ export function FormUpdateCliente({
       }
 
       const clienteActualizado = await response.json();
-      console.log("✅ Cliente actualizado:", clienteActualizado);
 
       toast({
         title: "Cliente actualizado exitosamente",

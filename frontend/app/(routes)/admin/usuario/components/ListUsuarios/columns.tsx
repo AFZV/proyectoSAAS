@@ -62,7 +62,6 @@ function UsuarioActions({ usuario }: { usuario: Usuario }) {
       );
 
       if (!res.ok) throw new Error("Error al cambiar estado");
-      console.log("📦 Response recibido:", res);
 
       toast({ title: "Estado actualizado ✅" });
       router.refresh();

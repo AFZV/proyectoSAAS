@@ -8,7 +8,6 @@ export function formatValue(value: number): string {
       currency: "COP",
     });
   } catch (error) {
-    console.log("error al formatear:", error);
     return "$0";
   }
 }

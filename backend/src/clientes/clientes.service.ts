@@ -148,13 +148,13 @@ export class ClienteService {
       throw new UnauthorizedException('Usuario no autorizado');
     }
     const { id: usuarioId, rol, empresaId } = usuario;
-    console.log('entrando al service');
+
     const cliente = await this.prisma.cliente.findFirst({
       where: {
         nit: nit,
       },
     });
-    console.log('cliente encontrado:', cliente);
+
     if (!cliente) throw new NotFoundException('cliente no encontrado');
 
     const clienteEmpresa = await this.prisma.clienteEmpresa.findFirst({
@@ -170,7 +170,7 @@ export class ClienteService {
     if (!clienteEmpresa) {
       throw new UnauthorizedException('Cliente no encontrado');
     }
-    console.log('retornando al front prueba final:', clienteEmpresa);
+
     return clienteEmpresa;
   }
 

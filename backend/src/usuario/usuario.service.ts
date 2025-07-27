@@ -15,7 +15,6 @@ export class UsuarioService {
   constructor(private prisma: PrismaService) {}
 
   async createSuperAdmin(data: CreateSuperadminDto, empresaId: string) {
-    console.log('empresa id u¿que llega a crera superadmin:', empresaId);
     return this.prisma.usuario.create({
       data: {
         ...data,
@@ -160,7 +159,7 @@ export class UsuarioService {
         estado: true,
       },
     });
-    console.log('respondiendo al front con susuarios :', usuarios);
+
     return usuarios;
   }
 

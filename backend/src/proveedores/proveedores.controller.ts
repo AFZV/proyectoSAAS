@@ -39,7 +39,6 @@ export class ProveedoresController {
   }
   @Get('summary')
   getResume(@Req() req: UsuarioRequest) {
-    console.log('llego al backend .......................');
     const usuario = req.usuario;
     return this.proveedoresService.getResumen(usuario);
   }
@@ -48,7 +47,6 @@ export class ProveedoresController {
     @Param('proveedorId') proveedorId: string,
     @Req() req: UsuarioRequest
   ) {
-    console.log('llego al backend id:', proveedorId);
     const usuario = req.usuario;
     return this.proveedoresService.getProveedorById(usuario, proveedorId);
   }

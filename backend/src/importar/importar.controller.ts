@@ -26,7 +26,7 @@ export class ImportarController {
     @Body() clientes: CreateClienteExcelDto[]
   ) {
     const usuario = req.usuario; // o como lo estés obteniendo
-    console.log('body recibido en backend:', clientes);
+
     return await this.importarService.cargarMasivamenteClientes(
       usuario,
       clientes

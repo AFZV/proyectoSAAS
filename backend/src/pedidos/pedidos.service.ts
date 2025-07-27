@@ -34,12 +34,26 @@ export class PedidosService {
       );
     }
 
-    const { empresaId, id: usuarioId } = usuario;
-
+    const { empresaId } = usuario;
     const totalCalculado = data.productos.reduce(
       (sum, p) => sum + p.cantidad * p.precio,
       0
     );
+    const relacion = await this.prisma.clienteEmpresa.findFirst({
+      where: {
+        clienteId: data.clienteId,
+        empresaId, // aseguramos que es de la misma empresa
+      },
+      include: {
+        usuario: true, // para traer el vendedor
+      },
+    });
+
+    if (!relacion || !relacion.usuario) {
+      throw new BadRequestException('No hay usuario asociado a este cliente');
+    }
+
+    const vendedorId = relacion.usuario.id;
 
     return await this.prisma.$transaction(async (tx) => {
       // Paso 1: Crear el pedido sin productos aún
@@ -48,7 +62,7 @@ export class PedidosService {
           clienteId: data.clienteId,
           observaciones: data.observaciones,
           empresaId,
-          usuarioId,
+          usuarioId: vendedorId,
           total: totalCalculado,
         },
       });
@@ -224,11 +238,8 @@ export class PedidosService {
           .then((res) => res[res.length - 1]),
       ]);
 
-      console.log('antes de entrar al setinmediatte');
-
       // Generar y subir el PDF sin bloquear la respuesta
       setImmediate(() => {
-        console.log('entando al setinmediate');
         void (async () => {
           try {
             const resumen: ResumenPedidoDto = {
@@ -305,8 +316,6 @@ export class PedidosService {
   </div>
   `
             );
-
-            console.log(`✅ PDF subido a Cloudinary: ${url}`);
           } catch (error) {
             console.error(
               '❌ Error al generar/subir PDF en segundo plano:',
@@ -315,7 +324,6 @@ export class PedidosService {
           }
         })();
       });
-      console.log('siliendo del setinmediate');
 
       return estadoCreado;
     }
@@ -324,12 +332,6 @@ export class PedidosService {
       const fechaEnviado = new Date();
 
       // ✅ Agregar logs para debug
-      console.log('📦 Datos recibidos para ENVIADO:', {
-        pedidoId,
-        guiaTransporte,
-        flete,
-        tipoFlete: typeof flete,
-      });
 
       const [, estadoNuevo] = await this.prisma.$transaction([
         this.prisma.pedido.update({
@@ -345,7 +347,6 @@ export class PedidosService {
         }),
       ]);
 
-      console.log('✅ Estado ENVIADO creado exitosamente');
       return estadoNuevo;
     }
 
@@ -479,14 +480,6 @@ export class PedidosService {
     });
 
     // ✅ Agregar log para verificar datos
-    console.log('📋 Pedidos obtenidos:');
-    pedidos.slice(0, 3).forEach((pedido) => {
-      console.log(`Pedido ${pedido.id.slice(-8)}:`, {
-        flete: pedido.flete,
-        guiaTransporte: pedido.guiaTransporte,
-        fechaEnvio: pedido.fechaEnvio,
-      });
-    });
 
     return pedidos;
   }

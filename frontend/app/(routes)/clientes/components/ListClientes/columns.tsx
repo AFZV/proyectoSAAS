@@ -151,12 +151,10 @@ function ClienteActions({ cliente }: { cliente: Cliente }) {
   const [showEditar, setShowEditar] = useState(false);
 
   const handleView = () => {
-    console.log("👁️ Ver detalles del cliente:", cliente.nit);
     setShowDetalles(true);
   };
 
   const handleEdit = () => {
-    console.log("✏️ Editar cliente:", cliente.nit);
     setShowEditar(true);
   };
 

@@ -156,7 +156,6 @@ export class DashboardService {
     const rangos = this.obtenerRangosComparativos(hoy);
     const { rangoActual, rangoAnterior } = rangos;
 
-    console.log('rangos de fechas hoy :', { rangoAnterior, rangoActual });
     const finDia = new Date(
       hoy.getFullYear(),
       hoy.getMonth(),
@@ -286,11 +285,6 @@ export class DashboardService {
           : 0 // sin cambios
         : ((totalActual - totalAnterior) / totalAnterior) * 100;
 
-    // console.log(`🟢 Ventas actuales: ${totalActual}`);
-    // console.log(`🔵 Ventas anteriores: ${totalAnterior}`);
-    // console.log(`📈 Variación: ${variacionPorcentualVentas.toFixed(2)}%`);
-    //////////////////////////////////////////////////////////////////////////////
-
     // retorna la variacion de los cobros respecto al mes anterior
     const [cobrosActual, cobrosAnterior] = await Promise.all([
       this.prisma.detalleRecibo.aggregate({
@@ -354,10 +348,6 @@ export class DashboardService {
               100
           ) / 100;
 
-    // console.log(`🟢 cobros actuales: ${totalActualCobros}`);
-    // console.log(`🔵 cobros anteriores: ${totalAnteriorCobros}`);
-    // console.log(`📈 Variación: ${variacionPorcentualCobros.toFixed(2)}%`);
-    ///////////////////////////////////////////////////////////////
     const ultimosPedidos = await this.prisma.pedido.findMany({
       where:
         rol === 'admin' ? { empresaId } : { empresaId, usuarioId: dbUserId },

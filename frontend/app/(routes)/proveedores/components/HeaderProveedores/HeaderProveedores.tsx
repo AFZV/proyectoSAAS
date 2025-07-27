@@ -39,7 +39,7 @@ export function HeaderProveedores() {
 
       if (res.ok) {
         const data = await res.json();
-        console.log("esto llega del backend :", data);
+
         setTotalProveedores(data.total);
         setProveedoresActivos(data.total);
         setProveedoresInactivos(data.inactivos);
@@ -50,7 +50,7 @@ export function HeaderProveedores() {
       setLoading(false);
     }
   };
-  console.log("esto llega del backend :", totalProveedores);
+
   useEffect(() => {
     fetchData();
   }, []);

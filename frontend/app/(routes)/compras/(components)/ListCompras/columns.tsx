@@ -29,12 +29,10 @@ function CompraActions({ compra }: { compra: Compra }) {
   const [openModal, setOpenModal] = useState(false);
 
   const handleView = () => {
-    console.log("Abriendo modal para compra:", compra.idCompra);
     setOpenModal(true);
   };
 
   const handleCloseModal = () => {
-    console.log("Cerrando modal");
     setOpenModal(false);
   };
 

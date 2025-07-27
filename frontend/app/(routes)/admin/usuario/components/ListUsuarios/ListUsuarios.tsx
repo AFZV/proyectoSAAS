@@ -37,7 +37,7 @@ export async function getUsuarios(): Promise<Usuario[]> {
 
 export default async function ListUsuariosPage() {
   const data = await getUsuarios();
-  console.log("clientes que llegan al front:", data);
+
   return (
     <section className="min-h-screen bg-background text-foreground px-4 py-6">
       <div className="max-w-6xl mx-auto">

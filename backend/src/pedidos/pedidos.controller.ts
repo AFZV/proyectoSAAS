@@ -26,7 +26,7 @@ export class PedidosController {
   @Post()
   crearPedido(@Body() data: CreatePedidoDto, @Req() req: UsuarioRequest) {
     const usuario = req.usuario;
-    console.log('empresa en controller:', usuario.empresaId);
+
     return this.pedidosService.crearPedido(data, usuario);
   }
 

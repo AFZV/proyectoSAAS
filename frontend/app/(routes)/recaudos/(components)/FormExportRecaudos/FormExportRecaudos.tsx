@@ -21,8 +21,6 @@ export function DatePickerWithRange({
   const { userId } = useAuth();
   const [nombreVendedor, setNombreVendedor] = useState<string>("");
 
-  console.log("Esto hay en el código usuario", nombreVendedor);
-
   function handleSelect(range: DateRange | undefined) {
     setDate(range);
     if (range?.from && range?.to) {
@@ -49,11 +47,10 @@ export function DatePickerWithRange({
         },
       }
     );
-    console.log("esto hay en res:", res);
+
     if (!res.ok) {
       // En caso de que la respuesta no sea correcta, muestra un error
-      console.error("Error al generar el archivo Excel");
-      console.log("esto hay en res:", res);
+
       return;
     }
 

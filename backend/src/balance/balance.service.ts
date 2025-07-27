@@ -216,8 +216,6 @@ export class BalanceService {
       totalPositivos: totalCargos._sum.valorMovimiento ?? 0,
     };
 
-    console.log('service respondiendo con el object', respuesta);
-
     return {
       totalSaldo,
       totalNegativos: totalAbonos._sum.valorMovimiento ?? 0,

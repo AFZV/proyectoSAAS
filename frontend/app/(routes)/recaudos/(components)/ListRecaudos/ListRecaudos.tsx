@@ -7,7 +7,7 @@ export function ListRecaudos({ data }: { data: ReciboConRelaciones[] }) {
   if (!data) {
     return <Loading title="Cargando recibos..." />;
   }
-  console.log("esto llega en recibos:", data);
+
   return (
     <div className="container mx-auto py-10">
       <ClienteDataTable columns={columns} data={data} />

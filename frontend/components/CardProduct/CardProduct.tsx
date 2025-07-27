@@ -18,7 +18,6 @@ export function CardProduct({
   const [cantidad, setCantidad] = useState(1);
 
   const handleAgregarAlCarrito = () => {
-    console.log("Cantidad agregada:", cantidad);
     onAgregar({ ...producto, cantidad });
     setIsOpenModal(false);
     setCantidad(1);

@@ -12,7 +12,6 @@ async function bootstrap() {
     origin: [
       'https://bgacloudsaas.com', // dominio principal del frontend
       'https://www.bgacloudsaas.com', // por si también usas la versión www
-      'http://localhost:3000',
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
@@ -25,7 +24,6 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
       transform: true,
       exceptionFactory: (errors) => {
-        console.error('🚨 Errores de validación:', errors);
         return new BadRequestException(errors);
       },
     })
@@ -34,7 +32,6 @@ async function bootstrap() {
   app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
   await app.listen(4000, '0.0.0.0');
-  console.log('🚀 Servidor iniciado en http://0.0.0.0:4000');
 }
 
 bootstrap();

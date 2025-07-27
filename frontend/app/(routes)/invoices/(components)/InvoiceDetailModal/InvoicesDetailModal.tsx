@@ -145,14 +145,6 @@ export function InvoiceDetailModal({
         return;
       }
 
-      console.log("🔄 Actualizando estado:", {
-        pedidoId: pedido.id,
-        estadoActual,
-        nuevoEstado,
-        guiaTransporte: guiaTransporte.trim(),
-        flete: flete ? parseFloat(flete) : undefined,
-      });
-
       // ✅ DATOS SEGÚN TU DTO CrearEstadoPedidoDto
       const datosActualizacion = {
         pedidoId: pedido.id,

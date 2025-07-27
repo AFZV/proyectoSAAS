@@ -6,7 +6,7 @@ import { getToken } from "@/lib/getToken";
 export async function SideBar() {
   const token = await getToken();
   if (!token) redirect("/sign-in");
-  console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
+
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/auth/usuario-actual`,
     {

@@ -72,7 +72,7 @@ export function CarteraDetalleModal({
         if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`);
 
         const data = await res.json();
-        console.log("movimientos que me llegan al front:", data);
+
         setMovimientos(data.movimientos || []);
       } catch (err: any) {
         setError(err.message);

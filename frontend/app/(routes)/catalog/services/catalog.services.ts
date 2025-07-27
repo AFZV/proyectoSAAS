@@ -52,8 +52,6 @@ export class CatalogService {
       categoriasRes.categorias.map((cat) => [cat.idCategoria, cat.nombre])
     );
 
-    console.log("productos que llegan :", productosRes.productos.length);
-
     // Mapear productos y ordenar alfabéticamente por nombre
     const productosOrdenados = productosRes.productos
       .map((producto) => ({
@@ -71,11 +69,6 @@ export class CatalogService {
           numeric: true, // Maneja números correctamente (ej: "Producto 2" antes que "Producto 10")
         })
       );
-
-    console.log(
-      "✅ Productos ordenados alfabéticamente:",
-      productosOrdenados.length
-    );
 
     return productosOrdenados;
   }
@@ -152,13 +145,8 @@ export class CatalogService {
   // 👤 CLIENTE POR NIT - CORREGIDO CON EL ENDPOINT CORRECTO
   async buscarClientePorNit(token: string, nit: string): Promise<Cliente> {
     try {
-      console.log("🔍 === INICIANDO BÚSQUEDA DE CLIENTE ===");
-      console.log("📍 BaseURL:", this.baseUrl);
-      console.log("🆔 NIT recibido:", nit);
-
       // Limpiar NIT
       const nitLimpio = nit.trim().replace(/[.-\s]/g, "");
-      console.log("🧹 NIT limpio:", nitLimpio);
 
       if (!nitLimpio) {
         throw new Error("NIT vacío después de limpiar");
@@ -166,7 +154,6 @@ export class CatalogService {
 
       // 🎯 USAR EL ENDPOINT CORRECTO: /clientes/getByNit/:nit
       const url = `${this.baseUrl}/clientes/getByNit/${nitLimpio}`;
-      console.log("🌐 URL completa:", url);
 
       const response = await fetch(url, {
         method: "GET",
@@ -176,9 +163,6 @@ export class CatalogService {
         },
         cache: "no-store",
       });
-
-      console.log("📡 Response status:", response.status);
-      console.log("📡 Response statusText:", response.statusText);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -196,7 +180,6 @@ export class CatalogService {
       }
 
       const responseData = await response.json();
-      console.log("✅ Response data completa:", responseData);
 
       // El endpoint getByNit retorna un objeto con estructura { cliente: {...} }
       // Según tu servicio: return clienteEmpresa; (que incluye el cliente)
@@ -212,13 +195,8 @@ export class CatalogService {
         throw new Error("Formato de respuesta inesperado del servidor");
       }
 
-      console.log("👤 Cliente final:", cliente);
-      console.log("🎉 === BÚSQUEDA EXITOSA ===");
-
       return cliente;
     } catch (error) {
-      console.error("💥 === ERROR EN BÚSQUEDA ===");
-      console.error("❌ Error completo:", error);
       throw error;
     }
   }
@@ -229,8 +207,6 @@ export class CatalogService {
     nit: string
   ): Promise<Cliente> {
     try {
-      console.log("🔍 === BÚSQUEDA ALTERNATIVA CON FILTRO ===");
-
       const nitLimpio = nit.trim().replace(/[.-\s]/g, "");
 
       if (!nitLimpio) {
@@ -239,7 +215,6 @@ export class CatalogService {
 
       // 🎯 USAR ENDPOINT ALTERNATIVO: /clientes/getByFilter/:filtro
       const url = `${this.baseUrl}/clientes/getByFilter/${nitLimpio}`;
-      console.log("🌐 URL alternativa:", url);
 
       const response = await fetch(url, {
         method: "GET",
@@ -264,7 +239,6 @@ export class CatalogService {
       }
 
       const clientes = await response.json();
-      console.log("✅ Clientes encontrados:", clientes);
 
       // getByFilter retorna un array de clientes
       const cliente = Array.isArray(clientes) ? clientes[0] : clientes;

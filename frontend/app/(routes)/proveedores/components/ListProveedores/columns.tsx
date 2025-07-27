@@ -40,40 +40,6 @@ function UsuarioActions({ proveedor }: { proveedor: Proveedor }) {
     });
   };
 
-  // const { getToken } = useAuth();
-
-  //   const handleChangeEstado = async () => {
-  //     console.log("🟢 Entrando a cambiar estado");
-
-  //     try {
-  //       const token = await getToken();
-  //       console.log("✅ Token obtenido:", token);
-
-  //       const res = await fetch(
-  //         `${process.env.NEXT_PUBLIC_API_URL}/usuario/estado/${usuario.id}`,
-  //         {
-  //           method: "PATCH",
-  //           headers: {
-  //             Authorization: `Bearer ${token}`,
-  //           },
-  //         }
-  //       );
-
-  //       if (!res.ok) throw new Error("Error al cambiar estado");
-  //       console.log("📦 Response recibido:", res);
-
-  //       toast({ title: "Estado actualizado ✅" });
-  //       router.refresh();
-  //     } catch (error) {
-  //       console.error("❌ Error en cambio de estado:", error);
-  //       toast({
-  //         title: "Error al cambiar estado",
-  //         variant: "destructive",
-  //         duration: 1500,
-  //       });
-  //     }
-  //   };
-
   return (
     <>
       <DropdownMenu>

@@ -48,7 +48,6 @@ export default async function CatalogPage() {
 
     // Obtener productos para el catálogo
     const productos = await catalogService.getProductosParaCatalogo(token);
-    console.log("esto llega en productos al forntend:", productos);
 
     return (
       <div className="space-y-6">

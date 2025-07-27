@@ -60,8 +60,6 @@ function ClienteSearch({
     try {
       setIsSearching(true);
 
-      console.log("🔍 Iniciando búsqueda de cliente con NIT:", nitBusqueda);
-
       // 🔥 OBTENER TOKEN PRIMERO
       const token = await getToken();
 
@@ -69,15 +67,11 @@ function ClienteSearch({
         throw new Error("No se pudo obtener el token de autenticación");
       }
 
-      console.log("🔑 Token obtenido correctamente");
-
       // 🎯 USAR EL MÉTODO CORREGIDO CON TOKEN
       const cliente = await catalogService.buscarClientePorNit(
         token,
         nitBusqueda
       );
-
-      console.log("✅ Cliente encontrado:", cliente);
 
       onClienteSeleccionado(cliente);
 
@@ -231,7 +225,6 @@ export function CheckoutModal({
   );
 
   const handleClienteSeleccionado = (clienteData: Cliente) => {
-    console.log("👤 Cliente seleccionado:", clienteData);
     setCliente(clienteData);
   };
 
@@ -260,20 +253,12 @@ export function CheckoutModal({
 
     try {
       setIsSubmitting(true);
-      console.log("🛒 Iniciando creación de pedido...");
 
       const token = await getToken();
 
       if (!token) {
         throw new Error("No se pudo obtener el token de autenticación");
       }
-
-      console.log("📋 Datos del pedido:", {
-        clienteId: cliente.id,
-        items: carrito.length,
-        total: totalPrecio,
-        observaciones,
-      });
 
       await catalogService.crearPedidoDesdeCarrito(
         token,
@@ -285,8 +270,6 @@ export function CheckoutModal({
         })),
         observaciones
       );
-
-      console.log("✅ Pedido creado exitosamente");
 
       toast({
         title: "¡Pedido creado exitosamente!",

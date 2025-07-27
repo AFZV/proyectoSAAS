@@ -207,7 +207,6 @@ export class RecibosService {
 
           if (!empresa) throw new Error('no se encontro empresa');
 
-          console.log('📨 Email enviado');
           process.stdout.write('🔍 logo URL: ' + empresa.logoUrl + '\n');
 
           const resumenRecibo: ResumenReciboDto = {
@@ -286,8 +285,6 @@ export class RecibosService {
   </div>
   `
           );
-          console.log('📨 Email enviado');
-          console.log(`✅ PDF subido: ${publicUrl}`);
         } catch (err) {
           console.error('❌ Error generando o subiendo PDF de recibo:', err);
         }
@@ -348,7 +345,7 @@ export class RecibosService {
       },
     });
     if (!recibos) return null;
-    console.log('recibos:', recibos);
+
     return recibos;
   }
   //logica para actualizar un recibo y sus relaciones
@@ -513,8 +510,6 @@ export class RecibosService {
             usuarioNombre: usuarioDb.nombre,
             tipo: 'recibos',
           });
-
-          console.log(`✅ PDF actualizado en Cloudinary: ${pdfUrl}`);
         } catch (err) {
           console.error('❌ Error al regenerar PDF actualizado:', err);
         }
@@ -673,8 +668,6 @@ export class RecibosService {
       0
     );
 
-    console.log('enviandod desde backend:', totalPorRecaudar);
-
     return {
       totalRecibos,
       totalRecaudado: totalRecaudado._sum.valorTotal || 0,
@@ -769,7 +762,6 @@ export class RecibosService {
       })
       .filter((p): p is NonNullable<typeof p> => p !== null);
 
-    console.log('respondiendo al front con :', pedidosConSaldo);
     return pedidosConSaldo;
   }
 }

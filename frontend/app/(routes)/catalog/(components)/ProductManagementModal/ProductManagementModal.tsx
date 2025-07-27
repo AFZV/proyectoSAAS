@@ -119,15 +119,6 @@ export function ProductManagementModal({
         const productosData = await productosRes.json();
         const categoriasData = await categoriasRes.json();
 
-        console.log(
-          "✅ Productos cargados:",
-          productosData.productos?.length || 0
-        );
-        console.log(
-          "✅ Categorías cargadas:",
-          categoriasData.categorias?.length || 0
-        );
-
         setProductos(productosData.productos || []);
         setCategorias(categoriasData.categorias || []);
       }
@@ -164,7 +155,6 @@ export function ProductManagementModal({
 
   // Iniciar edición (ACTUALIZADO)
   const startEditing = (producto: ProductoBackend) => {
-    console.log("✏️ Editando producto:", producto);
     setEditingProduct({
       id: producto.id,
       nombre: producto.nombre,
@@ -330,11 +320,9 @@ export function ProductManagementModal({
       // Si hay una nueva imagen, subirla primero (IGUAL QUE EN CREAR PRODUCTO)
       if (tempImageFile) {
         setIsUploadingImage(true);
-        console.log("📤 Subiendo nueva imagen...");
 
         try {
           finalImageUrl = await uploadImageToCloudinary(tempImageFile);
-          console.log("✅ Imagen subida:", finalImageUrl);
 
           toast({
             title: "Imagen subida",
@@ -368,8 +356,6 @@ export function ProductManagementModal({
           "https://via.placeholder.com/400x400?text=Sin+Imagen";
       }
 
-      console.log("📤 Enviando actualización:", updateData);
-
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/productos/update/${editingProduct.id}`,
         {
@@ -389,7 +375,6 @@ export function ProductManagementModal({
       }
 
       const responseData = await response.json();
-      console.log("✅ Producto actualizado:", responseData);
 
       toast({
         title: "Producto actualizado",

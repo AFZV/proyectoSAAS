@@ -70,7 +70,6 @@ export function WrapperCartera() {
 
     fetchMovimientos();
   }, [clienteSeleccionado]);
-  console.log("stats en el frontend:", stats);
 
   return (
     <div>
