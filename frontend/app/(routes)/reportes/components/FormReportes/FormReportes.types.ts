@@ -1,7 +1,7 @@
 // app/reportes/(components)/FormReportes/FormReportes.types.ts
 
 export interface FormReportesProps {
-    tipo: "inventario" | "clientes" | "pedidos" | "cartera";
+    tipo: "inventario" | "clientes" | "pedidos" | "cartera"| "recaudos"; // Se agrega "recaudos" como tipo de reporte
     opcion: string;
     onClose: () => void;
 }

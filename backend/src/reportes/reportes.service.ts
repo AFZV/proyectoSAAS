@@ -1,5 +1,5 @@
 // reportes.service.ts
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CrearReporteInvDto } from './dto/crear-reporte-inventario.dto';
@@ -603,5 +603,124 @@ export class ReportesService {
     });
 
     return resultado.sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }
+
+  //Reporte de recaudo
+  async reporteRecaudo(
+    usuario: UsuarioPayload,
+    dto: CrearReporteInvDto
+  ): Promise<
+    Array<{
+      reciboId: string;
+      fecha: Date;
+      tipo: string;
+      valor: number;
+      vendedor: string;
+      concepto?: string;
+    }>
+  > {
+    if (!usuario) throw new BadRequestException('Usuario requerido');
+    const inicio = new Date(dto.fechaInicio);
+    const fin = new Date(dto.fechaFin);
+    // incluir todo el día
+    fin.setHours(23, 59, 59, 999);
+
+    // 1) Traer todos los recibos del rango para esta empresa
+    const recibos = await this.prisma.recibo.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+        Fechacrecion: {
+          gte: inicio,
+          lte: fin,
+        },
+      },
+      include: {
+        detalleRecibo: {
+          select: { valorTotal: true },
+        },
+        usuario: {
+          select: { nombre: true, apellidos: true },
+        },
+      },
+      orderBy: {
+        Fechacrecion: 'desc',
+      },
+    });
+
+    // 2) Mapear a objeto plano, sumando el valor de cada detalleRecibo
+    return recibos.map((r) => {
+      const suma = r.detalleRecibo.reduce(
+        (acc, d) => acc + (d.valorTotal ?? 0),
+        0
+      );
+      return {
+        reciboId: r.id,
+        fecha: r.Fechacrecion,
+        tipo: r.tipo,
+        valor: suma,
+        vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
+        concepto: r.concepto,
+      };
+    });
+  }
+  //Reporte de recaudo por rango de fechas y vendedor
+  async reporteRecaudoVendedor(
+    usuario: UsuarioPayload,
+    dto: CrearReporteInvDto,
+    vendedorId: string
+  ): Promise<
+    Array<{
+      reciboId: string;
+      fecha: Date;
+      tipo: string;
+      valor: number;
+      concepto: string;
+    }>
+  > {
+    if (!usuario) throw new BadRequestException('Usuario requerido');
+    const inicio = new Date(dto.fechaInicio);
+    const fin = new Date(dto.fechaFin);
+    // incluir todo el día
+    fin.setHours(23, 59, 59, 999);
+
+    // 1) Traer todos los recibos del rango para esta empresa
+    const recibos = await this.prisma.recibo.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+        Fechacrecion: {
+          gte: inicio,
+          lte: fin,
+        },
+        ...(vendedorId && {
+          usuarioId: vendedorId,
+        }),
+      },
+      include: {
+        detalleRecibo: {
+          select: { valorTotal: true },
+        },
+        usuario: {
+          select: { nombre: true, apellidos: true },
+        },
+      },
+      orderBy: {
+        Fechacrecion: 'desc',
+      },
+    });
+
+    // 2) Mapear a objeto plano, sumando el valor de cada detalleRecibo
+    return recibos.map((r) => {
+      const suma = r.detalleRecibo.reduce(
+        (acc, d) => acc + (d.valorTotal ?? 0),
+        0
+      );
+      return {
+        reciboId: r.id,
+        fecha: r.Fechacrecion,
+        tipo: r.tipo,
+        valor: suma,
+        concepto: r.concepto,
+      };
+    });
   }
 }
