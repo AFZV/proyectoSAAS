@@ -24,7 +24,7 @@ import { CrearReporteRangoProductoDto } from './dto/crear-reporte-rango-producto
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('reportes')
 export class ReportesController {
-  constructor(private readonly reportesService: ReportesService) { }
+  constructor(private readonly reportesService: ReportesService) {}
   //Reporte de carga de inventario
   @Roles('admin')
   @Get('/inventario/productos/:format')

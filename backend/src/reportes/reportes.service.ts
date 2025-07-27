@@ -659,7 +659,7 @@ export class ReportesService {
         tipo: r.tipo,
         valor: suma,
         vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
-        concepto: r.concepto
+        concepto: r.concepto,
       };
     });
   }
