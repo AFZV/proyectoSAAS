@@ -69,6 +69,16 @@ const carteraConFechasSchema = formatoBaseSchema.extend({
   fechaInicio: z.string().min(1, "Fecha inicial requerida"),
   fechaFin: z.string().min(1, "Fecha final requerida"),
 });
+const recaudoGeneralSchema = formatoBaseSchema.extend({
+  fechaInicio: z.string().min(1, "Fecha inicial requerida"),
+  fechaFin: z.string().min(1, "Fecha final requerida"),
+});
+//Se agrega recaudos
+const recaudoVendedorSchema = formatoBaseSchema.extend({
+  fechaInicio: z.string().min(1, "Fecha inicial requerida"),
+  fechaFin: z.string().min(1, "Fecha final requerida"),
+  vendedorId: z.string().min(1, "Vendedor requerido"),
+});
 
 const carteraVendedorSchema = formatoBaseSchema.extend({
   fechaInicio: z.string().min(1, "Fecha inicial requerida"),
@@ -181,6 +191,11 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       if (opcion === "balance") return balanceGeneralSchema;
     }
 
+    if (tipo === "recaudos") {
+      if (opcion === "general") return recaudoGeneralSchema;
+      if (opcion === "vendedor") return recaudoVendedorSchema;
+    }
+
     return formatoBaseSchema;
   };
 
@@ -275,6 +290,23 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
         method = "POST";
         body = {};
       }
+    } else if (tipo === "recaudos") {
+      if (opcion === "general" || opcion === "todos") {
+        endpoint = `/reportes/recaudo/${data.formato}`;
+        method = "POST";
+        body = {
+          fechaInicio: data.fechaInicio,
+          fechaFin: data.fechaFin,
+        };
+        console.log("📤 GENERAL configurado:", { endpoint, method, body });
+      } else if (opcion === "vendedor") {
+        endpoint = `/reportes/recaudo-vendedor/${data.vendedorId}/${data.formato}`;
+        method = "POST";
+        body = {
+          fechaInicio: data.fechaInicio,
+          fechaFin: data.fechaFin,
+        };
+      }
     }
 
     console.log("🚀 Llamando al backend:", {
@@ -351,8 +383,12 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
   };
 
   // ✅ FUNCIÓN PARA DETERMINAR SI NECESITA FECHAS
-  const necesitaFechas = () => {
-    return tipo === "pedidos" || (tipo === "cartera" && opcion !== "balance");
+  const necesitaFechas = (): boolean => {
+    return (
+      tipo === "pedidos" ||
+      tipo === "recaudos" ||
+      (tipo === "cartera" && opcion !== "balance")
+    );
   };
 
   const renderSpecificFields = () => {

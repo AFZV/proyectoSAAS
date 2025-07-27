@@ -200,6 +200,7 @@ export function FormCrearRecibo({
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {loadingCliente && <Loading title="Cargando Cliente" />}
+        {isSubmitting && <Loading title="Creando Recibo..." />}
         <FormField
           control={form.control}
           name="nit"
@@ -363,7 +364,7 @@ export function FormCrearRecibo({
         <div className="flex justify-center">
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || loadingCliente}
             className="
     bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700
     hover:from-blue-600 hover:to-blue-800
@@ -373,7 +374,7 @@ export function FormCrearRecibo({
     transition-all duration-200
   "
           >
-            Crear Recibo
+            {isSubmitting ? "Creando..." : "Crear Recibo"}
           </Button>
         </div>
       </form>

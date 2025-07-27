@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Package, Users, FileText, CreditCard } from "lucide-react";
+import { Package, Users, FileText, CreditCard, DollarSign } from "lucide-react";
 
 // Configuración de datos de reportes
 const REPORTES_DATA: ReporteCardData[] = [
@@ -109,10 +109,29 @@ const REPORTES_DATA: ReporteCardData[] = [
       },
     ],
   },
+  {
+    id: "recaudos",
+    title: "RECAUDOS",
+    description: "Reportes de pagos recibidos",
+    icon: DollarSign,
+    color: "bg-gradient-to-r from-purple-500 to-purple-600",
+    options: [
+      {
+        id: "general",
+        label: "Todos los Recaudos",
+        description: "Historial completo de pagos recibidos",
+      },
+      {
+        id: "vendedor",
+        label: "Por Vendedor",
+        description: "Recaudos agrupados por vendedor específico",
+      },
+    ],
+  },
 ];
 
 interface SelectedReporte {
-  tipo: "inventario" | "clientes" | "pedidos" | "cartera";
+  tipo: "inventario" | "clientes" | "pedidos" | "cartera" | "recaudos";
   opcion: string;
 }
 
@@ -122,7 +141,12 @@ export default function ReportesPage() {
 
   const handleSelectReporte = (tipo: string, opcionId: string) => {
     setSelectedReporte({
-      tipo: tipo as "inventario" | "clientes" | "pedidos" | "cartera",
+      tipo: tipo as
+        | "inventario"
+        | "clientes"
+        | "pedidos"
+        | "cartera"
+        | "recaudos",
       opcion: opcionId,
     });
   };
@@ -161,7 +185,7 @@ export default function ReportesPage() {
 
       {/* Grid de tarjetas de reportes */}
       <div className="px-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
           {REPORTES_DATA.map((reporte) => (
             <div key={reporte.id} className="h-full">
               <ReporteCard data={reporte} onSelect={handleSelectReporte} />
@@ -233,6 +257,9 @@ export default function ReportesPage() {
                 <li>
                   • <strong>Balance General: Sin fechas</strong>
                 </li>
+                <li>
+                  • <strong>Recaudos: Con fechas obligatorias</strong>
+                </li>
               </ul>
             </div>
             <div className="space-y-2">
@@ -253,6 +280,10 @@ export default function ReportesPage() {
                 <li className="flex items-center gap-2">
                   <CreditCard className="w-3 h-3 text-red-500" />
                   Cuentas por cobrar + Balance
+                </li>
+                <li className="flex items-center gap-2">
+                  <DollarSign className="w-3 h-3 text-purple-500" />
+                  Recaudos e ingresos
                 </li>
               </ul>
             </div>

@@ -9,7 +9,7 @@ export interface ReporteOption {
 }
 
 export interface ReporteCardData {
-    id: "inventario" | "clientes" | "pedidos" | "cartera";
+    id: "inventario" | "clientes" | "pedidos" | "cartera"| "recaudos"; // Identificador del tipo de reporte se agrega "recaudos"
     title: string;
     description: string;
     icon: LucideIcon;
