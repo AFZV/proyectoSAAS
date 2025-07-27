@@ -24,7 +24,7 @@ import { CrearReporteRangoProductoDto } from './dto/crear-reporte-rango-producto
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('reportes')
 export class ReportesController {
-  constructor(private readonly reportesService: ReportesService) {}
+  constructor(private readonly reportesService: ReportesService) { }
   //Reporte de carga de inventario
   @Roles('admin')
   @Get('/inventario/productos/:format')
@@ -487,5 +487,81 @@ export class ReportesController {
     // — Si luego quieres PDF —
     // const doc = buildBalanceGeneralPDF(rows);
     // doc.pipe(res);
+  }
+
+  //Reporte de  Recaudo por fecha
+  @Roles('admin')
+  @Post('recaudo/:format')
+  async createRecaudoReport(
+    @Req() req: UsuarioRequest,
+    @Param('format') format: 'excel' | 'pdf',
+    @Body() dto: CrearReporteInvDto,
+    @Res() res: Response
+  ) {
+    const usuario = req.usuario;
+    // 1) Obtener datos
+    const rows = await this.reportesService.reporteRecaudo(usuario, dto);
+
+    // 2) Definir columnas
+    const columns: ColumnDef<(typeof rows)[0]>[] = [
+      { header: 'ID Recibo', key: 'reciboId', width: 40 },
+      { header: 'Fecha', key: 'fecha', width: 35 },
+      { header: 'Tipo', key: 'tipo', width: 20 },
+      { header: 'Valor', key: 'valor', width: 25, numFmt: '#,##0.00' },
+      { header: 'Vendedor', key: 'vendedor', width: 20 },
+      { header: 'Concepto', key: 'concepto', width: 45 },
+    ];
+
+    // 3) Generar y devolver Excel o PDF
+    if (format === 'excel') {
+      const wb = buildExcel('Recaudo', columns, rows);
+      res.status(HttpStatus.OK).set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename="recaudo.xlsx"',
+      });
+      await wb.xlsx.write(res);
+      return res.end();
+    }
+  }
+
+  //Reporte de  Recaudo por fecha y vendedor
+  @Roles('admin')
+  @Post('recaudo-vendedor/:id/:format')
+  async createRecaudoVendedorReport(
+    @Req() req: UsuarioRequest,
+    @Param('id') vendedorId: string,
+    @Param('format') format: 'excel' | 'pdf',
+    @Body() dto: CrearReporteInvDto,
+    @Res() res: Response
+  ) {
+    const usuario = req.usuario;
+    // 1) Obtener datos
+    const rows = await this.reportesService.reporteRecaudoVendedor(
+      usuario,
+      dto,
+      vendedorId
+    );
+
+    // 2) Definir columnas
+    const columns: ColumnDef<(typeof rows)[0]>[] = [
+      { header: 'ID Recibo', key: 'reciboId', width: 40 },
+      { header: 'Fecha', key: 'fecha', width: 35 },
+      { header: 'Tipo', key: 'tipo', width: 20 },
+      { header: 'Valor', key: 'valor', width: 25, numFmt: '#,##0.00' },
+      { header: 'Concepto', key: 'concepto', width: 45 },
+    ];
+
+    // 3) Generar y devolver Excel o PDF
+    if (format === 'excel') {
+      const wb = buildExcel('Recaudo por Vendedor', columns, rows);
+      res.status(HttpStatus.OK).set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename="recaudo-vendedor.xlsx"',
+      });
+      await wb.xlsx.write(res);
+      return res.end();
+    }
   }
 }
