@@ -7,67 +7,47 @@ export class DashboardService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Calcula inicio y fin del día en zona horaria Bogotá (UTC-5)
+   * Devuelve inicio y fin del día en hora local (servidor ya está en America/Bogota)
    */
-  private getDiaBogotaRango() {
-    const ahora = new Date();
-    const bogotaOffset = -5 * 60; // Bogotá UTC-5 en minutos
-    const localOffset = ahora.getTimezoneOffset(); // Offset del servidor
-    const diff = (bogotaOffset - localOffset) * 60 * 1000;
+  private getDiaRango() {
+    const inicio = new Date();
+    inicio.setHours(0, 0, 0, 0);
 
-    // Inicio del día Bogotá
-    const inicio = new Date(
-      ahora.getFullYear(),
-      ahora.getMonth(),
-      ahora.getDate()
-    );
-    inicio.setTime(inicio.getTime() + diff);
-
-    // Fin del día Bogotá
-    const fin = new Date(inicio);
+    const fin = new Date();
     fin.setHours(23, 59, 59, 999);
 
     return { inicio, fin };
   }
 
   /**
-   * Calcula rangos comparativos mensuales en zona Bogotá
+   * Rango mensual actual y anterior
    */
-  private obtenerRangosComparativos(hoy: Date) {
-    const bogotaOffset = -5 * 60;
-    const localOffset = hoy.getTimezoneOffset();
-    const diff = (bogotaOffset - localOffset) * 60 * 1000;
+  private obtenerRangosComparativos() {
+    const hoy = new Date();
 
-    // Rango actual
+    // Mes actual
     const inicioMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    inicioMesActual.setTime(inicioMesActual.getTime() + diff);
-
     const finMesActual = new Date(
       hoy.getFullYear(),
       hoy.getMonth(),
       hoy.getDate()
     );
-    finMesActual.setTime(finMesActual.getTime() + diff);
 
-    // Rango anterior
+    // Mes anterior
     const inicioMesAnterior = new Date(
       hoy.getFullYear(),
       hoy.getMonth() - 1,
       1
     );
-    inicioMesAnterior.setTime(inicioMesAnterior.getTime() + diff);
-
     let finMesAnterior = new Date(
       hoy.getFullYear(),
       hoy.getMonth() - 1,
       hoy.getDate()
     );
-    finMesAnterior.setTime(finMesAnterior.getTime() + diff);
 
-    // Ajustar si el mes anterior no tiene ese día
+    // Ajuste si el mes anterior no tiene el día actual
     if (finMesAnterior.getMonth() !== inicioMesAnterior.getMonth()) {
       finMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
-      finMesAnterior.setTime(finMesAnterior.getTime() + diff);
     }
 
     return {
@@ -90,9 +70,7 @@ export class DashboardService {
           ? { usuario: { empresaId } }
           : { usuario: { empresaId }, usuarioId },
       include: {
-        detalleRecibo: {
-          select: { valorTotal: true },
-        },
+        detalleRecibo: { select: { valorTotal: true } },
       },
     });
 
@@ -172,17 +150,15 @@ export class DashboardService {
   }
 
   /**
-   * Resumen dashboard (clientes, cobros diarios, ventas diarias, variaciones)
+   * Resumen del dashboard
    */
   async getResumen(usuario: UsuarioPayload) {
     if (!usuario) throw new Error('Usuario no encontrado');
 
     const { rol, empresaId, id: dbUserId, nombre } = usuario;
-    const hoy = new Date();
 
-    const { inicio: inicioDia, fin: finDia } = this.getDiaBogotaRango();
-    const rangos = this.obtenerRangosComparativos(hoy);
-    const { rangoActual, rangoAnterior } = rangos;
+    const { inicio: inicioDia, fin: finDia } = this.getDiaRango();
+    const { rangoActual, rangoAnterior } = this.obtenerRangosComparativos();
 
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: empresaId },
@@ -225,7 +201,7 @@ export class DashboardService {
       })
       .then((res) => res._sum.total ?? 0);
 
-    // Variación mensual ventas y cobros
+    // Variación mensual
     const [ventasActual, ventasAnterior] = await Promise.all([
       this.prisma.pedido.aggregate({
         _sum: { total: true },
@@ -258,6 +234,7 @@ export class DashboardService {
           : 0
         : ((totalActual - totalAnterior) / totalAnterior) * 100;
 
+    // Cobros
     const [cobrosActual, cobrosAnterior] = await Promise.all([
       this.prisma.detalleRecibo.aggregate({
         _sum: { valorTotal: true },
