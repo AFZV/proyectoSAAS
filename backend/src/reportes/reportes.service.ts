@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CrearReporteInvDto } from './dto/crear-reporte-inventario.dto';
@@ -9,24 +9,12 @@ import { CrearReporteRangoProductoDto } from './dto/crear-reporte-rango-producto
 export class ReportesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * ✅ Ajusta un rango de fechas a zona Bogotá (UTC-5)
-   */
-  private ajustarRangoBogota(
-    fechaInicio: string | Date,
-    fechaFin: string | Date
-  ) {
-    const bogotaOffset = -5 * 60; // UTC-5
+  /** Ajustar rango de fechas al día completo */
+  private normalizarRango(fechaInicio: string | Date, fechaFin: string | Date) {
     const inicio = new Date(fechaInicio);
-    const fin = new Date(fechaFin);
-
-    const localOffset = inicio.getTimezoneOffset(); // minutos del servidor
-    const diff = (bogotaOffset - localOffset) * 60 * 1000;
-
-    inicio.setTime(inicio.getTime() + diff);
     inicio.setHours(0, 0, 0, 0);
 
-    fin.setTime(fin.getTime() + diff);
+    const fin = new Date(fechaFin);
     fin.setHours(23, 59, 59, 999);
 
     return { inicio, fin };
@@ -142,7 +130,7 @@ export class ReportesService {
       vendedor: item.usuario.nombre,
       id: item.cliente.id,
       nit: item.cliente.nit,
-      nombre: item.cliente.nombre + ' ' + item.cliente.apellidos,
+      nombre: `${item.cliente.nombre} ${item.cliente.apellidos}`.trim(),
       email: item.cliente.email,
       telefono: item.cliente.telefono,
       direccion: item.cliente.direccion,
@@ -229,9 +217,9 @@ export class ReportesService {
     }));
   }
 
-  /** ✅ Reporte pedidos por fecha */
+  /** ✅ Pedidos por rango */
   async pedidosAll(usuario: UsuarioPayload, data: CrearReporteInvDto) {
-    const { inicio, fin } = this.ajustarRangoBogota(
+    const { inicio, fin } = this.normalizarRango(
       data.fechaInicio,
       data.fechaFin
     );
@@ -258,7 +246,7 @@ export class ReportesService {
     vendedorId: string,
     data: CrearReporteInvDto
   ) {
-    const { inicio, fin } = this.ajustarRangoBogota(
+    const { inicio, fin } = this.normalizarRango(
       data.fechaInicio,
       data.fechaFin
     );
@@ -280,91 +268,83 @@ export class ReportesService {
     }));
   }
 
-  /** ✅ Reporte de saldo pendiente */
+  /** ✅ Reporte de pedidos con saldo pendiente */
   async saldosPendientesPorPedido(
     usuario: UsuarioPayload,
     dto: CrearReporteInvDto
   ) {
-    const { empresaId } = usuario;
-    const { inicio, fin } = this.ajustarRangoBogota(
-      dto.fechaInicio,
-      dto.fechaFin
-    );
+    const { inicio, fin } = this.normalizarRango(dto.fechaInicio, dto.fechaFin);
 
     const pedidos = await this.prisma.pedido.findMany({
       where: {
-        empresaId,
+        empresaId: usuario.empresaId,
         fechaPedido: { gte: inicio, lte: fin },
       },
       include: {
         cliente: { select: { nombre: true } },
         detalleRecibo: { select: { valorTotal: true } },
+        detalleAjusteCartera: { select: { valor: true } },
       },
-      orderBy: { fechaPedido: 'asc' },
     });
 
     return pedidos
-      .map((pedido) => {
-        const abonado = pedido.detalleRecibo.reduce(
-          (sum, d) => sum + d.valorTotal,
-          0
-        );
-        const saldoPendiente = pedido.total - abonado;
+      .map((p) => {
+        const abonado = p.detalleRecibo.reduce((s, d) => s + d.valorTotal, 0);
+        const ajustes = p.detalleAjusteCartera.reduce((s, d) => s + d.valor, 0);
+        const saldoPendiente = p.total - abonado - ajustes;
+
         return {
-          id: pedido.id,
-          cliente: pedido.cliente.nombre,
-          fecha: pedido.fechaPedido,
+          id: p.id,
+          cliente: p.cliente.nombre,
+          fecha: p.fechaPedido,
           saldoPendiente,
         };
       })
-      .filter((p) => p.saldoPendiente > 0);
+      .filter((x) => x.saldoPendiente > 0);
   }
 
-  /** ✅ Reporte por vendedor con saldo pendiente */
+  /** ✅ Reporte de pedidos por vendedor con saldo pendiente */
   async saldosPendientesPorPedidoVendedor(
     usuario: UsuarioPayload,
     vendedorId: string,
     dto: CrearReporteInvDto
   ) {
-    const { empresaId } = usuario;
-    const { inicio, fin } = this.ajustarRangoBogota(
-      dto.fechaInicio,
-      dto.fechaFin
-    );
+    const { inicio, fin } = this.normalizarRango(dto.fechaInicio, dto.fechaFin);
 
     const pedidos = await this.prisma.pedido.findMany({
       where: {
-        empresaId,
+        empresaId: usuario.empresaId,
         usuarioId: vendedorId,
         fechaPedido: { gte: inicio, lte: fin },
       },
       include: {
         cliente: { select: { nombre: true } },
         detalleRecibo: { select: { valorTotal: true } },
+        detalleAjusteCartera: { select: { valor: true } },
       },
-      orderBy: { fechaPedido: 'asc' },
     });
 
     return pedidos
-      .map((pedido) => {
-        const abonado = pedido.detalleRecibo.reduce(
-          (sum, d) => sum + d.valorTotal,
-          0
-        );
-        const saldoPendiente = pedido.total - abonado;
+      .map((p) => {
+        const abonado = p.detalleRecibo.reduce((s, d) => s + d.valorTotal, 0);
+        const ajustes = p.detalleAjusteCartera.reduce((s, d) => s + d.valor, 0);
+        const saldoPendiente = p.total - abonado - ajustes;
+
         return {
-          id: pedido.id,
-          cliente: pedido.cliente.nombre,
-          fecha: pedido.fechaPedido,
+          id: p.id,
+          cliente: p.cliente.nombre,
+          fecha: p.fechaPedido,
           saldoPendiente,
         };
       })
-      .filter((p) => p.saldoPendiente > 0);
+      .filter((x) => x.saldoPendiente > 0);
   }
 
-  /** ✅ Balance General */
+  /** ✅ Balance general */
   async reporteBalanceGeneral(usuario: UsuarioPayload) {
     const { empresaId } = usuario;
+    if (!empresaId) throw new BadRequestException('empresaId requerido');
+
     const movimientos = await this.prisma.movimientosCartera.findMany({
       where: { empresaId },
       select: {
@@ -376,7 +356,7 @@ export class ReportesService {
 
     const saldoPorCliente: Record<string, number> = {};
     for (const mov of movimientos) {
-      if (!saldoPorCliente[mov.idCliente]) saldoPorCliente[mov.idCliente] = 0;
+      saldoPorCliente[mov.idCliente] = saldoPorCliente[mov.idCliente] || 0;
       if (mov.tipoMovimientoOrigen === 'PEDIDO') {
         saldoPorCliente[mov.idCliente] += mov.valorMovimiento;
       } else {
@@ -384,8 +364,12 @@ export class ReportesService {
       }
     }
 
+    const clientesIds = Object.keys(saldoPorCliente).filter(
+      (id) => saldoPorCliente[id] > 0
+    );
+
     const clientes = await this.prisma.cliente.findMany({
-      where: { id: { in: Object.keys(saldoPorCliente) } },
+      where: { id: { in: clientesIds } },
       select: {
         id: true,
         nombre: true,
@@ -397,34 +381,27 @@ export class ReportesService {
     });
 
     const asignaciones = await this.prisma.clienteEmpresa.findMany({
-      where: { empresaId, clienteId: { in: Object.keys(saldoPorCliente) } },
+      where: { empresaId, clienteId: { in: clientesIds } },
       include: { usuario: { select: { nombre: true } } },
     });
 
-    return Object.keys(saldoPorCliente)
-      .map((id) => {
-        const c = clientes.find((cli) => cli.id === id);
-        const a = asignaciones.find((x) => x.clienteId === id);
-        return {
-          vendedor: a?.usuario?.nombre ?? '—',
-          clienteId: id,
-          nombre: `${c?.nombre ?? ''} ${c?.apellidos ?? ''}`.trim(),
-          razonSocial: c?.rasonZocial,
-          nit: c?.nit,
-          ciudad: c?.ciudad,
-          totalDeuda: saldoPorCliente[id],
-        };
-      })
-      .filter((c) => c.totalDeuda > 0)
-      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+    return clientes.map((c) => {
+      const asignacion = asignaciones.find((a) => a.clienteId === c.id);
+      return {
+        vendedor: asignacion?.usuario?.nombre || '—',
+        clienteId: c.id,
+        nombre: `${c.nombre} ${c.apellidos}`.trim(),
+        razonSocial: c.rasonZocial,
+        nit: c.nit,
+        ciudad: c.ciudad,
+        totalDeuda: saldoPorCliente[c.id],
+      };
+    });
   }
 
-  /** ✅ Reporte de Recaudo */
+  /** ✅ Reporte de recaudo */
   async reporteRecaudo(usuario: UsuarioPayload, dto: CrearReporteInvDto) {
-    const { inicio, fin } = this.ajustarRangoBogota(
-      dto.fechaInicio,
-      dto.fechaFin
-    );
+    const { inicio, fin } = this.normalizarRango(dto.fechaInicio, dto.fechaFin);
 
     const recibos = await this.prisma.recibo.findMany({
       where: {
@@ -432,7 +409,7 @@ export class ReportesService {
         Fechacrecion: { gte: inicio, lte: fin },
       },
       include: {
-        detalleRecibo: true,
+        detalleRecibo: { select: { valorTotal: true } },
         usuario: { select: { nombre: true, apellidos: true } },
       },
     });
@@ -441,37 +418,37 @@ export class ReportesService {
       reciboId: r.id,
       fecha: r.Fechacrecion,
       tipo: r.tipo,
-      valor: r.detalleRecibo.reduce((sum, d) => sum + d.valorTotal, 0),
-      vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`,
+      valor: r.detalleRecibo.reduce((s, d) => s + d.valorTotal, 0),
+      vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
       concepto: r.concepto,
     }));
   }
 
-  /** ✅ Reporte Recaudo por Vendedor */
+  /** ✅ Reporte de recaudo por vendedor */
   async reporteRecaudoVendedor(
     usuario: UsuarioPayload,
     dto: CrearReporteInvDto,
     vendedorId: string
   ) {
-    const { inicio, fin } = this.ajustarRangoBogota(
-      dto.fechaInicio,
-      dto.fechaFin
-    );
+    const { inicio, fin } = this.normalizarRango(dto.fechaInicio, dto.fechaFin);
 
     const recibos = await this.prisma.recibo.findMany({
       where: {
         empresaId: usuario.empresaId,
-        usuarioId: vendedorId,
         Fechacrecion: { gte: inicio, lte: fin },
+        usuarioId: vendedorId,
       },
-      include: { detalleRecibo: true },
+      include: {
+        detalleRecibo: { select: { valorTotal: true } },
+        usuario: { select: { nombre: true, apellidos: true } },
+      },
     });
 
     return recibos.map((r) => ({
       reciboId: r.id,
       fecha: r.Fechacrecion,
       tipo: r.tipo,
-      valor: r.detalleRecibo.reduce((sum, d) => sum + d.valorTotal, 0),
+      valor: r.detalleRecibo.reduce((s, d) => s + d.valorTotal, 0),
       concepto: r.concepto,
     }));
   }
