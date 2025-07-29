@@ -7,20 +7,33 @@ export class DashboardService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Devuelve inicio y fin del día en hora local (servidor ya está en America/Bogota)
+   * Devuelve inicio y fin del día actual (hora local)
    */
   private getDiaRango() {
-    const inicio = new Date();
-    inicio.setHours(0, 0, 0, 0);
-
-    const fin = new Date();
-    fin.setHours(23, 59, 59, 999);
-
+    const hoy = new Date();
+    const inicio = new Date(
+      hoy.getFullYear(),
+      hoy.getMonth(),
+      hoy.getDate(),
+      0,
+      0,
+      0,
+      0
+    );
+    const fin = new Date(
+      hoy.getFullYear(),
+      hoy.getMonth(),
+      hoy.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
     return { inicio, fin };
   }
 
   /**
-   * Rango mensual actual y anterior
+   * Rangos mensuales para variaciones
    */
   private obtenerRangosComparativos() {
     const hoy = new Date();
@@ -30,7 +43,11 @@ export class DashboardService {
     const finMesActual = new Date(
       hoy.getFullYear(),
       hoy.getMonth(),
-      hoy.getDate()
+      hoy.getDate(),
+      23,
+      59,
+      59,
+      999
     );
 
     // Mes anterior
@@ -42,12 +59,24 @@ export class DashboardService {
     let finMesAnterior = new Date(
       hoy.getFullYear(),
       hoy.getMonth() - 1,
-      hoy.getDate()
+      hoy.getDate(),
+      23,
+      59,
+      59,
+      999
     );
 
-    // Ajuste si el mes anterior no tiene el día actual
+    // Ajuste si el mes anterior no tiene ese día
     if (finMesAnterior.getMonth() !== inicioMesAnterior.getMonth()) {
-      finMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+      finMesAnterior = new Date(
+        hoy.getFullYear(),
+        hoy.getMonth(),
+        0,
+        23,
+        59,
+        59,
+        999
+      );
     }
 
     return {
@@ -69,9 +98,7 @@ export class DashboardService {
         rol === 'admin'
           ? { usuario: { empresaId } }
           : { usuario: { empresaId }, usuarioId },
-      include: {
-        detalleRecibo: { select: { valorTotal: true } },
-      },
+      include: { detalleRecibo: { select: { valorTotal: true } } },
     });
 
     const meses = [
@@ -150,7 +177,7 @@ export class DashboardService {
   }
 
   /**
-   * Resumen del dashboard
+   * Resumen Dashboard
    */
   async getResumen(usuario: UsuarioPayload) {
     if (!usuario) throw new Error('Usuario no encontrado');
@@ -201,7 +228,7 @@ export class DashboardService {
       })
       .then((res) => res._sum.total ?? 0);
 
-    // Variación mensual
+    // Variación mensual ventas y cobros
     const [ventasActual, ventasAnterior] = await Promise.all([
       this.prisma.pedido.aggregate({
         _sum: { total: true },
