@@ -62,12 +62,26 @@ export class ClienteController {
     const usuario = req.usuario;
     return this.clienteService.getClientePorNit(nit, usuario);
   }
-  @Roles('admin')
+  @Roles('admin', 'vendedor')
   @Patch(':idCliente')
   async actualizarCliente(
     @Param('idCliente') idCliente: string,
-    @Body() data: UpdateClienteDto
+    @Body() data: UpdateClienteDto,
+    @Req() req: UsuarioRequest
   ) {
-    return await this.clienteService.actualizarCliente(data, idCliente);
+    const usuario = req.usuario;
+    return await this.clienteService.actualizarCliente(
+      data,
+      idCliente,
+      usuario
+    );
+  }
+
+  @Roles('vendedor', 'admin')
+  @Get('vendedores')
+  async getVendedores(@Req() req: UsuarioRequest) {
+    if (!req.usuario) throw new UnauthorizedException('Usuario requerido');
+    const usuario = req.usuario;
+    return await this.clienteService.getVendedoresPorEmpresa(usuario);
   }
 }

@@ -24,14 +24,18 @@ import { FormUpdateCliente } from "../FormUpdateCliente/FormUpdateCliente";
 
 // Tipo actualizado según tu backend
 export type Cliente = {
+  id: string; // ✅ necesario para PATCH
   nit: string;
   nombre: string;
   apellidos: string;
   telefono: string;
-  ciudad: string;
   email?: string;
+  direccion?: string; // ✅ nuevo
+  ciudad: string;
+  departamento?: string; // ✅ nuevo
   estado?: boolean;
-  usuario: string;
+  usuario: string; // nombre del vendedor
+  vendedorId: string; // ✅ para el select en edición
 };
 
 // Componente para mostrar detalles del cliente

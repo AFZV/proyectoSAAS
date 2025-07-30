@@ -42,6 +42,7 @@ const formSchema = z.object({
     .max(100),
   telefono: z.string().min(7, "Teléfono debe tener al menos 7 dígitos").max(15),
   email: z.string().email("Correo inválido").max(50),
+  vendedor: z.string(),
   departamento: z.string().min(1, "Debe seleccionar un departamento"),
   ciudad: z.string().min(1, "Debe seleccionar una ciudad"),
 });
@@ -60,6 +61,11 @@ interface FormCreateClientePropsExtended extends FormCreateClienteProps {
   onSuccess?: () => void;
 }
 
+interface VendedorCliente {
+  id: string;
+  nombre: string;
+}
+
 export function FormCreateCliente({
   setOpenModalCreate,
   onSuccess,
@@ -67,6 +73,7 @@ export function FormCreateCliente({
   const [isSubmiting, setIsSubmiting] = useState<boolean>(false);
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [ciudades, setCiudades] = useState<Ciudad[]>([]);
+  const [vendedores, setVendedores] = useState<VendedorCliente[]>([]);
 
   const { getToken } = useAuth();
   const router = useRouter();
@@ -83,6 +90,7 @@ export function FormCreateCliente({
       direccion: "",
       telefono: "",
       email: "",
+      vendedor: "",
       departamento: "",
       ciudad: "",
     },
@@ -102,6 +110,25 @@ export function FormCreateCliente({
       }
     }
     fetchDepartamentos();
+  }, []);
+
+  useEffect(() => {
+    async function fetchVendedores() {
+      try {
+        const token = await getToken();
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/clientes/vendedores`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        const data = await response.json();
+        setVendedores(data); // El backend debe devolver [{ id, nombre }]
+      } catch (error) {
+        console.error("Error al cargar vendedores:", error);
+      }
+    }
+    fetchVendedores();
   }, []);
 
   // Cargar ciudades por departamento
@@ -151,9 +178,12 @@ export function FormCreateCliente({
         direccion: values.direccion.trim(),
         telefono: values.telefono.trim(),
         email: values.email.trim(),
+        usuarioId: values.vendedor.trim(),
         departamento: nombreDpto,
         ciudad: nombreCiud,
       };
+
+      console.log("esto hay en el payload", clientePayload);
 
       // 🌐 HACER PETICIÓN CON HEADERS CORRECTOS
       const response = await fetch(
@@ -253,7 +283,7 @@ export function FormCreateCliente({
                   <FormControl>
                     <Input
                       {...field}
-                      placeholder="Opcional"
+                      placeholder="obligatorio"
                       className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </FormControl>
@@ -357,6 +387,30 @@ export function FormCreateCliente({
                       placeholder="Dirección completa del cliente"
                       className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {/* Vendedor */}
+            <FormField
+              control={form.control}
+              name="vendedor"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Vendedor *</FormLabel>
+                  <FormControl>
+                    <select
+                      {...field}
+                      className="w-full border border-input bg-background px-3 py-2 text-sm rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Seleccione un vendedor</option>
+                      {vendedores.map((vendedor) => (
+                        <option key={vendedor.id} value={vendedor.id}>
+                          {vendedor.nombre}
+                        </option>
+                      ))}
+                    </select>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

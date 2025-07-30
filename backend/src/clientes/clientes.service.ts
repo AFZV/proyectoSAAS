@@ -18,7 +18,7 @@ export class ClienteService {
   async crearCliente(data: CreateClienteDto, usuario: UsuarioPayload) {
     if (!usuario) throw new BadRequestException('EL USUARIO ES REQUERIDO');
 
-    const { empresaId, id: usuarioId } = usuario;
+    const { empresaId } = usuario;
 
     // Buscar cliente por NIT
     const existente = await this.prisma.cliente.findFirst({
@@ -45,7 +45,7 @@ export class ClienteService {
         data: {
           clienteId: existente.id,
           empresaId,
-          usuarioId,
+          usuarioId: data.usuarioId,
         },
       });
 
@@ -65,10 +65,11 @@ export class ClienteService {
       apellidos: formatearTexto(data.apellidos),
       rasonZocial: formatearTexto(data.rasonZocial),
     };
+    const { usuarioId, ...clienteData } = dataCleaned;
 
     const cliente = await this.prisma.cliente.create({
       data: {
-        ...dataCleaned,
+        ...clienteData,
         estado: true,
       },
     });
@@ -77,7 +78,7 @@ export class ClienteService {
       data: {
         clienteId: cliente.id,
         empresaId,
-        usuarioId,
+        usuarioId: usuarioId,
       },
     });
 
@@ -88,17 +89,40 @@ export class ClienteService {
     };
   }
 
-  async actualizarCliente(data: UpdateClienteDto, clienteId: string) {
-    if (!clienteId) throw new BadRequestException('el usuario es requerido');
+  async actualizarCliente(
+    data: UpdateClienteDto,
+    clienteId: string,
+    usuario: UsuarioPayload
+  ) {
+    if (!clienteId) throw new BadRequestException('El clienteId es requerido');
+
     const cliente = await this.prisma.cliente.findUnique({
       where: { id: clienteId },
     });
 
-    if (!cliente) throw new BadRequestException('el cliente no existe');
+    if (!cliente) throw new BadRequestException('El cliente no existe');
+
+    const { usuarioId, ...clienteData } = data;
+
+    // ✅ Actualiza datos del cliente
     const clienteUpdated = await this.prisma.cliente.update({
       where: { id: cliente.id },
-      data: { ...data },
+      data: { ...clienteData },
     });
+
+    // ✅ Si viene usuarioId en la data, actualiza la relación en ClienteEmpresa
+    if (usuarioId) {
+      await this.prisma.clienteEmpresa.updateMany({
+        where: {
+          clienteId: clienteUpdated.id,
+          empresaId: usuario.empresaId, // ✅ solo relación en la empresa actual
+        },
+        data: {
+          usuarioId, // asigna el nuevo vendedor
+        },
+      });
+    }
+
     return clienteUpdated;
   }
 
@@ -194,12 +218,15 @@ export class ClienteService {
       include: {
         cliente: {
           select: {
+            id: true,
             nit: true,
             nombre: true,
             apellidos: true,
             telefono: true,
             ciudad: true,
             email: true,
+            departamento: true,
+            direccion: true,
           },
         },
         usuario: {
@@ -219,6 +246,7 @@ export class ClienteService {
     return clientes.map(({ cliente, usuario }) => ({
       ...cliente,
       usuario: usuario.nombre,
+      vendedorId: usuario.id,
     }));
   }
 
@@ -258,5 +286,46 @@ export class ClienteService {
       activos,
       inactivos,
     };
+  }
+
+  async getVendedoresPorEmpresa(usuario: UsuarioPayload) {
+    if (!usuario) {
+      throw new BadRequestException('El usuario es requerido');
+    }
+
+    const { empresaId, rol, id: usuarioId } = usuario;
+
+    if (rol === 'admin') {
+      // ✅ Admin ve todos los vendedores + su propio usuario
+      return await this.prisma.usuario.findMany({
+        where: {
+          empresaId,
+          OR: [
+            { id: usuarioId }, // Incluye el admin actual
+            { rol: 'vendedor' }, // Incluye todos los vendedores
+          ],
+        },
+        select: {
+          id: true,
+          nombre: true,
+          rol: true,
+        },
+      });
+    }
+
+    if (rol === 'vendedor') {
+      return await this.prisma.usuario.findUnique({
+        where: {
+          id: usuarioId,
+        },
+        select: {
+          id: true,
+          nombre: true,
+        },
+      });
+    }
+
+    // Opcional: para otros roles devolver vacío
+    return [];
   }
 }

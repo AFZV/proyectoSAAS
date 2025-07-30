@@ -154,14 +154,14 @@ export default function HeaderCliente() {
 
           {/* Botones de acción */}
           <div className="flex items-center space-x-3">
-            <Button
+            {/* <Button
               variant="outline"
               onClick={() => setOpenUpdateModal(true)}
               className="flex items-center space-x-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-800"
             >
               <Edit3 className="w-4 h-4" />
               <span>Actualizar Cliente</span>
-            </Button>
+            </Button> */}
 
             <Button
               onClick={() => setOpenCreateModal(true)}

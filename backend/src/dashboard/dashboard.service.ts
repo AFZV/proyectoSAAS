@@ -7,23 +7,33 @@ export class DashboardService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Devuelve inicio y fin del día actual (hora local)
+   * Ajusta la fecha actual a la zona horaria de Bogotá (UTC-5)
+   */
+  private getLocalDateBogota(): Date {
+    const now = new Date();
+    // Ajustar a UTC-5 (Bogotá)
+    const offset = -5 * 60; // minutos
+    const localTime = now.getTime() + offset * 60 * 1000;
+    return new Date(localTime);
+  }
+
+  /**
+   * Devuelve inicio y fin del día actual en hora local (Bogotá)
    */
   private getDiaRango() {
-    const hoy = new Date();
+    const now = this.getLocalDateBogota();
     const inicio = new Date(
-      hoy.getFullYear(),
-      hoy.getMonth(),
-      hoy.getDate(),
-      0,
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
       0,
       0,
       0
     );
     const fin = new Date(
-      hoy.getFullYear(),
-      hoy.getMonth(),
-      hoy.getDate(),
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
       23,
       59,
       59,
@@ -33,17 +43,17 @@ export class DashboardService {
   }
 
   /**
-   * Rangos mensuales para variaciones
+   * Rangos mensuales para comparativas (en hora local Bogotá)
    */
   private obtenerRangosComparativos() {
-    const hoy = new Date();
+    const now = this.getLocalDateBogota();
 
     // Mes actual
-    const inicioMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const inicioMesActual = new Date(now.getFullYear(), now.getMonth(), 1);
     const finMesActual = new Date(
-      hoy.getFullYear(),
-      hoy.getMonth(),
-      hoy.getDate(),
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
       23,
       59,
       59,
@@ -52,14 +62,14 @@ export class DashboardService {
 
     // Mes anterior
     const inicioMesAnterior = new Date(
-      hoy.getFullYear(),
-      hoy.getMonth() - 1,
+      now.getFullYear(),
+      now.getMonth() - 1,
       1
     );
     let finMesAnterior = new Date(
-      hoy.getFullYear(),
-      hoy.getMonth() - 1,
-      hoy.getDate(),
+      now.getFullYear(),
+      now.getMonth() - 1,
+      now.getDate(),
       23,
       59,
       59,
@@ -69,8 +79,8 @@ export class DashboardService {
     // Ajuste si el mes anterior no tiene ese día
     if (finMesAnterior.getMonth() !== inicioMesAnterior.getMonth()) {
       finMesAnterior = new Date(
-        hoy.getFullYear(),
-        hoy.getMonth(),
+        now.getFullYear(),
+        now.getMonth(),
         0,
         23,
         59,
@@ -177,7 +187,7 @@ export class DashboardService {
   }
 
   /**
-   * Resumen Dashboard
+   * Resumen del Dashboard
    */
   async getResumen(usuario: UsuarioPayload) {
     if (!usuario) throw new Error('Usuario no encontrado');

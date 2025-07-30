@@ -5,6 +5,7 @@ import {
   Matches,
   Length,
   IsOptional,
+  IsUUID,
 } from 'class-validator';
 
 export class CreateClienteDto {
@@ -65,7 +66,7 @@ export class CreateClienteDto {
   // @IsNotEmpty({ message: 'El ID de la empresa es obligatorio.' })
   // empresaId: string;
 
-  // @IsUUID()
-  // @IsNotEmpty({ message: 'El ID del vendedor (usuario) es obligatorio.' })
-  // usuarioId: string;
+  @IsUUID()
+  @IsNotEmpty({ message: 'El ID del vendedor (usuario) es obligatorio.' })
+  usuarioId: string;
 }
