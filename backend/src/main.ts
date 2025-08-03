@@ -12,7 +12,7 @@ async function bootstrap() {
     origin: [
       'https://bgacloudsaas.com', // dominio principal del frontend
       'https://www.bgacloudsaas.com', // por si también usas la versión www
-      // 'http://localhost:3000',
+      'http://localhost:3000',
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,

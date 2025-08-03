@@ -80,8 +80,8 @@ export function HeaderCatalog({
 
   return (
     <>
-      <div className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 text-white shadow-lg rounded-2xl mx-6">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between p-6">
+      <div className="bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 text-white shadow-lg rounded-2xl mx-4 sm:mx-6">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between p-6 gap-6">
           {/* Lado izquierdo - Título y estadísticas */}
           <div className="flex flex-col lg:flex-row items-start lg:items-center gap-6 flex-1">
             <div className="flex items-center gap-4">
@@ -96,7 +96,7 @@ export function HeaderCatalog({
               </div>
             </div>
 
-            <div className="flex items-center gap-6 ml-0 lg:ml-8">
+            <div className="flex items-center gap-6">
               <div className="text-center">
                 <div className="text-3xl font-bold text-white">
                   {totalProductos}
@@ -118,20 +118,19 @@ export function HeaderCatalog({
           </div>
 
           {/* Botones de acción */}
-          <div className="flex items-center gap-3 mt-4 lg:mt-0 w-full lg:w-auto justify-end">
-            <Button
-              onClick={generarPdf}
-              className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-blue-500/25"
-            >
-              <DownloadIcon className="w-4 h-4" />
-              Generar PDF
-            </Button>
-
+          <div
+            className="
+              flex flex-wrap gap-3 w-full lg:w-auto justify-start lg:justify-end
+            "
+          >
             <Button
               onClick={handleRefresh}
               variant="ghost"
               size="sm"
-              className="text-white hover:bg-white/10 border border-white/20 hover:border-white/30 transition-all duration-200"
+              className="
+                text-white hover:bg-white/10 border border-white/20 hover:border-white/30 
+                transition-all duration-200 w-full sm:w-auto
+              "
             >
               <RefreshCw className="w-4 h-4 mr-2" />
               <span className="hidden sm:inline">Actualizar</span>
@@ -141,7 +140,10 @@ export function HeaderCatalog({
               onClick={() => setIsManagementModalOpen(true)}
               variant="ghost"
               size="sm"
-              className="text-white hover:bg-white/10 border border-white/20 hover:border-white/30 transition-all duration-200"
+              className="
+                text-white hover:bg-white/10 border border-white/20 hover:border-white/30 
+                transition-all duration-200 w-full sm:w-auto
+              "
             >
               <Edit3 className="w-4 h-4 mr-2" />
               <span className="hidden sm:inline">Editar Productos</span>
@@ -150,10 +152,25 @@ export function HeaderCatalog({
             <Button
               size="sm"
               onClick={() => setIsCreateModalOpen(true)}
-              className="bg-white text-blue-600 hover:bg-blue-50 font-semibold shadow-lg hover:shadow-xl transition-all duration-200 border-0"
+              className="
+                bg-white text-blue-600 hover:bg-blue-50 font-semibold shadow-lg 
+                hover:shadow-xl transition-all duration-200 border-0 w-full sm:w-auto
+              "
             >
               <Plus className="w-4 h-4 mr-2" />
               <span className="hidden sm:inline">Crear Producto</span>
+            </Button>
+
+            <Button
+              onClick={generarPdf}
+              className="
+                flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 
+                hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-blue-500/25
+                w-full sm:w-auto
+              "
+            >
+              <DownloadIcon className="w-4 h-4" />
+              Generar PDF
             </Button>
           </div>
         </div>

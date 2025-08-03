@@ -68,7 +68,7 @@ function AddToCartModal({
               />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-lg line-clamp-2">
+              <h3 className="font-semibold text-md line-clamp-2 pb-2">
                 {producto.nombre}
               </h3>
               <Badge variant="secondary" className="text-xs mt-1">
@@ -240,7 +240,15 @@ export function ProductCard({
           <div className="p-3 space-y-2 flex-1 flex flex-col">
             {/* Nombre */}
             <h3
-              className="font-semibold text-sm leading-tight line-clamp-2 min-h-[2.5rem] cursor-pointer hover:text-blue-600 transition-colors"
+              className="
+    font-semibold 
+    text-sm 
+    sm:text-sm 
+    md:text-base 
+    lg:text-xs
+    leading-tight line-clamp-2 min-h-[2.5rem] 
+    cursor-pointer hover:text-blue-600 transition-colors
+  "
               onClick={handleImageClick}
             >
               {producto.nombre}

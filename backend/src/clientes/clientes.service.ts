@@ -220,6 +220,7 @@ export class ClienteService {
           select: {
             id: true,
             nit: true,
+            rasonZocial: true,
             nombre: true,
             apellidos: true,
             telefono: true,

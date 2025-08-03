@@ -26,6 +26,7 @@ import { FormUpdateCliente } from "../FormUpdateCliente/FormUpdateCliente";
 export type Cliente = {
   id: string; // ✅ necesario para PATCH
   nit: string;
+  rasonZocial: string;
   nombre: string;
   apellidos: string;
   telefono: string;

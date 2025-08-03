@@ -3,6 +3,7 @@ import { Dispatch, SetStateAction } from "react";
 interface Cliente {
   id?: string;
   nit: string;
+  rasonzocial: string;
   nombre: string;
   apellidos: string;
   direccion?: string;

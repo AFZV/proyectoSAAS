@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,10 @@ import {
   CheckCircle,
   AlertCircle,
   Package,
+  WifiOff,
+  Wifi,
 } from "lucide-react";
+
 import {
   Dialog,
   DialogContent,
@@ -35,7 +38,6 @@ interface ClienteSearchProps {
   onLimpiarCliente: () => void;
 }
 
-// Componente para buscar cliente - CORREGIDO
 function ClienteSearch({
   onClienteSeleccionado,
   clienteSeleccionado,
@@ -47,7 +49,6 @@ function ClienteSearch({
   const { toast } = useToast();
 
   const buscarCliente = async () => {
-    const token = await getToken();
     if (!nitBusqueda.trim()) {
       toast({
         title: "Error",
@@ -59,20 +60,14 @@ function ClienteSearch({
 
     try {
       setIsSearching(true);
-
-      // 🔥 OBTENER TOKEN PRIMERO
       const token = await getToken();
-
-      if (!token) {
+      if (!token)
         throw new Error("No se pudo obtener el token de autenticación");
-      }
 
-      // 🎯 USAR EL MÉTODO CORREGIDO CON TOKEN
       const cliente = await catalogService.buscarClientePorNit(
         token,
         nitBusqueda
       );
-
       onClienteSeleccionado(cliente);
 
       toast({
@@ -80,10 +75,8 @@ function ClienteSearch({
         description: `${cliente.nombre} ${cliente.apellidos}`,
       });
 
-      // Limpiar campo de búsqueda
       setNitBusqueda("");
     } catch (error: any) {
-      console.error("❌ Error al buscar cliente:", error);
       toast({
         title: "Cliente no encontrado",
         description: error.message || "No existe un cliente con ese NIT",
@@ -130,11 +123,6 @@ function ClienteSearch({
                       <span>✉️ {clienteSeleccionado.email}</span>
                     )}
                   </div>
-                  {clienteSeleccionado.direccion && (
-                    <p className="text-sm text-muted-foreground">
-                      📍 {clienteSeleccionado.direccion}
-                    </p>
-                  )}
                 </div>
                 <Button variant="outline" size="sm" onClick={onLimpiarCliente}>
                   Cambiar
@@ -162,13 +150,11 @@ function ClienteSearch({
             <div className="flex gap-2 mt-1">
               <Input
                 id="nit"
-                placeholder="Ingrese el NIT (solo números)"
+                placeholder="Ingrese el NIT"
                 value={nitBusqueda}
-                onChange={(e) => {
-                  // Solo permitir números
-                  const value = e.target.value.replace(/\D/g, "");
-                  setNitBusqueda(value);
-                }}
+                onChange={(e) =>
+                  setNitBusqueda(e.target.value.replace(/\D/g, ""))
+                }
                 onKeyPress={handleKeyPress}
                 disabled={isSearching}
                 maxLength={20}
@@ -176,7 +162,7 @@ function ClienteSearch({
               <Button
                 onClick={buscarCliente}
                 disabled={isSearching || !nitBusqueda.trim()}
-                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                className="bg-gradient-to-r from-blue-600 to-blue-700"
               >
                 {isSearching ? (
                   <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
@@ -213,11 +199,95 @@ export function CheckoutModal({
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [observaciones, setObservaciones] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [nitOffline, setNitOffline] = useState("");
 
   const { getToken } = useAuth();
   const { toast } = useToast();
 
-  // Cálculos del pedido
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    const updateStatus = () => setIsOnline(navigator.onLine);
+    updateStatus();
+    window.addEventListener("online", updateStatus);
+    window.addEventListener("offline", updateStatus);
+    return () => {
+      window.removeEventListener("online", updateStatus);
+      window.removeEventListener("offline", updateStatus);
+    };
+  }, []);
+
+  // ✅ Sincronizar pedidos pendientes al volver online
+  useEffect(() => {
+    if (!isOnline) return;
+
+    const syncPedidosPendientes = async () => {
+      const pendientes = JSON.parse(
+        localStorage.getItem("pedidosPendientes") || "[]"
+      );
+
+      if (pendientes.length === 0) return;
+
+      const token = await getToken();
+      if (!token) return;
+
+      const pedidosNoEnviados: any[] = [];
+
+      for (const pedido of pendientes) {
+        try {
+          let clienteId = pedido.clienteId;
+
+          if (!clienteId && pedido.nitOffline) {
+            try {
+              const cliente = await catalogService.buscarClientePorNit(
+                token,
+                pedido.nitOffline
+              );
+              clienteId = cliente.id;
+            } catch {
+              // Si el cliente no existe, dejamos el pedido para reintentar
+              pedidosNoEnviados.push(pedido);
+              toast({
+                title: "Cliente no encontrado",
+                description: `NIT ${pedido.nitOffline} no existe. Corrige y reintenta.`,
+                variant: "destructive",
+              });
+              continue;
+            }
+          }
+
+          await catalogService.crearPedidoDesdeCarrito(
+            token,
+            clienteId,
+            pedido.productos,
+            pedido.observaciones
+          );
+        } catch (err) {
+          console.error("Error reenviando pedido:", err);
+          pedidosNoEnviados.push(pedido);
+        }
+      }
+
+      if (pedidosNoEnviados.length > 0) {
+        localStorage.setItem(
+          "pedidosPendientes",
+          JSON.stringify(pedidosNoEnviados)
+        );
+      } else {
+        localStorage.removeItem("pedidosPendientes");
+      }
+
+      toast({
+        title: "Sincronización completa",
+        description: `${
+          pendientes.length - pedidosNoEnviados.length
+        } pedidos enviados correctamente`,
+      });
+    };
+
+    syncPedidosPendientes();
+  }, [isOnline]);
+
   const totalItems = carrito.reduce((sum, item) => sum + item.cantidad, 0);
   const totalPrecio = carrito.reduce(
     (sum, item) => sum + item.precio * item.cantidad,
@@ -228,15 +298,22 @@ export function CheckoutModal({
     setCliente(clienteData);
   };
 
-  const limpiarCliente = () => {
-    setCliente(null);
-  };
+  const limpiarCliente = () => setCliente(null);
 
   const finalizarPedido = async () => {
-    if (!cliente) {
+    if (isOnline && !cliente) {
       toast({
         title: "Error",
         description: "Debe seleccionar un cliente",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isOnline && !nitOffline.trim()) {
+      toast({
+        title: "Error",
+        description: "Debe ingresar un NIT para modo offline",
         variant: "destructive",
       });
       return;
@@ -251,39 +328,56 @@ export function CheckoutModal({
       return;
     }
 
+    const pedidoData = {
+      nitOffline: isOnline ? null : nitOffline.trim(),
+      clienteId: cliente?.id || null,
+      productos: carrito.map((item) => ({
+        id: item.id,
+        cantidad: item.cantidad,
+        precio: item.precio,
+      })),
+      observaciones,
+      total: totalPrecio,
+      fecha: new Date().toISOString(),
+    };
+
+    if (!isOnline) {
+      const pendientes = JSON.parse(
+        localStorage.getItem("pedidosPendientes") || "[]"
+      );
+      pendientes.push(pedidoData);
+      localStorage.setItem("pedidosPendientes", JSON.stringify(pendientes));
+
+      toast({
+        title: "Pedido guardado offline",
+        description: "Se enviará automáticamente cuando vuelva la conexión",
+      });
+
+      limpiarFormulario();
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-
       const token = await getToken();
-
-      if (!token) {
-        throw new Error("No se pudo obtener el token de autenticación");
-      }
+      if (!token) throw new Error("No se pudo obtener token");
 
       await catalogService.crearPedidoDesdeCarrito(
         token,
-        cliente.id,
-        carrito.map((item) => ({
-          id: item.id,
-          cantidad: item.cantidad,
-          precio: item.precio,
-        })),
-        observaciones
+        cliente!.id,
+        pedidoData.productos,
+        pedidoData.observaciones
       );
 
       toast({
-        title: "¡Pedido creado exitosamente!",
+        title: "¡Pedido creado!",
         description: `Pedido por ${formatValue(
           totalPrecio
         )} registrado correctamente`,
       });
 
-      // Limpiar estados y cerrar modal
-      setCliente(null);
-      setObservaciones("");
-      onPedidoCreado();
+      limpiarFormulario();
     } catch (error: any) {
-      console.error("❌ Error al crear pedido:", error);
       toast({
         title: "Error al crear pedido",
         description: error.message || "Ocurrió un error inesperado",
@@ -294,11 +388,19 @@ export function CheckoutModal({
     }
   };
 
+  const limpiarFormulario = () => {
+    setCliente(null);
+    setObservaciones("");
+    setNitOffline("");
+    onPedidoCreado();
+    onOpenChange(false);
+  };
+
   const handleClose = () => {
     if (!isSubmitting) {
-      // Limpiar estados al cerrar
       setCliente(null);
       setObservaciones("");
+      setNitOffline("");
       onOpenChange(false);
     }
   };
@@ -310,18 +412,54 @@ export function CheckoutModal({
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5" />
             Finalizar Pedido
+            <span
+              className={`flex items-center gap-2 text-sm ml-auto ${
+                isOnline ? "text-green-600" : "text-red-600"
+              }`}
+            >
+              {isOnline ? (
+                <Wifi className="w-4 h-4" />
+              ) : (
+                <WifiOff className="w-4 h-4" />
+              )}
+              {isOnline ? "Conectado" : "Sin conexión"}
+            </span>
           </DialogTitle>
         </DialogHeader>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Columna izquierda: Cliente y observaciones */}
+          {/* Columna izquierda */}
           <div className="space-y-6">
-            {/* Buscar/Mostrar cliente */}
-            <ClienteSearch
-              onClienteSeleccionado={handleClienteSeleccionado}
-              clienteSeleccionado={cliente}
-              onLimpiarCliente={limpiarCliente}
-            />
+            {isOnline ? (
+              <ClienteSearch
+                onClienteSeleccionado={handleClienteSeleccionado}
+                clienteSeleccionado={cliente}
+                onLimpiarCliente={limpiarCliente}
+              />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    Cliente Offline
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Label>NIT del Cliente</Label>
+                  <Input
+                    placeholder="Ingrese NIT"
+                    value={nitOffline}
+                    onChange={(e) =>
+                      setNitOffline(e.target.value.replace(/\D/g, ""))
+                    }
+                    maxLength={20}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Este NIT será validado al reconectarse
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Observaciones */}
             <Card>
@@ -332,29 +470,22 @@ export function CheckoutModal({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div>
-                  <Label htmlFor="observaciones">
-                    Notas del Pedido (Opcional)
-                  </Label>
-                  <textarea
-                    id="observaciones"
-                    placeholder="Instrucciones especiales, notas de entrega, etc."
-                    value={observaciones}
-                    onChange={(e) => setObservaciones(e.target.value)}
-                    className="mt-1 min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                    maxLength={500}
-                  />
-                  <div className="mt-1 text-xs text-muted-foreground text-right">
-                    {observaciones.length}/500 caracteres
-                  </div>
+                <textarea
+                  placeholder="Notas del pedido (opcional)"
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-input px-3 py-2 text-sm"
+                  maxLength={500}
+                />
+                <div className="mt-1 text-xs text-muted-foreground text-right">
+                  {observaciones.length}/500 caracteres
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Columna derecha: Resumen del pedido */}
+          {/* Columna derecha */}
           <div className="space-y-6">
-            {/* Resumen de productos */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -375,15 +506,13 @@ export function CheckoutModal({
                         alt={item.nombre}
                         className="w-12 h-12 object-cover rounded-md"
                       />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm line-clamp-2">
-                          {item.nombre}
-                        </h4>
+                      <div className="flex-1">
+                        <h4 className="font-medium text-sm">{item.nombre}</h4>
                         <p className="text-xs text-muted-foreground">
                           {item.categoria}
                         </p>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-sm">
+                        <div className="flex justify-between mt-1 text-sm">
+                          <span>
                             {item.cantidad} × {formatValue(item.precio)}
                           </span>
                           <span className="font-semibold">
@@ -394,47 +523,32 @@ export function CheckoutModal({
                     </div>
                   ))}
                 </div>
-
                 <Separator className="my-4" />
-
-                {/* Totales */}
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Subtotal ({totalItems} items):</span>
-                    <span>{formatValue(totalPrecio)}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Total:</span>
-                    <span className="text-green-600">
-                      {formatValue(totalPrecio)}
-                    </span>
-                  </div>
+                <div className="flex justify-between font-bold text-lg">
+                  <span>Total:</span>
+                  <span className="text-green-600">
+                    {formatValue(totalPrecio)}
+                  </span>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Botones de acción */}
             <div className="space-y-3">
               <Button
                 onClick={finalizarPedido}
-                disabled={!cliente || carrito.length === 0 || isSubmitting}
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                disabled={
+                  (isOnline && !cliente) ||
+                  carrito.length === 0 ||
+                  isSubmitting ||
+                  (!isOnline && !nitOffline)
+                }
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-700"
                 size="lg"
               >
-                {isSubmitting ? (
-                  <>
-                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2" />
-                    Creando Pedido...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Crear Pedido por {formatValue(totalPrecio)}
-                  </>
-                )}
+                {isSubmitting
+                  ? "Creando Pedido..."
+                  : `Crear Pedido por ${formatValue(totalPrecio)}`}
               </Button>
-
               <Button
                 variant="outline"
                 onClick={handleClose}
@@ -443,13 +557,6 @@ export function CheckoutModal({
               >
                 Cancelar
               </Button>
-            </div>
-
-            {/* Información adicional */}
-            <div className="text-xs text-muted-foreground text-center space-y-1">
-              <p>• El pedido será registrado y enviado para procesamiento</p>
-              <p>• Recibirás confirmación una vez procesado el pedido</p>
-              <p>• Puedes revisar el estado en la sección de pedidos</p>
             </div>
           </div>
         </div>

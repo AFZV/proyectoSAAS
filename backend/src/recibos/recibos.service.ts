@@ -85,7 +85,7 @@ export class RecibosService {
     }
 
     const { clienteId, tipo, concepto, pedidos } = data;
-    await this.validarClienteVendedor(clienteId, usuario);
+    const relacion = await this.validarClienteVendedor(clienteId, usuario);
 
     if (!pedidos || pedidos.length === 0) {
       throw new BadRequestException(
@@ -145,7 +145,7 @@ export class RecibosService {
       const creado = await tx.recibo.create({
         data: {
           clienteId,
-          usuarioId: usuario.id,
+          usuarioId: relacion.usuarioId,
           empresaId: usuario.empresaId,
           tipo,
           concepto,
@@ -169,7 +169,7 @@ export class RecibosService {
           data: {
             idCliente: clienteId,
             valorMovimiento: detalle.valorAplicado,
-            idUsuario: usuario.id,
+            idUsuario: relacion.usuarioId,
             empresaId: usuario.empresaId,
             idRecibo: creado.id,
             observacion: `Abono generado desde creación de recibo #${creado.id}`,
@@ -359,7 +359,7 @@ export class RecibosService {
 
     const { clienteId } = data;
     if (!clienteId) throw new UnauthorizedException('Usuario no autorizado');
-    await this.validarClienteVendedor(clienteId, usuario);
+    const relacion = await this.validarClienteVendedor(clienteId, usuario);
 
     const recibo = await this.prisma.recibo.findUnique({
       where: { id },
@@ -423,7 +423,7 @@ export class RecibosService {
           data: {
             idCliente: clienteId,
             valorMovimiento: pedido.valorAplicado,
-            idUsuario: usuario.id,
+            idUsuario: relacion.usuarioId,
             empresaId: usuario.empresaId,
             idRecibo: recibo.id,
             observacion: `Abono actualizado para recibo #${recibo.id}`,
@@ -502,7 +502,7 @@ export class RecibosService {
 
           if (!empresa || !usuarioDb) throw new Error('Datos incompletos');
 
-          const { url: pdfUrl } = await this.cloudinaryService.uploadPdf({
+          await this.cloudinaryService.uploadPdf({
             buffer: pdfBuffer.buffer,
             fileName: `recibo_${id}.pdf`,
             empresaNit: empresa.nit,

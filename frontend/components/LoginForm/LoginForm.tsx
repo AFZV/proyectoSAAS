@@ -36,8 +36,35 @@ export function LoginForm() {
     }
   };
 
-  const handleForgotPassword = () => {
-    window.location.href = "https://your-clerk-domain.clerk.accounts.dev/forgot-password";
+  const handleForgotPassword = async () => {
+    if (!isLoaded) return;
+    if (!email) {
+      setErrorMsg("Ingresa tu correo antes de continuar");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setErrorMsg("");
+
+      // ✅ Iniciar flujo de reset
+      const result = await signIn.create({
+        strategy: "reset_password_email_code",
+        identifier: email,
+      });
+
+      if (result.status === "needs_first_factor") {
+        // ✅ Clerk envió el email con el código o link
+        alert(
+          "Hemos enviado un enlace para restablecer tu contraseña a " + email
+        );
+      }
+    } catch (err: any) {
+      console.error("Error al solicitar reset:", err);
+      setErrorMsg("No se pudo enviar el enlace de recuperación");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -46,8 +73,9 @@ export function LoginForm() {
       <div
         className="absolute inset-0 opacity-5"
         style={{
-          backgroundImage: 'radial-gradient(circle, rgba(59, 130, 246, 0.1) 1px, transparent 1px)',
-          backgroundSize: '20px 20px'
+          backgroundImage:
+            "radial-gradient(circle, rgba(59, 130, 246, 0.1) 1px, transparent 1px)",
+          backgroundSize: "20px 20px",
         }}
       />
 
@@ -58,12 +86,8 @@ export function LoginForm() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl mb-4 shadow-lg">
             <Building className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">
-            Panel Recaudos
-          </h1>
-          <p className="text-slate-600">
-            Sistema de gestión empresarial
-          </p>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">BGA CLOUD</h1>
+          <p className="text-slate-600">Sistema de gestión empresarial</p>
         </div>
 
         {/* Login Card */}
@@ -105,7 +129,7 @@ export function LoginForm() {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-11 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-slate-900"
@@ -118,7 +142,11 @@ export function LoginForm() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -132,13 +160,7 @@ export function LoginForm() {
 
             {/* Remember & Forgot */}
             <div className="flex items-center justify-between">
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 text-blue-600 bg-slate-50 border-slate-300 rounded focus:ring-blue-500"
-                />
-                <span className="text-sm text-slate-600">Recordarme</span>
-              </label>
+              <label className="flex items-center space-x-2 cursor-pointer"></label>
               <button
                 type="button"
                 onClick={handleForgotPassword}
@@ -171,10 +193,15 @@ export function LoginForm() {
           {/* Footer */}
           <div className="mt-8 pt-6 border-t border-slate-200">
             <p className="text-center text-sm text-slate-600">
-              ¿Necesitas ayuda?{' '}
-              <button className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
+              ¿Necesitas ayuda?{" "}
+              <a
+                href="https://wa.me/573216674328?text=Requiero%20soporte"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              >
                 Contacta soporte
-              </button>
+              </a>
             </p>
           </div>
         </div>

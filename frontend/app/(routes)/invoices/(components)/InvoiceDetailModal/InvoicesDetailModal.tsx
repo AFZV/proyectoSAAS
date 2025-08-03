@@ -2,10 +2,12 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Check } from "lucide-react";
+
 import {
   Dialog,
   DialogContent,
@@ -62,6 +64,23 @@ export function InvoiceDetailModal({
   const [nuevoEstado, setNuevoEstado] = useState("");
   const [guiaTransporte, setGuiaTransporte] = useState("");
   const [flete, setFlete] = useState("");
+  // ✅ NUEVO: Estado visual para bodegueros
+  const [productosSeparados, setProductosSeparados] = useState<string[]>([]);
+  useEffect(() => {
+    if (isOpen && pedido) {
+      const saved = localStorage.getItem(`separados_${pedido.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[];
+        // ✅ Filtrar solo por productoId en el pedido actual
+        const stillValid = parsed.filter((id) =>
+          (pedido.productos ?? []).some((p) => p.productoId === id)
+        );
+        setProductosSeparados(stillValid);
+      } else {
+        setProductosSeparados([]);
+      }
+    }
+  }, [isOpen, pedido]);
 
   const { getToken } = useAuth();
   const { toast } = useToast();
@@ -89,6 +108,10 @@ export function InvoiceDetailModal({
         description: "Selecciona un estado",
         variant: "destructive",
       });
+      if (nuevoEstado !== "GENERADO" && pedido) {
+        localStorage.removeItem(`separados_${pedido.id}`);
+        setProductosSeparados([]);
+      }
       return;
     }
 
@@ -231,6 +254,22 @@ export function InvoiceDetailModal({
     `${pedido.cliente?.nombre || "Cliente"} ${
       pedido.cliente?.apellidos || ""
     }`.trim();
+  // ✅ NUEVO: Handler para marcar productos como separados
+  const handleToggleSeparado = (productoId: string) => {
+    setProductosSeparados((prev) => {
+      const updated = prev.includes(productoId)
+        ? prev.filter((id) => id !== productoId)
+        : [...prev, productoId];
+      if (pedido) {
+        localStorage.setItem(`separados_${pedido.id}`, JSON.stringify(updated));
+      }
+      return updated;
+    });
+  };
+
+  const totalProductos = pedido.productos?.length || 0;
+  const separados = productosSeparados.length;
+  const progresoCompleto = separados === totalProductos && totalProductos > 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -593,6 +632,26 @@ export function InvoiceDetailModal({
                 </span>
               )}
             </h3>
+            {estadoActual === "GENERADO" && totalProductos > 0 && (
+              <div className="mb-4">
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm text-gray-600">
+                    {separados} de {totalProductos} productos separados
+                  </span>
+                  {progresoCompleto && (
+                    <span className="text-green-600 text-sm font-semibold flex items-center">
+                      <Check className="w-4 h-4 mr-1" /> ¡Completo!
+                    </span>
+                  )}
+                </div>
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 transition-all"
+                    style={{ width: `${(separados / totalProductos) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
 
             {pedido.productos && pedido.productos.length > 0 ? (
               <div className="overflow-x-auto">
@@ -611,8 +670,14 @@ export function InvoiceDetailModal({
                       <th className="text-right py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Subtotal
                       </th>
+                      {estadoActual === "GENERADO" && (
+                        <th className="text-center py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Separado
+                        </th>
+                      )}
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-gray-200">
                     {pedido.productos.map((item, index) => {
                       const subtotal =
@@ -654,6 +719,20 @@ export function InvoiceDetailModal({
                           <td className="py-4 px-4 text-right text-sm font-medium text-gray-900">
                             {formatValue(subtotal)}
                           </td>
+                          {estadoActual === "GENERADO" && (
+                            <td className="py-4 px-4 text-center">
+                              <input
+                                type="checkbox"
+                                checked={productosSeparados.includes(
+                                  item.productoId
+                                )}
+                                onChange={() =>
+                                  handleToggleSeparado(item.productoId)
+                                }
+                                className="w-5 h-5 accent-green-600 cursor-pointer"
+                              />
+                            </td>
+                          )}
                         </tr>
                       );
                     })}

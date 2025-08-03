@@ -25,15 +25,25 @@ import { getCiudades } from "@/lib/getCiudades";
 import { Loading } from "@/components/Loading";
 
 const formSchema = z.object({
-  nit: z.string().min(2).max(20),
-  nombre: z.string().min(2).max(50),
-  apellidos: z.string().min(2).max(50),
-  direccion: z.string().min(10).max(100),
-  telefono: z.string().min(1).max(15),
-  email: z.string().email("Correo inválido").max(50).optional(),
+  nit: z
+    .string()
+    .min(5, "NIT debe tener al menos 5 dígitos")
+    .max(20, "NIT no puede tener más de 20 dígitos"),
+  rasonZocial: z.string().min(2).max(100).optional(),
+  nombre: z.string().min(2, "Nombre debe tener al menos 2 caracteres").max(50),
+  apellidos: z
+    .string()
+    .min(2, "Apellidos debe tener al menos 2 caracteres")
+    .max(100),
+  direccion: z
+    .string()
+    .min(10, "Dirección debe tener al menos 10 caracteres")
+    .max(100),
+  telefono: z.string().min(7, "Teléfono debe tener al menos 7 dígitos").max(15),
+  email: z.string().email("Correo inválido").max(50),
   vendedor: z.string(),
-  departamento: z.string().min(1), // ID del departamento en el select
-  ciudad: z.string().min(1), // ID de la ciudad en el select
+  departamento: z.string().min(1, "Debe seleccionar un departamento"),
+  ciudad: z.string().min(1, "Debe seleccionar una ciudad"),
 });
 
 interface Departamento {
@@ -49,6 +59,7 @@ interface Ciudad {
 interface Cliente {
   id?: string;
   nit: string;
+  rasonZocial?: string;
   nombre: string;
   apellidos: string;
   direccion?: string;
@@ -76,6 +87,7 @@ export function FormUpdateCliente({
   clienteInicial,
   onSuccess,
 }: FormUpdateClienteProps) {
+  console.log("cliente que llega a update:", clienteInicial);
   const [isUpdating, setIsUpdating] = useState(false);
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [ciudades, setCiudades] = useState<Ciudad[]>([]);
@@ -103,7 +115,7 @@ export function FormUpdateCliente({
           }
         );
         const data = await response.json();
-        setVendedores(data);
+        setVendedores([data]);
       } catch (error) {
         console.error("Error al cargar vendedores:", error);
       }
@@ -150,6 +162,7 @@ export function FormUpdateCliente({
           // 3. Reset con datos
           editForm.reset({
             nit: clienteInicial.nit,
+            rasonZocial: clienteInicial.rasonZocial || "",
             nombre: clienteInicial.nombre,
             apellidos: clienteInicial.apellidos,
             direccion: clienteInicial.direccion || "",
@@ -200,7 +213,7 @@ export function FormUpdateCliente({
       const clienteId = clienteInicial.id;
       if (!clienteId) throw new Error("No se encontró ID del cliente");
 
-      const url = `${process.env.NEXT_PUBLIC_API_URL}/clientes/${clienteId}`;
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/clientes/${clienteId}`; ////
       const { vendedor, departamento, ciudad, ...rest } = values;
 
       // ✅ Convertir IDs a nombres
@@ -265,20 +278,20 @@ export function FormUpdateCliente({
                 <FormItem>
                   <FormLabel>NIT</FormLabel>
                   <FormControl>
-                    <Input {...field} disabled className="bg-muted" />
+                    <Input {...field} className="bg-muted" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Teléfono */}
+            {/* Razón Social */}
             <FormField
               control={editForm.control}
-              name="telefono"
+              name="rasonZocial"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Teléfono</FormLabel>
+                  <FormLabel>Razón Social</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -326,6 +339,21 @@ export function FormUpdateCliente({
                   <FormLabel>Email</FormLabel>
                   <FormControl>
                     <Input type="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Teléfono */}
+            <FormField
+              control={editForm.control}
+              name="telefono"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Teléfono</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

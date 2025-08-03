@@ -35,7 +35,7 @@ const formSchema = z.object({
   apellidos: z
     .string()
     .min(2, "Apellidos debe tener al menos 2 caracteres")
-    .max(50),
+    .max(100),
   direccion: z
     .string()
     .min(10, "Dirección debe tener al menos 10 caracteres")
@@ -123,9 +123,18 @@ export function FormCreateCliente({
           }
         );
         const data = await response.json();
-        setVendedores(data); // El backend debe devolver [{ id, nombre }]
+
+        // Normalizar la respuesta
+        if (Array.isArray(data)) {
+          setVendedores(data);
+        } else if (data && typeof data === "object") {
+          setVendedores([data]); // ✅ Convertir el objeto en array
+        } else {
+          setVendedores([]);
+        }
       } catch (error) {
         console.error("Error al cargar vendedores:", error);
+        setVendedores([]);
       }
     }
     fetchVendedores();
@@ -163,7 +172,7 @@ export function FormCreateCliente({
         throw new Error("No se pudo obtener el token de autenticación");
       }
 
-      // 🏗️ PREPARAR PAYLOAD
+      //  PREPARAR PAYLOAD
       const nombreDpto =
         departamentos.find((d) => d.id.toString() === values.departamento)
           ?.name || "";

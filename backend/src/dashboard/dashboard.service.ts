@@ -225,6 +225,18 @@ export class DashboardService {
       0
     );
 
+    //pedidos del dia
+    const pedidos = await this.prisma.pedido.findMany({
+      where:
+        rol === 'admin'
+          ? { empresaId, fechaPedido: { gte: inicioDia, lte: finDia } }
+          : {
+              empresaId,
+              usuarioId: dbUserId,
+              fechaPedido: { gte: inicioDia, lte: finDia },
+            },
+    });
+
     // Ventas del día
     const totalVentas = await this.prisma.pedido
       .aggregate({
@@ -262,6 +274,7 @@ export class DashboardService {
       }),
     ]);
 
+    const totalOperacionesDia: number = recibos.length + pedidos.length;
     const totalActual = ventasActual._sum.total || 0;
     const totalAnterior = ventasAnterior._sum.total || 0;
     const variacionPorcentualVentas =
@@ -333,7 +346,7 @@ export class DashboardService {
       totalClientes,
       totalValorRecibos,
       totalVentas,
-      operacionesActual: recibos.length,
+      operacionesActual: totalOperacionesDia,
       variaciones: { variacionPorcentualVentas, variacionPorcentualCobros },
       ultimosPedidos,
     };
