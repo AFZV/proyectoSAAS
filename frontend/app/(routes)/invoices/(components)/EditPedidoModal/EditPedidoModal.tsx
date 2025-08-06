@@ -17,7 +17,6 @@ import {
   ShoppingCart,
   Save,
   X,
-  Package,
 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
@@ -38,7 +37,6 @@ interface ProductoCarrito extends DetallePedido {
   categoria?: string;
 }
 
-// Tipo para los productos del catálogo
 interface ProductoCatalogo {
   id: string;
   nombre: string;
@@ -47,7 +45,7 @@ interface ProductoCatalogo {
   imagenUrl?: string;
 }
 
-// MODAL DE BÚSQUEDA DE PRODUCTOS
+// ✅ Modal hijo corregido
 interface ModalBuscarProductoProps {
   open: boolean;
   onClose: () => void;
@@ -63,9 +61,6 @@ function ModalBuscarProducto({
 }: ModalBuscarProductoProps) {
   const [busqueda, setBusqueda] = useState("");
 
-  // Debug logs
-
-  // Verificar que productos sea un array antes de filtrar
   const productosFiltrados = Array.isArray(productos)
     ? productos.filter((p) =>
         p.nombre.toLowerCase().includes(busqueda.toLowerCase())
@@ -73,8 +68,8 @@ function ModalBuscarProducto({
     : [];
 
   return (
-   <Dialog open={open} onOpenChange={onClose} modal={false}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={onClose} modal={false}>
+      <DialogContent onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>
             Buscar producto ({productos.length} disponibles)
@@ -114,6 +109,7 @@ function ModalBuscarProducto({
   );
 }
 
+// ✅ Modal padre corregido
 export function EditPedidoModal({
   pedido,
   isOpen,
@@ -124,17 +120,13 @@ export function EditPedidoModal({
   const [observaciones, setObservaciones] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showProductCatalog, setShowProductCatalog] = useState(false);
-  const [catalogoProductos, setCatalogoProductos] = useState<
-    ProductoCatalogo[]
-  >([]);
+  const [catalogoProductos, setCatalogoProductos] = useState<ProductoCatalogo[]>([]);
 
   const { getToken } = useAuth();
   const { toast } = useToast();
 
-  // Cargar productos del pedido cuando se abre el modal
   useEffect(() => {
     if (pedido && isOpen) {
-      // Mapear productos del pedido al carrito
       const productosCarrito: ProductoCarrito[] =
         pedido.productos?.map((item) => ({
           ...item,
@@ -148,11 +140,9 @@ export function EditPedidoModal({
     }
   }, [pedido, isOpen]);
 
-  // Cargar catálogo de productos
   const cargarCatalogo = async () => {
     try {
       const token = await getToken();
-
       const url = `${process.env.NEXT_PUBLIC_API_URL}/productos/empresa/activos`;
 
       const res = await fetch(url, {
@@ -161,28 +151,16 @@ export function EditPedidoModal({
 
       if (res.ok) {
         const data = await res.json();
-
-        // ✅ CORRECCIÓN: Extraer el array de productos del objeto respuesta
         const productos = data.productos || data || [];
-
-        // Extraer solo las propiedades necesarias y asegurar que productos sea un array
         const productosFormateados = Array.isArray(productos)
-          ? productos.map((producto: any) => {
-              const productoFormateado = {
-                id: producto.id,
-                nombre: producto.nombre || "Sin nombre",
-                precio: Number(
-                  producto.precioVenta || producto.precioCompra || 0
-                ), // Priorizar precioVenta
-                categoria:
-                  producto.categoria?.nombre ||
-                  producto.categoriaId ||
-                  "Sin categoría",
-                imagenUrl: producto.imagenUrl || undefined,
-              };
-
-              return productoFormateado;
-            })
+          ? productos.map((producto: any) => ({
+              id: producto.id,
+              nombre: producto.nombre || "Sin nombre",
+              precio: Number(producto.precioVenta || producto.precioCompra || 0),
+              categoria:
+                producto.categoria?.nombre || producto.categoriaId || "Sin categoría",
+              imagenUrl: producto.imagenUrl || undefined,
+            }))
           : [];
 
         setCatalogoProductos(productosFormateados);
@@ -194,70 +172,52 @@ export function EditPedidoModal({
         });
       } else {
         const errorText = await res.text();
-        console.error("❌ Error del servidor:", {
-          status: res.status,
-          statusText: res.statusText,
-          body: errorText,
-        });
-        throw new Error(`Error ${res.status}: ${res.statusText}`);
+        throw new Error(`Error ${res.status}: ${res.statusText} - ${errorText}`);
       }
     } catch (error) {
       console.error("💥 Error al cargar catálogo:", error);
       toast({
         title: "Error al cargar productos",
-        description:
-          error instanceof Error ? error.message : "Error desconocido",
+        description: error instanceof Error ? error.message : "Error desconocido",
         variant: "destructive",
       });
-      setCatalogoProductos([]); // Establecer array vacío en caso de error
+      setCatalogoProductos([]);
     }
   };
 
-  // Actualizar cantidad de producto
   const actualizarCantidad = (productoId: string, delta: number) => {
     setCarrito((prev) =>
-      prev.map((item) => {
-        if (item.productoId === productoId) {
-          const nuevaCantidad = Math.max(1, item.cantidad + delta);
-          return { ...item, cantidad: nuevaCantidad };
-        }
-        return item;
-      })
+      prev.map((item) =>
+        item.productoId === productoId
+          ? { ...item, cantidad: Math.max(1, item.cantidad + delta) }
+          : item
+      )
     );
   };
 
-  // Establecer cantidad específica de producto
   const establecerCantidad = (productoId: string, nuevaCantidad: number) => {
-    const cantidad = Math.max(1, nuevaCantidad);
     setCarrito((prev) =>
-      prev.map((item) => {
-        if (item.productoId === productoId) {
-          return { ...item, cantidad };
-        }
-        return item;
-      })
+      prev.map((item) =>
+        item.productoId === productoId
+          ? { ...item, cantidad: Math.max(1, nuevaCantidad) }
+          : item
+      )
     );
   };
 
-  // Actualizar precio de producto
   const actualizarPrecio = (productoId: string, nuevoPrecio: string) => {
     const precio = parseFloat(nuevoPrecio) || 0;
     setCarrito((prev) =>
-      prev.map((item) => {
-        if (item.productoId === productoId) {
-          return { ...item, precio };
-        }
-        return item;
-      })
+      prev.map((item) =>
+        item.productoId === productoId ? { ...item, precio } : item
+      )
     );
   };
 
-  // Eliminar producto del carrito
   const eliminarProducto = (productoId: string) => {
     setCarrito((prev) => prev.filter((item) => item.productoId !== productoId));
   };
 
-  // Agregar producto desde catálogo
   const agregarProducto = (producto: ProductoCatalogo) => {
     const existe = carrito.find((item) => item.productoId === producto.id);
 
@@ -284,12 +244,9 @@ export function EditPedidoModal({
     });
   };
 
-  // Calcular total
-  const calcularTotal = () => {
-    return carrito.reduce((sum, item) => sum + item.cantidad * item.precio, 0);
-  };
+  const calcularTotal = () =>
+    carrito.reduce((sum, item) => sum + item.cantidad * item.precio, 0);
 
-  // Guardar cambios
   const handleGuardar = async () => {
     if (carrito.length === 0) {
       toast({
@@ -303,7 +260,6 @@ export function EditPedidoModal({
     try {
       setIsLoading(true);
       const token = await getToken();
-
       const datosActualizados = {
         observaciones,
         productos: carrito.map((item) => ({
@@ -313,11 +269,7 @@ export function EditPedidoModal({
         })),
       };
 
-      await invoicesService.actualizarPedido(
-        token!,
-        pedido!.id,
-        datosActualizados
-      );
+      await invoicesService.actualizarPedido(token!, pedido!.id, datosActualizados);
 
       toast({
         title: "Pedido actualizado",
@@ -340,24 +292,14 @@ export function EditPedidoModal({
 
   if (!pedido) return null;
 
-  // Verificar si el pedido puede ser editado
-  const estadoActual =
-    pedido.estados && pedido.estados.length > 0
-      ? pedido.estados.sort(
-          (a, b) =>
-            new Date(b.fechaEstado).getTime() -
-            new Date(a.fechaEstado).getTime()
-        )[0].estado
-      : "GENERADO";
-
   return (
     <>
       <Dialog
-  open={isOpen}
-  onOpenChange={(open) => {
-    if (!open) onClose();
-  }}
->
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
@@ -368,219 +310,181 @@ export function EditPedidoModal({
             </DialogTitle>
           </DialogHeader>
 
-          {
-            <div className="space-y-6">
-              {/* Información del cliente */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-medium text-gray-900 mb-2">Cliente</h3>
-                <p className="text-sm">
-                  {pedido.cliente?.rasonZocial ||
-                    `${pedido.cliente?.nombre || ""} ${
-                      pedido.cliente?.apellidos || ""
-                    }`}
-                </p>
-                <p className="text-sm text-gray-500">
-                  {pedido.cliente?.ciudad}
-                </p>
+          <div className="space-y-6">
+            {/* Cliente */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-medium text-gray-900 mb-2">Cliente</h3>
+              <p className="text-sm">
+                {pedido.cliente?.rasonZocial ||
+                  `${pedido.cliente?.nombre || ""} ${pedido.cliente?.apellidos || ""}`}
+              </p>
+              <p className="text-sm text-gray-500">{pedido.cliente?.ciudad}</p>
+            </div>
+
+            {/* Productos */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-medium text-gray-900">Productos</h3>
+                <Button
+                  variant="outline"
+                  onClick={cargarCatalogo}
+                  type="button"
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Agregar Producto
+                </Button>
               </div>
 
-              {/* Productos en el carrito */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-medium text-gray-900">Productos</h3>
-                  <div className="flex justify-end mb-2">
-                    <Button
-                      variant="outline"
-                      onClick={cargarCatalogo}
-                      type="button"
-                      className="flex items-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" /> Agregar Producto
-                    </Button>
-                  </div>
+              {carrito.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No hay productos en el pedido</p>
                 </div>
-
-                {carrito.length === 0 ? (
-                  <div className="text-center py-8 bg-gray-50 rounded-lg">
-                    <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">
-                      No hay productos en el pedido
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {carrito.map((item) => (
-                      <div
-                        key={item.productoId}
-                        className="bg-white border rounded-lg p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4">
-                            {item.imagenUrl && (
-                              <img
-                                src={item.imagenUrl}
-                                alt={item.nombre}
-                                className="h-16 w-16 object-cover rounded"
-                              />
+              ) : (
+                <div className="space-y-4">
+                  {carrito.map((item) => (
+                    <div
+                      key={item.productoId}
+                      className="bg-white border rounded-lg p-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          {item.imagenUrl && (
+                            <img
+                              src={item.imagenUrl}
+                              alt={item.nombre}
+                              className="h-16 w-16 object-cover rounded"
+                            />
+                          )}
+                          <div>
+                            <h4 className="font-medium">
+                              {item.nombre || `Producto ${item.productoId.slice(-6)}`}
+                            </h4>
+                            {item.categoria && (
+                              <p className="text-sm text-gray-500">{item.categoria}</p>
                             )}
-                            <div>
-                              <h4 className="font-medium">
-                                {item.nombre ||
-                                  `Producto ${item.productoId.slice(-6)}`}
-                              </h4>
-                              {item.categoria && (
-                                <p className="text-sm text-gray-500">
-                                  {item.categoria}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-4">
-                            {/* Control de cantidad */}
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  actualizarCantidad(item.productoId, -1)
-                                }
-                                disabled={item.cantidad <= 1}
-                              >
-                                <Minus className="h-4 w-4" />
-                              </Button>
-                              <Input
-                                type="number"
-                                min="1"
-                                value={item.cantidad}
-                                onChange={(e) => {
-                                  const nuevaCantidad = Math.max(
-                                    1,
-                                    parseInt(e.target.value) || 1
-                                  );
-                                  establecerCantidad(
-                                    item.productoId,
-                                    nuevaCantidad
-                                  );
-                                }}
-                                onBlur={(e) => {
-                                  // Validar cuando el usuario salga del campo
-                                  const nuevaCantidad = Math.max(
-                                    1,
-                                    parseInt(e.target.value) || 1
-                                  );
-                                  establecerCantidad(
-                                    item.productoId,
-                                    nuevaCantidad
-                                  );
-                                }}
-                                className="w-16 text-center text-sm"
-                              />
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  actualizarCantidad(item.productoId, 1)
-                                }
-                              >
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            </div>
-
-                            {/* Precio unitario */}
-                            <div className="w-32">
-                              <Label className="text-xs">Precio Unit.</Label>
-                              <Input
-                                type="number"
-                                value={item.precio}
-                                onChange={(e) =>
-                                  actualizarPrecio(
-                                    item.productoId,
-                                    e.target.value
-                                  )
-                                }
-                                className="text-sm"
-                              />
-                            </div>
-
-                            {/* Subtotal */}
-                            <div className="text-right w-24">
-                              <p className="text-xs text-gray-500">Subtotal</p>
-                              <p className="font-medium">
-                                {formatValue(item.cantidad * item.precio)}
-                              </p>
-                            </div>
-
-                            {/* Eliminar */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => eliminarProducto(item.productoId)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
                           </div>
                         </div>
+
+                        <div className="flex items-center space-x-4">
+                          {/* Cantidad */}
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => actualizarCantidad(item.productoId, -1)}
+                              disabled={item.cantidad <= 1}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={item.cantidad}
+                              onChange={(e) =>
+                                establecerCantidad(
+                                  item.productoId,
+                                  Math.max(1, parseInt(e.target.value) || 1)
+                                )
+                              }
+                              className="w-16 text-center text-sm"
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => actualizarCantidad(item.productoId, 1)}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          {/* Precio */}
+                          <div className="w-32">
+                            <Label className="text-xs">Precio Unit.</Label>
+                            <Input
+                              type="number"
+                              value={item.precio}
+                              onChange={(e) =>
+                                actualizarPrecio(item.productoId, e.target.value)
+                              }
+                              className="text-sm"
+                            />
+                          </div>
+
+                          {/* Subtotal */}
+                          <div className="text-right w-24">
+                            <p className="text-xs text-gray-500">Subtotal</p>
+                            <p className="font-medium">
+                              {formatValue(item.cantidad * item.precio)}
+                            </p>
+                          </div>
+
+                          {/* Eliminar */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => eliminarProducto(item.productoId)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Observaciones */}
-              <div>
-                <Label>Observaciones</Label>
-                <textarea
-                  value={observaciones}
-                  onChange={(e) => setObservaciones(e.target.value)}
-                  className="w-full mt-1 p-2 border rounded-md"
-                  rows={3}
-                  placeholder="Notas adicionales sobre el pedido..."
-                />
-              </div>
-
-              {/* Total y acciones */}
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-lg font-semibold">Total:</span>
-                  <span className="text-2xl font-bold text-green-600">
-                    {formatValue(calcularTotal())}
-                  </span>
+                    </div>
+                  ))}
                 </div>
+              )}
+            </div>
 
-                <div className="flex space-x-3">
-                  <Button
-                    onClick={handleGuardar}
-                    disabled={isLoading || carrito.length === 0}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {isLoading ? "Guardando..." : "Guardar Cambios"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={onClose}
-                    disabled={isLoading}
-                  >
-                    Cancelar
-                  </Button>
-                </div>
+            {/* Observaciones */}
+            <div>
+              <Label>Observaciones</Label>
+              <textarea
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+                className="w-full mt-1 p-2 border rounded-md"
+                rows={3}
+                placeholder="Notas adicionales sobre el pedido..."
+              />
+            </div>
+
+            {/* Total */}
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-lg font-semibold">Total:</span>
+                <span className="text-2xl font-bold text-green-600">
+                  {formatValue(calcularTotal())}
+                </span>
+              </div>
+              <div className="flex space-x-3">
+                <Button
+                  onClick={handleGuardar}
+                  disabled={isLoading || carrito.length === 0}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {isLoading ? "Guardando..." : "Guardar Cambios"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={isLoading}
+                >
+                  Cancelar
+                </Button>
               </div>
             </div>
-          }
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Modal de catálogo de productos */}
-      {showProductCatalog && (
-        <ModalBuscarProducto
-          open={showProductCatalog}
-          onClose={() => setShowProductCatalog(false)}
-          onSelect={agregarProducto}
-          productos={catalogoProductos}
-        />
-      )}
+      {/* ✅ Modal hijo se renderiza fuera del modal padre */}
+      <ModalBuscarProducto
+        open={showProductCatalog}
+        onClose={() => setShowProductCatalog(false)}
+        onSelect={agregarProducto}
+        productos={catalogoProductos}
+      />
     </>
   );
 }
