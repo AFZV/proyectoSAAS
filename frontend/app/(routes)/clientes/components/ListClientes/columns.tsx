@@ -65,6 +65,14 @@ function ClienteDetalles({
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">
+                Razón Social
+              </label>
+              <p className="text-lg">
+                {cliente.rasonZocial || "No especificada"}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">
                 Nombre Completo
               </label>
               <p className="text-lg">
@@ -96,9 +104,21 @@ function ClienteDetalles({
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">
+                Dirección
+              </label>
+              <p>{cliente.direccion || "No especificada"}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">
                 Ciudad
               </label>
               <p>{cliente.ciudad || "No especificada"}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">
+                Departamento
+              </label>
+              <p>{cliente.departamento || "No especificado"}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">
@@ -142,8 +162,15 @@ function ClienteDetalles({
         </div>
       </div>
 
+      {/* Botón cerrar */}
       <div className="flex justify-end">
-        <Button onClick={onClose}>Cerrar</Button>
+        <Button
+          variant="outline"
+          className="border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+          onClick={onClose}
+        >
+          Cerrar
+        </Button>
       </div>
     </div>
   );
@@ -268,6 +295,25 @@ export const columns: ColumnDef<Cliente>[] = [
     },
   },
   {
+    accessorKey: "rasonZocial",
+    header: ({ column }: { column: Column<Cliente, unknown> }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="h-8 px-2 lg:px-3"
+        >
+          Razon Social
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
+    cell: ({ row }) => {
+      const rasonZocial = row.getValue("rasonZocial") as string;
+      return <div className="font-medium font-mono text-sm">{rasonZocial}</div>;
+    },
+  },
+  {
     accessorKey: "nombre",
     header: ({ column }: { column: Column<Cliente, unknown> }) => {
       return (
@@ -347,7 +393,18 @@ export const columns: ColumnDef<Cliente>[] = [
   },
   {
     accessorKey: "usuario",
-    header: "Vendedor",
+    header: ({ column }: { column: Column<Cliente, unknown> }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="h-8 px-2 lg:px-3"
+        >
+          Vendedor
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
     cell: ({ row }) => {
       const vendedor = row.original.usuario;
       const inicial = vendedor ? vendedor.charAt(0).toUpperCase() : "?";
@@ -364,6 +421,7 @@ export const columns: ColumnDef<Cliente>[] = [
       );
     },
   },
+
   {
     id: "actions",
     header: () => <div className="text-right">Acciones</div>,

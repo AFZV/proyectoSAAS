@@ -192,8 +192,6 @@ export function FormCreateCliente({
         ciudad: nombreCiud,
       };
 
-      console.log("esto hay en el payload", clientePayload);
-
       // 🌐 HACER PETICIÓN CON HEADERS CORRECTOS
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/clientes`,

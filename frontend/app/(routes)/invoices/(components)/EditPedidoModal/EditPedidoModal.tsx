@@ -350,8 +350,6 @@ export function EditPedidoModal({
         )[0].estado
       : "GENERADO";
 
-  const puedeEditar = ["GENERADO", "SEPARADO"].includes(estadoActual);
-
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -365,17 +363,7 @@ export function EditPedidoModal({
             </DialogTitle>
           </DialogHeader>
 
-          {!puedeEditar ? (
-            <div className="p-6 text-center">
-              <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No se puede editar este pedido
-              </h3>
-              <p className="text-gray-500">
-                Los pedidos en estado {estadoActual} no pueden ser modificados
-              </p>
-            </div>
-          ) : (
+          {
             <div className="space-y-6">
               {/* Información del cliente */}
               <div className="bg-gray-50 rounded-lg p-4">
@@ -575,7 +563,7 @@ export function EditPedidoModal({
                 </div>
               </div>
             </div>
-          )}
+          }
         </DialogContent>
       </Dialog>
 

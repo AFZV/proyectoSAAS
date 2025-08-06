@@ -13,6 +13,7 @@ import { ResendService } from 'src/resend/resend.service';
 import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import { ResumenReciboDto } from 'src/pdf-uploader/dto/resumen-recibo.dto';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
 
 @Injectable()
 export class RecibosService {
@@ -20,7 +21,8 @@ export class RecibosService {
     private prisma: PrismaService,
     private pdfUploaderService: PdfUploaderService,
     private resendService: ResendService,
-    private cloudinaryService: CloudinaryService
+    private cloudinaryService: CloudinaryService,
+    private hetznerStorageService: HetznerStorageService
   ) {}
 
   //helper para validar que el saldo a abonar o actualizar en un recibo no supere el saldo actual
@@ -207,7 +209,7 @@ export class RecibosService {
 
           if (!empresa) throw new Error('no se encontro empresa');
 
-          process.stdout.write('🔍 logo URL: ' + empresa.logoUrl + '\n');
+          //process.stdout.write('🔍 logo URL: ' + empresa.logoUrl + '\n');
 
           const resumenRecibo: ResumenReciboDto = {
             id: recibo.id,
@@ -242,19 +244,27 @@ export class RecibosService {
           if (!empresa || !usuarioDB) {
             throw new Error('Empresa o usuario no encontrados');
           }
+          const folder = `empresas/${recibo.empresaId}/recibos`;
 
-          const { url: publicUrl } = await this.cloudinaryService.uploadPdf({
-            buffer: pdfResult.buffer,
-            fileName: `recibo_${recibo.id}.pdf`,
-            empresaNit: empresa.nit,
-            empresaNombre: empresa.nombreComercial,
-            usuarioNombre: usuarioDB.nombre,
-            tipo: 'recibos',
-          });
+          const url = await this.hetznerStorageService.uploadFile(
+            pdfResult.buffer,
+            `recibo_${recibo.id}.pdf`,
+            folder
+          );
+
+          // const { url: publicUrl } = await this.cloudinaryService.uploadPdf({
+          //   buffer: pdfResult.buffer,
+          //   fileName: `recibo_${recibo.id}.pdf`,
+          //   empresaNit: empresa.nit,
+          //   empresaNombre: empresa.nombreComercial,
+          //   usuarioNombre: usuarioDB.nombre,
+          //   tipo: 'recibos',
+          // });
 
           if (!recibo.cliente?.email) throw new Error('Error al obtener email');
 
           const numeroWhatsApp = `+57${recibo.usuario?.telefono?.replace(/\D/g, '')}`;
+
           await this.resendService.enviarCorreo(
             recibo.cliente.email,
             'Confirmación de tu recibo',
@@ -265,7 +275,7 @@ export class RecibosService {
     <p>Tu Recibo ha sido <strong>Generado exitosamente</strong>. Adjuntamos el comprobante en PDF:</p>
 
     <p style="margin: 16px 0;">
-      <a href="${publicUrl}" target="_blank"
+      <a href="${url}" target="_blank"
          style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
         Ver Comprobante PDF
       </a>
@@ -363,7 +373,7 @@ export class RecibosService {
 
     const recibo = await this.prisma.recibo.findUnique({
       where: { id },
-      include: { detalleRecibo: true },
+      include: { detalleRecibo: true, cliente: true, usuario: true },
     });
 
     if (!recibo) throw new NotFoundException('Recibo no encontrado');
@@ -502,14 +512,56 @@ export class RecibosService {
 
           if (!empresa || !usuarioDb) throw new Error('Datos incompletos');
 
-          await this.cloudinaryService.uploadPdf({
-            buffer: pdfBuffer.buffer,
-            fileName: `recibo_${id}.pdf`,
-            empresaNit: empresa.nit,
-            empresaNombre: empresa.nombreComercial,
-            usuarioNombre: usuarioDb.nombre,
-            tipo: 'recibos',
-          });
+          const folder = `empresas/${recibo.empresaId}/recibos`;
+
+          const url = await this.hetznerStorageService.uploadFile(
+            pdfBuffer.buffer,
+            `recibo_${recibo.id}.pdf`,
+            folder
+          );
+
+          // await this.cloudinaryService.uploadPdf({
+          //   buffer: pdfBuffer.buffer,
+          //   fileName: `recibo_${id}.pdf`,
+          //   empresaNit: empresa.nit,
+          //   empresaNombre: empresa.nombreComercial,
+          //   usuarioNombre: usuarioDb.nombre,
+          //   tipo: 'recibos',
+          // });
+
+          if (!recibo.cliente?.email) throw new Error('Error al obtener email');
+
+          const numeroWhatsApp = `+57${recibo.usuario?.telefono?.replace(/\D/g, '')}`;
+          await this.resendService.enviarCorreo(
+            recibo.cliente.email,
+            'Actualizacion de tu recibo',
+            `
+  <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+    <p>Hola <strong>${recibo.cliente.nombre}</strong>,</p>
+
+    <p>Tu Recibo ha sido <strong>Generado exitosamente</strong>. Adjuntamos el comprobante en PDF:</p>
+
+    <p style="margin: 16px 0;">
+      <a href="${url}" target="_blank"
+         style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
+        Ver Comprobante PDF
+      </a>
+    </p>
+
+    <p>¿Tienes alguna duda sobre tu pago? Contáctanos:</p>
+
+    <p>
+      <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
+         style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
+        💬 Contactar por WhatsApp
+      </a>
+    </p>
+
+    <p style="margin-top: 30px;">Gracias por tu pago,</p>
+    <p><strong>Equipo de Recaudos</strong></p>
+  </div>
+  `
+          );
         } catch (err) {
           console.error('❌ Error al regenerar PDF actualizado:', err);
         }

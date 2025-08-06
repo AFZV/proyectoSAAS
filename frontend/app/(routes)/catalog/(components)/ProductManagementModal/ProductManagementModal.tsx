@@ -219,7 +219,7 @@ export function ProductManagementModal({
     if (!token) throw new Error("No hay token de autorización");
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/cloudinary/upload/producto`,
+      `${process.env.NEXT_PUBLIC_API_URL}/hetzner-storage/upload-product`, //aca
       {
         method: "POST",
         headers: {
@@ -317,7 +317,7 @@ export function ProductManagementModal({
 
       let finalImageUrl = editingProduct.imagenUrl;
 
-      // Si hay una nueva imagen, subirla primero (IGUAL QUE EN CREAR PRODUCTO)
+      // ✅ Si hay una nueva imagen, subirla primero
       if (tempImageFile) {
         setIsUploadingImage(true);
 
@@ -335,26 +335,27 @@ export function ProductManagementModal({
             description: "No se pudo subir la imagen",
             variant: "destructive",
           });
-          return; // No continuar si falló la subida de imagen
+          return; // ❌ No continuar si falla la imagen
         } finally {
           setIsUploadingImage(false);
         }
       }
 
-      // Preparar datos para actualizar (TODOS LOS CAMPOS REQUERIDOS)
+      // ✅ Codificar la URL para evitar espacios y errores del backend
+      if (finalImageUrl) {
+        finalImageUrl = encodeURI(finalImageUrl);
+      }
+
+      // ✅ Preparar datos para actualizar
       const updateData = {
         nombre: editingProduct.nombre.trim(),
         precioCompra: Number(editingProduct.precioCompra),
         precioVenta: Number(editingProduct.precioVenta),
         categoriaId: editingProduct.categoriaId,
-        imagenUrl: finalImageUrl || "", // ✅ Siempre incluir, vacío si no hay imagen
+        imagenUrl:
+          finalImageUrl ||
+          "https://via.placeholder.com/400x400?text=Sin+Imagen",
       };
-
-      // Si no hay imagen, usar placeholder o imagen por defecto
-      if (!updateData.imagenUrl) {
-        updateData.imagenUrl =
-          "https://via.placeholder.com/400x400?text=Sin+Imagen";
-      }
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/productos/update/${editingProduct.id}`,
@@ -381,7 +382,7 @@ export function ProductManagementModal({
         description: "Los cambios se guardaron correctamente",
       });
 
-      // Actualizar el producto en la lista local
+      // ✅ Actualizar lista local
       setProductos((prevProductos) =>
         prevProductos.map((p) =>
           p.id === editingProduct.id
@@ -390,7 +391,7 @@ export function ProductManagementModal({
         )
       );
 
-      // Limpiar estados de edición
+      // ✅ Limpiar estados
       setEditingProduct(null);
       setTempImageFile(null);
       setTempImagePreview(null);

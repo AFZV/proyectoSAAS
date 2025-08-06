@@ -13,6 +13,7 @@ import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { ResendService } from 'src/resend/resend.service';
+import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
 
 @Injectable()
 export class PedidosService {
@@ -20,7 +21,8 @@ export class PedidosService {
     private prisma: PrismaService,
     private pdfUploaderService: PdfUploaderService,
     private cloudinaryService: CloudinaryService,
-    private resend: ResendService
+    private resend: ResendService,
+    private hetznerStorage: HetznerStorageService
   ) {}
 
   ///crea un pedido en la bdd y sus relaciones
@@ -270,14 +272,23 @@ export class PedidosService {
             const pdfBuffer =
               await this.pdfUploaderService.generarPedidoPDF(resumen);
 
-            const { url } = await this.cloudinaryService.uploadPdf({
-              buffer: pdfBuffer.buffer,
-              fileName: `pedido_${pedido.id}.pdf`,
-              empresaNit: pedido.empresaId, // si tienes nit directo usa ese
-              empresaNombre: resumen.cliente,
-              usuarioNombre: resumen.vendedor,
-              tipo: 'pedidos',
-            });
+            //aca
+            const folder = `empresas/${pedido.empresaId}/pedidos`;
+
+            const url = await this.hetznerStorage.uploadFile(
+              pdfBuffer.buffer,
+              `pedido_${pedido.id}.pdf`,
+              folder
+            );
+
+            // const { url } = await this.cloudinaryService.uploadPdf({
+            //   buffer: pdfBuffer.buffer,
+            //   fileName: `pedido_${pedido.id}.pdf`,
+            //   empresaNit: pedido.empresaId, // si tienes nit directo usa ese
+            //   empresaNombre: resumen.cliente,
+            //   usuarioNombre: resumen.vendedor,
+            //   tipo: 'pedidos',
+            // });
             await this.prisma.pedido.update({
               where: { id: pedido.id },
               data: { pdfUrl: url },
@@ -493,15 +504,18 @@ export class PedidosService {
   ) {
     const { rol, empresaId } = usuario;
     if (rol !== 'admin' && rol !== 'bodega')
-      throw new UnauthorizedException('no esta autorizado ');
+      throw new UnauthorizedException('No está autorizado');
+
+    // 1. Traer pedido actual con estado y productos
     const pedidoExistente = await this.prisma.pedido.findUnique({
-      where: { id: pedidoId, empresaId: empresaId },
+      where: { id: pedidoId, empresaId },
       include: {
         productos: true,
         estados: {
           orderBy: { fechaEstado: 'desc' },
           take: 1,
         },
+        cliente: true,
       },
     });
 
@@ -509,9 +523,39 @@ export class PedidosService {
       throw new BadRequestException('Pedido no encontrado');
     }
 
-    await this.prisma.detallePedido.deleteMany({
-      where: { pedidoId },
-    });
+    const estadoActual = pedidoExistente.estados[0]?.estado || 'GENERADO';
+
+    // 2. Si está FACTURADO o ENVIADO, revertir movimientos anteriores
+    if (['FACTURADO', 'ENVIADO'].includes(estadoActual)) {
+      const accionesReversibles: any[] = [];
+
+      // Revertir stock
+      for (const item of pedidoExistente.productos) {
+        accionesReversibles.push(
+          this.prisma.inventario.updateMany({
+            where: { idProducto: item.productoId, idEmpresa: empresaId },
+            data: { stockActual: { increment: item.cantidad } },
+          })
+        );
+      }
+
+      // Borrar movimientos de inventario y cartera
+      accionesReversibles.push(
+        this.prisma.movimientoInventario.deleteMany({
+          where: { IdPedido: pedidoExistente.id },
+        })
+      );
+      accionesReversibles.push(
+        this.prisma.movimientosCartera.deleteMany({
+          where: { idPedido: pedidoExistente.id },
+        })
+      );
+
+      await this.prisma.$transaction(accionesReversibles);
+    }
+
+    // 3. Eliminar detalles anteriores y actualizar datos principales
+    await this.prisma.detallePedido.deleteMany({ where: { pedidoId } });
 
     const pedidoActualizado = await this.prisma.pedido.update({
       where: { id: pedidoId },
@@ -526,36 +570,162 @@ export class PedidosService {
         },
       },
       include: {
-        productos: {
-          include: { producto: true },
-        },
+        productos: { include: { producto: true } },
         cliente: true,
-        usuario: {
-          select: { nombre: true, telefono: true },
-        },
+        usuario: { select: { nombre: true, telefono: true } },
         empresa: true,
       },
     });
 
+    // 4. Recalcular total
     const totalCalculado = pedidoActualizado.productos.reduce(
       (sum, p) => sum + p.cantidad * p.precio,
       0
     );
 
-    // ACTUALIZAR EL TOTAL EN LA BASE DE DATOS
     await this.prisma.pedido.update({
       where: { id: pedidoId },
       data: { total: totalCalculado },
     });
 
-    const tipoSalida = await this.prisma.tipoMovimientos.findFirst({
-      where: { tipo: 'SALIDA' },
-    });
+    // 5. Si el estado actual era FACTURADO o ENVIADO, volver a aplicar lógica de inventario/cartera
+    if (['FACTURADO', 'ENVIADO'].includes(estadoActual)) {
+      const tipoSalida = await this.prisma.tipoMovimientos.findFirst({
+        where: { tipo: 'SALIDA' },
+      });
+      if (!tipoSalida) {
+        throw new BadRequestException('No se encontró el tipo SALIDA');
+      }
 
-    if (!tipoSalida) {
-      throw new BadRequestException(
-        'No se encontró el tipo de movimiento "SALIDA"'
+      const acciones: any[] = [];
+
+      // Descontar nuevo stock
+      for (const item of pedidoActualizado.productos) {
+        acciones.push(
+          this.prisma.inventario.updateMany({
+            where: { idProducto: item.productoId, idEmpresa: empresaId },
+            data: { stockActual: { decrement: item.cantidad } },
+          })
+        );
+        acciones.push(
+          this.prisma.movimientoInventario.create({
+            data: {
+              idEmpresa: empresaId,
+              idProducto: item.productoId,
+              cantidadMovimiendo: item.cantidad,
+              idTipoMovimiento: tipoSalida.idTipoMovimiento,
+              IdUsuario: usuario.id,
+              IdPedido: pedidoActualizado.id,
+            },
+          })
+        );
+      }
+
+      // Reinsertar movimiento en cartera
+      acciones.push(
+        this.prisma.movimientosCartera.create({
+          data: {
+            idCliente: pedidoActualizado.clienteId,
+            idUsuario: pedidoActualizado.usuarioId,
+            empresaId,
+            valorMovimiento: totalCalculado,
+            idPedido: pedidoActualizado.id,
+            tipoMovimientoOrigen: 'PEDIDO',
+          },
+        })
       );
+
+      await this.prisma.$transaction(acciones);
+
+      // 6. Generar PDF actualizado y enviar correo (en segundo plano)
+      setImmediate(() => {
+        void (async () => {
+          try {
+            const resumen = {
+              emailCliente: pedidoActualizado.cliente.email,
+              ciudadCliente: pedidoActualizado.cliente.ciudad,
+              id: pedidoActualizado.id,
+              nombreEmpresa: pedidoActualizado.empresa.nombreComercial,
+              direccionEmpresa: pedidoActualizado.empresa.direccion,
+              telefonoEmpresa: pedidoActualizado.empresa.telefono,
+              cliente:
+                pedidoActualizado.cliente.rasonZocial ||
+                `${pedidoActualizado.cliente.nombre} ${pedidoActualizado.cliente.apellidos}`,
+              fecha: new Date(),
+              vendedor: pedidoActualizado.usuario.nombre,
+              productos: pedidoActualizado.productos.map((item) => ({
+                nombre: item.producto.nombre,
+                cantidad: item.cantidad,
+                precio: item.precio,
+                subtotal: item.cantidad * item.precio,
+              })),
+              logoUrl: pedidoActualizado.empresa.logoUrl,
+              total: totalCalculado,
+            };
+
+            const pdfBuffer =
+              await this.pdfUploaderService.generarPedidoPDF(resumen);
+
+            const folder = `empresas/${pedidoActualizado.empresaId}/pedidos`;
+
+            const url = await this.hetznerStorage.uploadFile(
+              pdfBuffer.buffer,
+              `pedido_${pedidoActualizado.id}.pdf`,
+              folder
+            );
+
+            // const { url } = await this.cloudinaryService.uploadPdf({
+            //   buffer: pdfBuffer.buffer,
+            //   fileName: `pedido_${pedidoActualizado.id}.pdf`,
+            //   empresaNit: pedidoActualizado.empresaId,
+            //   empresaNombre: resumen.cliente,
+            //   usuarioNombre: resumen.vendedor,
+            //   tipo: 'pedidos',
+            // });
+
+            await this.prisma.pedido.update({
+              where: { id: pedidoActualizado.id },
+              data: { pdfUrl: url },
+            });
+
+            if (!pedidoActualizado.cliente?.email)
+              throw new Error('Email del cliente no disponible');
+
+            const numeroWhatsApp = `+57${pedidoActualizado.usuario?.telefono?.replace(/\D/g, '')}`;
+
+            await this.resend.enviarCorreo(
+              pedidoActualizado.cliente.email,
+              'Actualización de tu pedido',
+              `
+  <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+    <p>Hola <strong>${pedidoActualizado.cliente.nombre}</strong>,</p>
+    <p>Tu pedido ha sido actualizado y sigue en estado <strong>${estadoActual}</strong>. Adjuntamos el comprobante en PDF:</p>
+    <p style="margin: 16px 0;">
+      <a href="${url}" target="_blank"
+         style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
+        Ver Comprobante PDF
+      </a>
+    </p>
+    <p>¿Tienes alguna duda o deseas hacer otro pedido? Contáctanos:</p>
+    <p>
+      <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
+         style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
+        💬 Contactar por WhatsApp
+      </a>
+    </p>
+    <p style="margin-top: 30px;">Gracias por tu compra,</p>
+    <p><strong>Equipo de Ventas</strong></p>
+  </div>
+  `
+            );
+          } catch (error) {
+            console.error(
+              '❌ Error al generar/subir PDF tras actualización:',
+              error
+            );
+          }
+        })();
+      });
     }
 
     return pedidoActualizado;

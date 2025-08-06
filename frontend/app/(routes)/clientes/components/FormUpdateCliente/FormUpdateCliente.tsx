@@ -87,7 +87,6 @@ export function FormUpdateCliente({
   clienteInicial,
   onSuccess,
 }: FormUpdateClienteProps) {
-  console.log("cliente que llega a update:", clienteInicial);
   const [isUpdating, setIsUpdating] = useState(false);
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [ciudades, setCiudades] = useState<Ciudad[]>([]);
@@ -115,7 +114,9 @@ export function FormUpdateCliente({
           }
         );
         const data = await response.json();
-        setVendedores([data]);
+
+        // Normalizamos para que siempre sea array
+        setVendedores(Array.isArray(data) ? data : [data]);
       } catch (error) {
         console.error("Error al cargar vendedores:", error);
       }

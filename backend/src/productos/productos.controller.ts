@@ -61,7 +61,10 @@ export class ProductosController {
   //Actualizar el Estado de  un producto (Activo/Inactivo) por su ID
   @Roles('admin')
   @Patch('update/:productoId')
-  async update(@Param('productoId') productoId: string) {
+  async update(
+    @Param('productoId') productoId: string
+    // @Body() data: UpdateProductoDto
+  ) {
     await this.productosService.UpdateEstadoProduct(productoId);
     return { message: 'Estado actualizado con exito' };
   }

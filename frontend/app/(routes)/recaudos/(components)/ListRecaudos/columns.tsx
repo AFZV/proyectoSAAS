@@ -24,7 +24,6 @@ export type ReciboConRelaciones = {
   concepto: string;
   Fechacrecion: string;
   empresaId: string;
-  pdfUrl?: string;
   cliente: {
     nombre: string;
     apellidos: string;
@@ -50,12 +49,14 @@ function ReciboDropdownActions({ recibo }: { recibo: ReciboConRelaciones }) {
 
   const handleCopy = () => {
     navigator.clipboard.writeText(recibo.id);
-
     toast({
       title: `Número copiado: ${recibo.id}`,
       duration: 1000,
     });
   };
+
+  // ✅ URL dinámica del PDF
+  const pdfUrl = `https://files.bgacloudsaas.com/empresas/${recibo.empresaId}/recibos/recibo_${recibo.id}.pdf`;
 
   return (
     <>
@@ -72,19 +73,17 @@ function ReciboDropdownActions({ recibo }: { recibo: ReciboConRelaciones }) {
           <DropdownMenuItem onClick={() => setOpen(true)}>
             Ver detalles
           </DropdownMenuItem>
-          {recibo.pdfUrl && (
-            <DropdownMenuItem
-              onClick={() => {
-                const link = document.createElement("a");
-                link.href = recibo.pdfUrl!;
-                link.download = `recibo-${recibo.id}.pdf`;
-                link.target = "_blank";
-                link.click();
-              }}
-            >
-              Descargar PDF
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem
+            onClick={() => {
+              const link = document.createElement("a");
+              link.href = `${pdfUrl}?v=${Date.now()}`;
+              link.download = `recibo-${recibo.id}.pdf`;
+              link.target = "_blank";
+              link.click();
+            }}
+          >
+            Descargar PDF
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleCopy}>
             Copiar Número
           </DropdownMenuItem>

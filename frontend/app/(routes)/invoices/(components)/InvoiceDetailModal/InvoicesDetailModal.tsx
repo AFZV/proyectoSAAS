@@ -102,16 +102,17 @@ export function InvoiceDetailModal({
   const estadosSiguientes = getEstadosSiguientes(estadoActual as any) || [];
 
   const handleCambiarEstado = async () => {
+    if (nuevoEstado !== "GENERADO" && pedido) {
+      localStorage.removeItem(`separados_${pedido.id}`);
+      setProductosSeparados([]);
+    }
     if (!nuevoEstado) {
       toast({
         title: "Error",
         description: "Selecciona un estado",
         variant: "destructive",
       });
-      if (nuevoEstado !== "GENERADO" && pedido) {
-        localStorage.removeItem(`separados_${pedido.id}`);
-        setProductosSeparados([]);
-      }
+
       return;
     }
 

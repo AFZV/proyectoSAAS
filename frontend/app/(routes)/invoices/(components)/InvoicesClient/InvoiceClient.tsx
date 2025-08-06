@@ -209,20 +209,11 @@ export function InvoicesClient({
   };
 
   const handleEditarPedido = (pedido: Pedido) => {
-    const estadoActual = getEstadoActual(pedido);
-    if (!["GENERADO", "SEPARADO"].includes(estadoActual)) {
-      toast({
-        title: "No se puede editar",
-        description: `Los pedidos en estado ${
-          ESTADOS_PEDIDO[estadoActual as keyof typeof ESTADOS_PEDIDO]?.label
-        } no pueden ser modificados`,
-        variant: "destructive",
-      });
-      return;
+    if (pedido) {
+      setSelectedPedido(pedido);
+      setIsEditModalOpen(true);
     }
-
-    setSelectedPedido(pedido);
-    setIsEditModalOpen(true);
+    return;
   };
 
   const handleDescargarPdf = async (pedido: Pedido) => {
@@ -334,7 +325,6 @@ export function InvoicesClient({
           {pedidosPaginados.map((pedido) => {
             const estadoActual = getEstadoActual(pedido);
             const nombreCliente = getNombreCliente(pedido);
-            const puedeEditar = ["GENERADO", "SEPARADO"].includes(estadoActual);
 
             return (
               <div
@@ -419,7 +409,7 @@ export function InvoicesClient({
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      {userType === "admin" && puedeEditar && (
+                      {userType === "admin" && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -472,7 +462,6 @@ export function InvoicesClient({
         const estadoActual = getEstadoActual(pedido);
         const nombreCliente = getNombreCliente(pedido);
         const nombreVendedor = getNombreVendedor(pedido);
-        const puedeEditar = ["GENERADO", "SEPARADO"].includes(estadoActual);
 
         return (
           <div
@@ -615,7 +604,7 @@ export function InvoicesClient({
                   <Eye className="h-4 w-4 mr-1" />
                   Ver Detalles
                 </Button>
-                {userType === "admin" && puedeEditar && (
+                {userType === "admin" && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -626,19 +615,18 @@ export function InvoicesClient({
                     Editar
                   </Button>
                 )}
-                {userType === "admin" &&
-                  ["FACTURADO", "ENVIADO"].includes(estadoActual) && ( // ✅ QUITADO ENTREGADO
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDescargarPdf(pedido)}
-                      className="text-green-600 border-green-200 hover:bg-green-50"
-                      title="Descargar comprobante PDF"
-                    >
-                      <FileText className="h-4 w-4 mr-1" />
-                      PDF
-                    </Button>
-                  )}
+                {userType === "admin" && ( // ✅ QUITADO ENTREGADO
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDescargarPdf(pedido)}
+                    className="text-green-600 border-green-200 hover:bg-green-50"
+                    title="Descargar comprobante PDF"
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    PDF
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -765,9 +753,6 @@ export function InvoicesClient({
               const estadoActual = getEstadoActual(pedido);
               const nombreCliente = getNombreCliente(pedido);
               const nombreVendedor = getNombreVendedor(pedido);
-              const puedeEditar = ["GENERADO", "SEPARADO"].includes(
-                estadoActual
-              );
 
               return (
                 <tr key={pedido.id} className="hover:bg-gray-50">
@@ -880,7 +865,7 @@ export function InvoicesClient({
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        {userType === "admin" && puedeEditar && (
+                        {userType === "admin" && (
                           <Button
                             variant="ghost"
                             size="sm"

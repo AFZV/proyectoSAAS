@@ -26,6 +26,7 @@ import { ResendModule } from './resend/resend.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { RespaldosModule } from './respaldos/respaldos.module';
 import { ImportarModule } from './importar/importar.module';
+import { HetznerStorageModule } from './hetzner-storage/hetzner-storage.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { ImportarModule } from './importar/importar.module';
     RespaldosModule,
 
     ImportarModule,
+    HetznerStorageModule,
   ],
   controllers: [PrismaController],
 })

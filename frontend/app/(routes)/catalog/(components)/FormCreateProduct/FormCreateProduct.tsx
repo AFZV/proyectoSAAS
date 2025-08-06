@@ -215,7 +215,7 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
     try {
       const token = await getToken();
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/cloudinary/upload/producto`,
+        `${process.env.NEXT_PUBLIC_API_URL}/hetzner-storage/upload-product`, //aca
         {
           method: "POST",
           headers: {
@@ -310,6 +310,11 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
     try {
       setIsSubmitting(true);
       const token = await getToken();
+
+      // ✅ Codificar imagenUrl antes de enviar
+      if (values.imagenUrl) {
+        values.imagenUrl = encodeURI(values.imagenUrl);
+      }
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/productos/create`,
