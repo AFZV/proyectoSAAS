@@ -73,7 +73,7 @@ function ModalBuscarProducto({
     : [];
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+   <Dialog open={open} onOpenChange={onClose} modal={false}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
