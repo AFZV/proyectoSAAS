@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { lookup as mimeLookup } from 'mime-types';
 
 @Injectable()
 export class HetznerStorageService {
@@ -11,7 +12,7 @@ export class HetznerStorageService {
     this.bucket = process.env.HETZNER_S3_BUCKET!;
     this.baseUrl = process.env.FILES_BASE_URL!;
     this.s3 = new S3Client({
-      region: 'eu-central', // Hetzner usa región genérica
+      region: 'eu-central',
       endpoint: process.env.HETZNER_S3_ENDPOINT!,
       credentials: {
         accessKeyId: process.env.HETZNER_S3_ACCESS_KEY!,
@@ -20,12 +21,6 @@ export class HetznerStorageService {
     });
   }
 
-  /**
-   * Sube un archivo y devuelve la URL pública
-   * @param buffer Contenido del archivo
-   * @param fileName Nombre del archivo final (ej: 'pedido_123.pdf')
-   * @param folder Carpeta en el bucket (ej: 'empresas/uuid/pedidos')
-   */
   async uploadFile(
     buffer: Buffer,
     fileName: string,
@@ -33,16 +28,23 @@ export class HetznerStorageService {
   ): Promise<string> {
     const fileKey = `${folder}/${fileName}`;
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+    const lookupResult = mimeLookup(fileName); // lookupResult: string | false
+    const contentType: string =
+      typeof lookupResult === 'string'
+        ? lookupResult
+        : 'application/octet-stream';
+
     await this.s3.send(
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: fileKey,
         Body: buffer,
-        ACL: 'public-read', // necesario para URL pública
+        ACL: 'public-read',
+        ContentType: contentType,
       })
     );
 
-    // Devuelve la URL pública con tu subdominio
     return `${this.baseUrl}/${fileKey}`;
   }
 }

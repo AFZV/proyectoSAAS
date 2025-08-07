@@ -218,41 +218,19 @@ export function InvoicesClient({
 
   const handleDescargarPdf = async (pedido: Pedido) => {
     try {
-      const token = await getToken();
+      const urlConTimestamp = `${pedido.pdfUrl}?t=${Date.now()}`;
 
-      // Opción 1: Si existe pdfUrl, abrir directamente
-      if (pedido.pdfUrl) {
-        window.open(pedido.pdfUrl, "_blank");
-        toast({
-          title: "PDF abierto",
-          description: "El comprobante se ha abierto en una nueva pestaña",
-        });
-        return;
-      }
-
-      // Opción 2: Si no existe pdfUrl, generar desde el backend
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/pedidos/${pedido.id}/pdf`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Error al generar PDF");
-      }
-
-      // Crear blob y descargar
+      // Descarga el archivo como blob para evitar que el navegador lo abra
+      const response = await fetch(urlConTimestamp);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
+
       const a = document.createElement("a");
       a.href = url;
-      a.download = `pedido_${pedido.id.slice(-8)}.pdf`;
+      a.download = `pedido_${pedido.id.slice(-8)}.pdf`; // ✅ Nombre del archivo descargado
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(url); // ✅ Limpieza
       document.body.removeChild(a);
 
       toast({
@@ -263,7 +241,7 @@ export function InvoicesClient({
       console.error("Error al descargar PDF:", error);
       toast({
         title: "Error al descargar",
-        description: "No se pudo generar el PDF del pedido",
+        description: "No se pudo descargar el PDF",
         variant: "destructive",
       });
     }
