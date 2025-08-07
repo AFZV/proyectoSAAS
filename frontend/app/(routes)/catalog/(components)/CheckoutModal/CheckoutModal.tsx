@@ -54,6 +54,7 @@ function ClienteSearch({
         title: "Error",
         description: "Ingrese un NIT para buscar",
         variant: "destructive",
+        duration: 1000,
       });
       return;
     }
@@ -73,6 +74,7 @@ function ClienteSearch({
       toast({
         title: "Cliente encontrado",
         description: `${cliente.nombre} ${cliente.apellidos}`,
+        duration: 1000,
       });
 
       setNitBusqueda("");
@@ -81,6 +83,7 @@ function ClienteSearch({
         title: "Cliente no encontrado",
         description: error.message || "No existe un cliente con ese NIT",
         variant: "destructive",
+        duration: 1000,
       });
     } finally {
       setIsSearching(false);
@@ -251,6 +254,7 @@ export function CheckoutModal({
                 title: "Cliente no encontrado",
                 description: `NIT ${pedido.nitOffline} no existe. Corrige y reintenta.`,
                 variant: "destructive",
+                duration: 1000,
               });
               continue;
             }
@@ -282,6 +286,7 @@ export function CheckoutModal({
         description: `${
           pendientes.length - pedidosNoEnviados.length
         } pedidos enviados correctamente`,
+        duration: 1000,
       });
     };
 
@@ -306,6 +311,7 @@ export function CheckoutModal({
         title: "Error",
         description: "Debe seleccionar un cliente",
         variant: "destructive",
+        duration: 1000,
       });
       return;
     }
@@ -315,6 +321,7 @@ export function CheckoutModal({
         title: "Error",
         description: "Debe ingresar un NIT para modo offline",
         variant: "destructive",
+        duration: 1000,
       });
       return;
     }
@@ -324,6 +331,7 @@ export function CheckoutModal({
         title: "Error",
         description: "El carrito está vacío",
         variant: "destructive",
+        duration: 1000,
       });
       return;
     }
@@ -351,6 +359,7 @@ export function CheckoutModal({
       toast({
         title: "Pedido guardado offline",
         description: "Se enviará automáticamente cuando vuelva la conexión",
+        duration: 1000,
       });
 
       limpiarFormulario();
@@ -374,6 +383,7 @@ export function CheckoutModal({
         description: `Pedido por ${formatValue(
           totalPrecio
         )} registrado correctamente`,
+        duration: 1000,
       });
 
       limpiarFormulario();
@@ -382,6 +392,7 @@ export function CheckoutModal({
         title: "Error al crear pedido",
         description: error.message || "Ocurrió un error inesperado",
         variant: "destructive",
+        duration: 1000,
       });
     } finally {
       setIsSubmitting(false);

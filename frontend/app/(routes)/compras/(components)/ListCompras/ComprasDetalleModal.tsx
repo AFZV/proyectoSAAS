@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { Loader2, X, DollarSign } from "lucide-react";
+import { Loader2, X, DollarSign, DownloadIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface CompraDetalleModalProps {
   open: boolean;
@@ -51,6 +52,8 @@ export function CompraDetalleModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [recibida, setRecibida] = useState<boolean>(false);
+
   const [editingProducts, setEditingProducts] = useState<
     Array<{
       idProducto: string;
@@ -392,6 +395,78 @@ export function CompraDetalleModal({
   const getTotalItems = (productos: Array<{ cantidad: number }>) => {
     return productos.reduce((sum, p) => sum + p.cantidad, 0);
   };
+  // Al final del componente, antes del return principal:
+  const handleRecibirCompra = async () => {
+    if (!compra?.idCompra) return;
+
+    const confirmar = window.confirm("¿Deseas recibir esta compra?");
+    if (!confirmar) return;
+
+    setLoading(true); // ✅ Mostrar loader
+
+    try {
+      const token = await getToken();
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL?.trim()}/compras/recibir/${
+          compra.idCompra
+        }`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "No se pudo recibir la compra.");
+      }
+
+      window.location.reload();
+    } catch (error) {
+      const mensajeLimpio =
+        error instanceof Error ? error.message : "Error desconocido";
+      if (mensajeLimpio === "Esta compra ya fue recibida.") {
+        setRecibida(true);
+      }
+      alert(`No se puede recibir esta compra: ${mensajeLimpio}`);
+    } finally {
+      setLoading(false); // ✅ Ocultar loader
+    }
+  };
+
+  const generarPdfCompras = async () => {
+    const token = await getToken();
+    if (!token) return console.error("❌ No tiene acceso");
+
+    setLoading(true);
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/compras/preventa/pdf/${compra?.idCompra}`, // ✅ endpoint para compras
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.error("❌ Error al generar el PDF de compras");
+      setLoading(false);
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "compras.pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    setLoading(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -455,6 +530,17 @@ export function CompraDetalleModal({
                     Actualizar Compra
                   </button>
                 )}
+                <Button
+                  onClick={generarPdfCompras}
+                  className="
+    flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 
+    hover:from-green-red hover:to-green-red text-white shadow-lg hover:shadow-red-500/25
+    w-full sm:w-auto
+  "
+                >
+                  <DownloadIcon className="w-4 h-4" />
+                  PDF Compras
+                </Button>
               </div>
 
               {!compra.productos || compra.productos.length === 0 ? (
@@ -735,6 +821,22 @@ export function CompraDetalleModal({
                     </span>
                   </div>
                 </div>
+              </div>
+            )}
+            {/* 🔥 BOTÓN DE RECIBIR COMPRA */}
+            {!isEditing && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={handleRecibirCompra}
+                  disabled={recibida}
+                  className={`px-5 py-2 rounded-lg transition-colors text-sm font-semibold ${
+                    recibida
+                      ? "bg-gray-300 text-gray-600 cursor-default"
+                      : "bg-green-600 text-white hover:bg-green-700"
+                  }`}
+                >
+                  {recibida ? "Recibida ✅" : "Recibir Compra"}
+                </button>
               </div>
             )}
           </div>

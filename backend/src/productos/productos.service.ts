@@ -24,7 +24,7 @@ export class ProductosService {
       nombre: data.nombre,
     };
     try {
-      return await this.prisma.producto.create({
+      const producto = await this.prisma.producto.create({
         data: {
           ...dataCleaned,
           estado: 'activo', // Por defecto, el producto se crea como activo
@@ -32,6 +32,14 @@ export class ProductosService {
           categoriaId: data.categoriaId, // Asignamos la categoría por su ID
         },
       });
+      if (producto)
+        await this.prisma.inventario.create({
+          data: {
+            idEmpresa: usuario.empresaId,
+            idProducto: producto.id,
+          },
+        });
+      return producto;
     } catch (error: any) {
       console.error('Error al crear el producto:', error);
       // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
@@ -125,6 +133,9 @@ export class ProductosService {
           },
         },
       },
+      orderBy: {
+        nombre: 'asc', // ✅ Orden alfabético ascendente
+      },
       include: {
         inventario: {
           where: { idEmpresa: usuario.empresaId },
@@ -139,6 +150,7 @@ export class ProductosService {
         },
       },
     });
+
     if (!productos) throw new BadRequestException('no hay productos');
 
     const productosFormateados = productos.map((p) => ({
