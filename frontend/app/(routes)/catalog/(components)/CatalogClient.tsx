@@ -11,6 +11,7 @@ import {
   Filter,
   ShoppingCart,
 } from "lucide-react";
+import { Pagination } from "./Pagination";
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
 import { ProductCard } from "./ProductCard/ProductCard";
@@ -49,6 +50,8 @@ export function CatalogClient({
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [paginaActual, setPaginaActual] = useState<number>(1);
+  const productosPorPagina = 100;
 
   // NUEVOS ESTADOS PARA EL MODAL DE DETALLES
   const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
@@ -104,6 +107,17 @@ export function CatalogClient({
     return filtered;
   }, [productos, searchTerm, categoriaSeleccionada, categorias]);
 
+  ////codigo nuevo de paginacion
+  const totalPaginas = Math.ceil(
+    productosFiltrados.length / productosPorPagina
+  );
+
+  const productosPaginados = useMemo(() => {
+    const inicio = (paginaActual - 1) * productosPorPagina;
+    const fin = inicio + productosPorPagina;
+    return productosFiltrados.slice(inicio, fin);
+  }, [productosFiltrados, paginaActual]);
+
   // Calcular cantidad de productos por categoría
   const cantidadPorCategoria = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -118,7 +132,10 @@ export function CatalogClient({
 
     return counts;
   }, [productos, categorias]);
-
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [searchTerm, categoriaSeleccionada]);
+  ////////////////////// hasta aca codigo nuevo de paginacion
   // NUEVA FUNCIÓN: Abrir modal de detalles
   const handleVerDetalles = (producto: Producto) => {
     setSelectedProduct(producto);
@@ -297,6 +314,11 @@ export function CatalogClient({
       <div className="flex gap-6">
         {/* Grid de productos */}
         <div className="flex-1">
+          <Pagination
+            paginaActual={paginaActual}
+            totalPaginas={totalPaginas}
+            setPaginaActual={setPaginaActual}
+          />
           {productosFiltrados.length === 0 ? (
             /* No hay productos */
             <Card>
@@ -337,7 +359,7 @@ export function CatalogClient({
           ) : (
             /* Grid de productos - MEJORADO CON NUEVA FUNCIONALIDAD */
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 auto-rows-fr">
-              {productosFiltrados.map((producto) => {
+              {productosPaginados.map((producto) => {
                 const enCarrito = getProductoEnCarrito(producto.id);
                 return (
                   <ProductCard
@@ -352,6 +374,12 @@ export function CatalogClient({
               })}
             </div>
           )}
+          {/* paginacion */}
+          <Pagination
+            paginaActual={paginaActual}
+            totalPaginas={totalPaginas}
+            setPaginaActual={setPaginaActual}
+          />
         </div>
 
         {/* Carrito lateral fijo (solo desktop) */}
