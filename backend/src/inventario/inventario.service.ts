@@ -135,16 +135,20 @@ export class InventarioService {
           const tipo = m.tipoMovimiento.tipo.toUpperCase();
           const delta = m.cantidadMovimiendo;
           const isManual = !m.IdPedido && !m.idCompra;
+
           let obsText: string;
           if (isManual) {
-            obsText = 'Ajuste manual';
+            if (m.observacion && m.observacion.trim() !== '') {
+              obsText = m.observacion; // la que guardaste (ya incluye usuario si así la guardas)
+            } else {
+              obsText = 'Ajuste manual';
+            }
           } else if (tipo === 'SALIDA') {
             obsText = `Pedido # ${m.IdPedido}`;
           } else {
             obsText = `Compra # ${m.idCompra}`;
           }
 
-          // acumulamos + para ENTRADA, − para SALIDA
           runningStock += tipo === 'SALIDA' ? -delta : delta;
 
           return {
@@ -154,17 +158,13 @@ export class InventarioService {
             precioCompra: m.producto.precioCompra,
             usuario: `${m.usuario.nombre} ${m.usuario.apellidos}`,
             cantidadMovimiendo: delta,
-            // siempre 0 en la columna inicial
             stockInicial,
-            // para el header seguimos usando el stockActual real
             stockActual: m.producto.inventario?.[0]?.stockActual ?? 0,
             fecha: m.fechaMovimiento,
             observacion: obsText,
-            // aquí el valor «kardex» en ese momento
             stock: runningStock,
           };
         })
-        // 4) invertimos para mostrar primero lo más reciente
         .reverse();
 
       return mapped;
@@ -184,7 +184,8 @@ export class InventarioService {
     productoId: string,
     tipomovid: string,
     cantidad: number,
-    usuario: UsuarioPayload
+    usuario: UsuarioPayload,
+    observacion?: string
   ): Promise<{
     stockActualizado: number;
     movimiento: MovimientoInventarioDto;
@@ -237,7 +238,9 @@ export class InventarioService {
             cantidadMovimiendo: cantidad,
             idTipoMovimiento: tipoMov.idTipoMovimiento,
             IdUsuario: usuario.id,
-            observacion: 'Ajuste manual',
+            observacion: observacion?.trim()
+              ? `${observacion} usuario:${usuario.nombre}`
+              : 'Ajuste manual',
           },
           include: {
             tipoMovimiento: { select: { tipo: true } },

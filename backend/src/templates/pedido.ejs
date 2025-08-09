@@ -36,12 +36,12 @@
 
       .empresa-datos p {
         margin: 2px 0;
-        font-size: 14px;
+        font-size: 12px;
       }
 
       .datos-pedido p {
         margin: 4px 0;
-        font-size: 14px;
+        font-size: 11px;
       }
 
       .section {
@@ -58,7 +58,7 @@
       table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 14px;
+        font-size: 11px;
       }
 
       th {
@@ -69,14 +69,14 @@
       }
 
       td {
-        padding: 8px;
+        padding: 6px;
         border-bottom: 1px solid #ddd;
       }
 
       .resumen {
         margin-top: 20px;
         text-align: right;
-        font-size: 16px;
+        font-size: 14px;
         font-weight: bold;
       }
 
@@ -113,11 +113,15 @@
     <div class="section info-grid">
       <div>
         <p><strong>Cliente:</strong> <%= cliente %></p>
+        <p><strong>NIT / C.C.:</strong> <%= nitCliente %></p>
+        <p><strong>Dirección:</strong> <%= direccionCliente %></p>
         <p><strong>Ciudad:</strong> <%= ciudadCliente %></p>
+        <p><strong>Departamento:</strong> <%= departamentoCliente %></p>
       </div>
       <div>
+        <p><strong>Teléfono:</strong> <%= telefonoCliente %></p>
+        <p><strong>Email:</strong> <%= emailCliente %></p>
         <p><strong>Vendedor:</strong> <%= vendedor %></p>
-        <p><strong>Email Cliente:</strong> <%= emailCliente %></p>
       </div>
     </div>
 
@@ -126,6 +130,7 @@
       <table>
         <thead>
           <tr>
+            <th>Ítem</th>
             <th>Producto</th>
             <th>Cantidad</th>
             <th>Precio Unitario</th>
@@ -133,8 +138,9 @@
           </tr>
         </thead>
         <tbody>
-          <% productos.forEach(producto => { %>
+          <% productos.forEach((producto, index) => { %>
             <tr>
+              <td><%= index + 1 %></td>
               <td><%= producto.nombre %></td>
               <td><%= producto.cantidad %></td>
               <td>$<%= producto.precio.toLocaleString("es-CO") %></td>

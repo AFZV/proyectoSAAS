@@ -77,6 +77,24 @@ export function ProductManagementModal({
   // Nuevo estado para manejar la imagen temporal
   const [tempImageFile, setTempImageFile] = useState<File | null>(null);
   const [tempImagePreview, setTempImagePreview] = useState<string | null>(null);
+  // estados nuevos
+  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
+
+  // al iniciar edición
+  const startEditing = (producto: ProductoBackend) => {
+    setEditingProduct({
+      id: producto.id,
+      nombre: producto.nombre,
+      precioCompra: producto.precioCompra,
+      precioVenta: producto.precioVenta,
+      categoriaId: producto.categoriaId,
+      imagenUrl: producto.imagenUrl || "", // mantiene UI
+    });
+    setOriginalImageUrl(producto.imagenUrl || null); // <-- guarda original
+    setEditErrors({});
+    setTempImageFile(null);
+    setTempImagePreview(null);
+  };
 
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -154,19 +172,6 @@ export function ProductManagementModal({
   const productosEnPagina = productosFiltrados.slice(startIndex, endIndex);
 
   // Iniciar edición (ACTUALIZADO)
-  const startEditing = (producto: ProductoBackend) => {
-    setEditingProduct({
-      id: producto.id,
-      nombre: producto.nombre,
-      precioCompra: producto.precioCompra,
-      precioVenta: producto.precioVenta,
-      categoriaId: producto.categoriaId,
-      imagenUrl: producto.imagenUrl || "", // ✅ Asegurar que no sea undefined
-    });
-    setEditErrors({});
-    setTempImageFile(null);
-    setTempImagePreview(null);
-  };
 
   // Cancelar edición
   const cancelEditing = () => {
@@ -181,29 +186,19 @@ export function ProductManagementModal({
   const validateForm = (data: EditingProduct): Record<string, string> => {
     const errors: Record<string, string> = {};
 
-    if (!data.nombre.trim()) {
-      errors.nombre = "El nombre es requerido";
-    }
-
-    if (data.precioCompra <= 0) {
+    if (!data.nombre.trim()) errors.nombre = "El nombre es requerido";
+    if (data.precioCompra <= 0)
       errors.precioCompra = "El precio de compra debe ser mayor a 0";
-    }
-
-    if (data.precioVenta <= 0) {
+    if (data.precioVenta <= 0)
       errors.precioVenta = "El precio de venta debe ser mayor a 0";
-    }
-
     if (data.precioVenta <= data.precioCompra) {
       errors.precioVenta =
         "El precio de venta debe ser mayor al precio de compra";
     }
+    if (!data.categoriaId) errors.categoriaId = "La categoría es requerida";
 
-    if (!data.categoriaId) {
-      errors.categoriaId = "La categoría es requerida";
-    }
-
-    // ✅ Validar que siempre haya imagen (nueva, existente o que se subirá)
-    if (!data.imagenUrl && !tempImageFile) {
+    // Solo exigir imagen si NO hay original y NO se subió una nueva
+    if (!originalImageUrl && !tempImageFile && !data.imagenUrl) {
       errors.imagenUrl = "La imagen del producto es requerida";
     }
 
@@ -311,51 +306,44 @@ export function ProductManagementModal({
 
     try {
       const token = await getToken();
-      if (!token) {
-        throw new Error("No hay token de autorización");
-      }
+      if (!token) throw new Error("No hay token de autorización");
 
-      let finalImageUrl = editingProduct.imagenUrl;
-
-      // ✅ Si hay una nueva imagen, subirla primero
+      // 3.1 Subir imagen nueva si hay
+      let uploadedUrl: string | undefined;
       if (tempImageFile) {
         setIsUploadingImage(true);
-
-        try {
-          finalImageUrl = await uploadImageToCloudinary(tempImageFile);
-
-          toast({
-            title: "Imagen subida",
-            description: "La imagen se subió correctamente",
-          });
-        } catch (imageError) {
-          console.error("❌ Error subiendo imagen:", imageError);
-          toast({
-            title: "Error",
-            description: "No se pudo subir la imagen",
-            variant: "destructive",
-          });
-          return; // ❌ No continuar si falla la imagen
-        } finally {
-          setIsUploadingImage(false);
-        }
+        uploadedUrl = await uploadImageToCloudinary(tempImageFile);
+        setIsUploadingImage(false);
       }
 
-      // ✅ Codificar la URL para evitar espacios y errores del backend
-      if (finalImageUrl) {
-        finalImageUrl = encodeURI(finalImageUrl);
-      }
+      // 3.2 Decidir si enviar imagenUrl
+      // - Nueva imagen: usar uploadedUrl
+      // - Sin imagen original y sin nueva: usar placeholder
+      // - Si el usuario borró la imagen (imagenUrl === "" y había original): usar placeholder
+      // - En cualquier otro caso: NO enviar imagenUrl (para conservar la existente)
+      let imagenUrlToSend: string | undefined;
 
-      // ✅ Preparar datos para actualizar
-      const updateData = {
+      if (uploadedUrl) {
+        imagenUrlToSend = encodeURI(uploadedUrl);
+      } else if (!originalImageUrl && !editingProduct.imagenUrl) {
+        imagenUrlToSend = "https://via.placeholder.com/400x400?text=Sin+Imagen";
+      } else if (originalImageUrl && editingProduct.imagenUrl === "") {
+        // interpretamos que el usuario quitó la imagen existente
+        imagenUrlToSend = "https://via.placeholder.com/400x400?text=Sin+Imagen";
+      } // else: undefined → no tocar imagen en backend
+
+      // 3.3 Construir payload sin pisar imagen si no corresponde
+      const baseData = {
         nombre: editingProduct.nombre.trim(),
         precioCompra: Number(editingProduct.precioCompra),
         precioVenta: Number(editingProduct.precioVenta),
         categoriaId: editingProduct.categoriaId,
-        imagenUrl:
-          finalImageUrl ||
-          "https://via.placeholder.com/400x400?text=Sin+Imagen",
-      };
+      } as Record<string, unknown>;
+
+      const updateData =
+        imagenUrlToSend !== undefined
+          ? { ...baseData, imagenUrl: imagenUrlToSend }
+          : baseData;
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/productos/update/${editingProduct.id}`,
@@ -370,31 +358,34 @@ export function ProductManagementModal({
       );
 
       if (!response.ok) {
-        const errorData = await response.text();
-        console.error("❌ Error response:", errorData);
-        throw new Error(`Error del servidor: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(
+          `Error del servidor: ${response.status} - ${errorText}`
+        );
       }
-
-      const responseData = await response.json();
 
       toast({
         title: "Producto actualizado",
         description: "Los cambios se guardaron correctamente",
       });
 
-      // ✅ Actualizar lista local
-      setProductos((prevProductos) =>
-        prevProductos.map((p) =>
-          p.id === editingProduct.id
-            ? { ...p, ...updateData, imagenUrl: finalImageUrl }
-            : p
-        )
+      // 3.4 Actualizar lista local sin perder imagen existente
+      setProductos((prev) =>
+        prev.map((p) => {
+          if (p.id !== editingProduct.id) return p;
+          const next = { ...p, ...baseData } as ProductoBackend;
+          if (imagenUrlToSend !== undefined) {
+            next.imagenUrl = imagenUrlToSend;
+          } // si no enviamos imagenUrl, dejamos la que ya tenía p.imagenUrl
+          return next;
+        })
       );
 
-      // ✅ Limpiar estados
+      // limpiar
       setEditingProduct(null);
       setTempImageFile(null);
       setTempImagePreview(null);
+      setOriginalImageUrl(null);
       onProductUpdated?.();
     } catch (error) {
       console.error("❌ Error completo:", error);

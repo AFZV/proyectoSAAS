@@ -1,4 +1,3 @@
-
 export class MovimientoInventarioDto {
   tipoMovimiento: string;
   nombreProducto: string;

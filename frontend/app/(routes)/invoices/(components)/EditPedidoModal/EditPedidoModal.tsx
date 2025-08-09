@@ -281,6 +281,7 @@ export function EditPedidoModal({
     toast({
       title: "Producto agregado",
       description: `${producto.nombre} se agregó al pedido`,
+      duration: 500,
     });
   };
 

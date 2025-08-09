@@ -1,4 +1,4 @@
-import { IsNumber, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ActInventarioDto {
@@ -6,4 +6,8 @@ export class ActInventarioDto {
   @IsNumber()
   @Min(0)
   stockActual: number;
+
+  @IsOptional()
+  @IsString()
+  observacion: string;
 }

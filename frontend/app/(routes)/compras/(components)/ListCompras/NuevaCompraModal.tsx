@@ -191,6 +191,7 @@ export function NuevaCompraModal({
     toast({
       title: "Lista actualizada",
       description: "Producto agregado. Ahora puedes seleccionarlo.",
+      duration: 500,
     });
   };
 

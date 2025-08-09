@@ -14,6 +14,27 @@ export class ResumenPedidoDto {
   @IsString()
   cliente: string;
 
+  @IsString()
+  nitCliente: string; // NIT o C.C.
+
+  @IsString()
+  direccionCliente: string;
+
+  @IsString()
+  ciudadCliente: string;
+
+  @IsString()
+  departamentoCliente: string;
+
+  @IsString()
+  telefonoCliente: string;
+
+  @IsString()
+  emailCliente: string;
+
+  @IsString()
+  vendedor: string;
+
   @IsDate()
   @Type(() => Date)
   fecha: Date;
@@ -27,9 +48,6 @@ export class ResumenPedidoDto {
   total: number;
 
   @IsString()
-  vendedor: string;
-
-  @IsString()
   logoUrl: string;
 
   @IsString()
@@ -40,10 +58,6 @@ export class ResumenPedidoDto {
 
   @IsString()
   telefonoEmpresa: string;
-  @IsString()
-  ciudadCliente: string;
-  @IsString()
-  emailCliente: string;
 }
 
 export class ProductoResumenDto {

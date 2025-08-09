@@ -38,6 +38,7 @@ export function AjusteManualModal({
   const [tipoSeleccionado, setTipoSeleccionado] = useState<string>("");
   const [cantidad, setCantidad] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
+  const [observacion, setObservacion] = useState<string>("");
   const { getToken } = useAuth();
 
   // Obtener stocks del producto
@@ -72,7 +73,7 @@ export function AjusteManualModal({
           }
         );
 
-        if (!res.ok) throw new Error("Error en la respuesta");
+        if (!res.ok) throw new Error("Error al obtener tipos de movimiento");
 
         const data = await res.json();
         setTipos(Array.isArray(data.tiposmov) ? data.tiposmov : []);
@@ -101,10 +102,13 @@ export function AjusteManualModal({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ stockActual: cantidad }),
+          body: JSON.stringify({
+            stockActual: cantidad,
+            observacion: observacion,
+          }),
         }
       );
-
+      console.log("observacion para enviar al backend:", observacion);
       if (!res.ok) throw new Error("Error en la actualización");
 
       // Cerrar modal y auto-refresh
@@ -226,6 +230,20 @@ export function AjusteManualModal({
                 "Guardar Ajuste"
               )}
             </Button>
+          </div>
+          <div>
+            <Label htmlFor="observacion" className="font-semibold">
+              Observación
+            </Label>
+            <textarea
+              id="observacion"
+              value={observacion}
+              onChange={(e) => setObservacion(e.target.value)}
+              placeholder="Escribe una observación sobre este ajuste"
+              disabled={loading}
+              className="w-full mt-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              rows={3}
+            />
           </div>
         </div>
       </DialogContent>

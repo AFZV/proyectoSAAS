@@ -141,15 +141,7 @@ export class PedidosService {
                 producto: { select: { nombre: true } },
               },
             },
-            cliente: {
-              select: {
-                nombre: true,
-                apellidos: true,
-                rasonZocial: true,
-                ciudad: true,
-                email: true,
-              },
-            },
+            cliente: true,
             usuario: {
               select: { nombre: true, telefono: true },
             },
@@ -245,6 +237,10 @@ export class PedidosService {
         void (async () => {
           try {
             const resumen: ResumenPedidoDto = {
+              nitCliente: pedido.cliente.nit,
+              direccionCliente: pedido.cliente.direccion,
+              telefonoCliente: pedido.cliente.telefono,
+              departamentoCliente: pedido.cliente.departamento,
               emailCliente: pedido.cliente.email,
               ciudadCliente: pedido.cliente.ciudad,
               id: pedido.id,
@@ -642,11 +638,15 @@ export class PedidosService {
         void (async () => {
           try {
             const resumen = {
+              nitCliente: pedidoActualizado.cliente.nit,
               emailCliente: pedidoActualizado.cliente.email,
               ciudadCliente: pedidoActualizado.cliente.ciudad,
               id: pedidoActualizado.id,
               nombreEmpresa: pedidoActualizado.empresa.nombreComercial,
+              direccionCliente: pedidoActualizado.cliente.direccion,
               direccionEmpresa: pedidoActualizado.empresa.direccion,
+              departamentoCliente: pedidoActualizado.cliente.departamento,
+              telefonoCliente: pedidoActualizado.cliente.telefono,
               telefonoEmpresa: pedidoActualizado.empresa.telefono,
               cliente:
                 pedidoActualizado.cliente.rasonZocial ||

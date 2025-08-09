@@ -29,13 +29,13 @@ export class InventarioController {
   async create(
     @Req() req: UsuarioRequest,
     @Param('productoId') productoId: string,
-    @Body() dto: CrearInventarioDto,
+    @Body() dto: CrearInventarioDto
   ) {
     const usuario = req.usuario;
     const registroinv = await this.inventarioService.create(
       usuario,
       productoId,
-      dto.stockReferenciaOinicial,
+      dto.stockReferenciaOinicial
     );
     return {
       message: `Inventario registrado para el producto ${productoId}`,
@@ -55,8 +55,10 @@ export class InventarioController {
       productoId,
       tipomovid,
       dto.stockActual,
-      req.usuario
+      req.usuario,
+      dto.observacion
     );
+    console.log('esto se recibe en el body:', dto);
     return {
       message: `Inventario actualizado para el producto ${productoId}`,
       actinvt,

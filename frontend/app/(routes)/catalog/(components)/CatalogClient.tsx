@@ -1,7 +1,8 @@
 // CatalogClient.tsx
 "use client";
-
-import React, { useState, useEffect, useMemo } from "react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,7 @@ export function CatalogClient({
   // NUEVOS ESTADOS PARA EL MODAL DE DETALLES
   const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const { getToken } = useAuth();
   const { toast } = useToast();
@@ -169,6 +171,7 @@ export function CatalogClient({
     toast({
       title: "Producto agregado",
       description: `${producto.nombre} (${cantidad}) agregado al carrito`,
+      duration: 500,
     });
   };
 
@@ -196,6 +199,7 @@ export function CatalogClient({
     toast({
       title: "Producto eliminado",
       description: "El producto fue eliminado del carrito",
+      duration: 500,
     });
   };
 
@@ -204,6 +208,7 @@ export function CatalogClient({
     toast({
       title: "Carrito limpiado",
       description: "Se eliminaron todos los productos del carrito",
+      duration: 500,
     });
   };
 
@@ -234,7 +239,136 @@ export function CatalogClient({
     toast({
       title: "Pedido creado exitosamente",
       description: "Tu pedido ha sido registrado correctamente",
+      duration: 500,
     });
+  };
+  const handleDescargarImagen = async (producto: Producto) => {
+    setSelectedProduct(producto);
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+
+      // Contenedor temporal fuera de pantalla
+      const temp = document.createElement("div");
+      Object.assign(temp.style, {
+        position: "fixed",
+        left: "-10000px",
+        top: "0",
+        // Lienzo grande para mejor nitidez del PNG final
+        width: "1200px",
+        padding: "24px",
+        background: "#ffffff",
+        color: "#111827",
+        fontFamily: "Inter, system-ui, Arial, sans-serif",
+        display: "block",
+        zIndex: "2147483647",
+      });
+
+      // Layout: imagen grande a la izquierda, info a la derecha
+      // NOTA: Solo mostramos descripción, categoría, precio de venta y stock
+      temp.innerHTML = `
+      <div style="
+        display:flex;
+        gap:32px;
+        align-items:flex-start;
+      ">
+        <!-- Imagen grande (max sin deformar) -->
+        <div style="
+          flex:0 0 55%;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          background:#f8fafc;
+          border:1px solid #e5e7eb;
+          border-radius:16px;
+          padding:16px;
+          min-height:600px;
+        ">
+          <img
+            src="${producto.imagenUrl || "/placeholder-product.png"}"
+            alt="${producto.nombre}"
+            crossOrigin="anonymous"
+            style="
+              max-width:100%;
+              max-height:100%;
+              object-fit:contain;
+              image-rendering:auto; /* evita pixel-art */
+              border-radius:12px;
+            "
+          />
+        </div>
+
+        <!-- Información a la derecha -->
+        <div style="flex:1; display:flex; flex-direction:column; gap:24px;">
+          <div>
+            <div style="font-size:16px; color:#374151; margin-bottom:8px;">Descripción</div>
+            <div style="font-size:18px; line-height:1.6; color:#111827;">
+              ${producto.nombre || "Sin descripción"}
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:16px; color:#374151; margin-bottom:8px;">Categoría</div>
+            <div style="
+              display:inline-block;
+              padding:8px 12px;
+              background:#eef2ff;
+              color:#3730a3;
+              font-weight:600;
+              border-radius:999px;
+              font-size:16px;
+            ">
+              ${producto.categoria}
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:16px; color:#374151; margin-bottom:8px;">Precio de venta</div>
+            <div style="font-size:32px; font-weight:800; color:#065f46;">
+              ${formatValue(producto.precio)}
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:16px; color:#374151; margin-bottom:8px;">Stock disponible</div>
+            <div style="font-size:28px; font-weight:800; color:${
+              producto.stock > 10
+                ? "#065f46"
+                : producto.stock > 0
+                ? "#92400e"
+                : "#991b1b"
+            };">
+              ${producto.stock}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+      document.body.appendChild(temp);
+
+      // Esperar a que el DOM pinte
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+
+      const canvas = await html2canvas(temp, {
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        // Escala alta para nitidez; si es muy pesado, bájalo a 2
+        scale: Math.min(3, (window.devicePixelRatio || 1) * 2),
+      });
+
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/png");
+      link.download = `${(producto.nombre || "producto").replace(
+        /\s+/g,
+        "_"
+      )}.png`;
+      link.click();
+
+      temp.remove();
+    } catch (err) {
+      console.error("Error generando imagen:", err);
+      // Aquí puedes mostrar tu toast de error si quieres
+    }
   };
 
   return (
@@ -366,7 +500,8 @@ export function CatalogClient({
                     key={producto.id}
                     producto={producto}
                     onAgregarAlCarrito={agregarAlCarrito}
-                    onVerDetalles={handleVerDetalles} // NUEVA PROP
+                    onDescargarImagen={handleDescargarImagen} // NUEVA PROP
+                    onVerDetalles={handleVerDetalles}
                     isInCart={!!enCarrito}
                     cantidadEnCarrito={enCarrito?.cantidad || 0}
                   />

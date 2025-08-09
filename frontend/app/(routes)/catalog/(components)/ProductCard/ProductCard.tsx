@@ -12,6 +12,7 @@ import {
   Package,
   AlertCircle,
   Eye,
+  Download,
 } from "lucide-react";
 import {
   Dialog,
@@ -155,9 +156,12 @@ export function ProductCard({
   producto,
   onAgregarAlCarrito,
   onVerDetalles, // NUEVA PROP para abrir el modal de detalles
+  onDescargarImagen,
   isInCart = false,
   cantidadEnCarrito = 0,
-}: ProductCardProps & { onVerDetalles?: (producto: any) => void }) {
+}: ProductCardProps & { onVerDetalles?: (producto: any) => void } & {
+  onDescargarImagen?: (producto: any) => void;
+}) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleModalAdd = (cantidad: number) => {
@@ -170,6 +174,12 @@ export function ProductCard({
   const handleImageClick = () => {
     if (onVerDetalles) {
       onVerDetalles(producto);
+    }
+  };
+
+  const handleDescargarImagen = () => {
+    if (onDescargarImagen) {
+      onDescargarImagen(producto);
     }
   };
 
@@ -274,15 +284,15 @@ export function ProductCard({
               {!isOutOfStock ? (
                 <>
                   {/* Botón para ver detalles */}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleImageClick}
-                    className="w-full text-xs py-1.5 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
-                  >
-                    <Eye className="w-3 h-3 mr-1" />
-                    Ver Detalles
-                  </Button>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => handleDescargarImagen()}
+                      className="p-1 hover:bg-blue-50 rounded-full"
+                      title="Descargar imagen del producto"
+                    >
+                      <Download className="w-4 h-4 text-blue-600" />
+                    </button>
+                  </div>
 
                   {/* Botón para agregar al carrito */}
                   <Button
