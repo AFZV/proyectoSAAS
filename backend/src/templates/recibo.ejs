@@ -105,7 +105,7 @@
         </div>
       </div>
       <div class="datos-recibo">
-        <p><strong>Recibo:</strong> <%= id %></p>
+       <p><strong>Recibo:</strong> #<%= id.slice(0, 5).toUpperCase() %></p>
         <p><strong>Fecha:</strong> <%= new Date(fecha).toLocaleDateString("es-CO") %></p>
       </div>
     </div>

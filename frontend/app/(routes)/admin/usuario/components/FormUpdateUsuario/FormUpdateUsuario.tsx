@@ -29,9 +29,9 @@ const searchSchema = z.object({
 const formSchema = z.object({
   id: z.string().min(2),
   codigo: z.string().min(2),
-  nombre: z.string().min(2).max(50),
-  apellidos: z.string().min(10).max(50),
-  telefono: z.string().min(1).max(10),
+  nombre: z.string().min(2).max(100),
+  apellidos: z.string().min(4).max(100),
+  telefono: z.string().min(1).max(15),
   correo: z.string().min(1),
   rol: z.string().min(1),
   nombreEmpresa: z.string().min(1),

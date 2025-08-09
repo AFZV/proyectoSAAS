@@ -13,7 +13,6 @@ import { LastOrders } from "./components/LastOrders";
 import { formatValue } from "@/utils/FormartValue";
 import { Loading } from "@/components/Loading";
 import { getToken } from "@/lib/getToken";
-import NoDisponible from "@/components/NoDisponible/NoDisponible";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -29,7 +28,7 @@ export default async function Home() {
 
   if (!res.ok) {
     console.error("Error al obtener datos del backend", res);
-    return <NoDisponible />;
+    return;
   }
 
   const data = await res.json();

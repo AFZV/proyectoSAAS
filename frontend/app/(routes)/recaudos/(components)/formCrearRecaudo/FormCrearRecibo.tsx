@@ -283,7 +283,7 @@ export function FormCrearRecibo({
               >
                 <div>
                   <p className="text-sm font-medium">
-                    Pedido #{p.id.slice(0, 6)}
+                    Pedido #{p.id.slice(0, 6).toUpperCase()}
                   </p>
                   <p className="text-sm font-medium">
                     Fecha:{new Date(p.fecha).toLocaleDateString("es-CO")}

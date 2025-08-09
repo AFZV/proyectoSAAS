@@ -104,7 +104,9 @@ export const columns: ColumnDef<ReciboConRelaciones>[] = [
     accessorKey: "id",
     header: "Número",
     cell: ({ row }) => (
-      <div className="font-medium">#{row.original.id.slice(0, 4)}</div>
+      <div className="font-medium">
+        #{row.original.id.slice(0, 5).toUpperCase()}
+      </div>
     ),
   },
   {
@@ -129,7 +131,7 @@ export const columns: ColumnDef<ReciboConRelaciones>[] = [
       const { nombre, apellidos } = row.original.cliente;
       return (
         <div className="font-medium">
-          {`${nombre ?? ""} ${apellidos ?? ""}`.trim() || "—"}
+          {`${nombre ?? ""} ${apellidos ?? ""}`.trim().toUpperCase() || "—"}
         </div>
       );
     },
@@ -148,12 +150,12 @@ export const columns: ColumnDef<ReciboConRelaciones>[] = [
   {
     accessorKey: "tipo",
     header: "Tipo",
-    cell: ({ row }) => row.original.tipo || "—",
+    cell: ({ row }) => row.original.tipo.toUpperCase() || "—",
   },
   {
     accessorKey: "concepto",
     header: "Concepto",
-    cell: ({ row }) => row.original.concepto || "—",
+    cell: ({ row }) => row.original.concepto.toUpperCase() || "—",
   },
   {
     accessorKey: "Fechacrecion",
@@ -172,14 +174,14 @@ export const columns: ColumnDef<ReciboConRelaciones>[] = [
   {
     id: "vendedor",
     header: "Vendedor",
-    cell: ({ row }) => row.original.usuario?.nombre ?? "—",
+    cell: ({ row }) => row.original.usuario?.nombre.toUpperCase() ?? "—",
   },
   {
     id: "pedidosAfectados",
     header: "Pedidos Afectados",
     cell: ({ row }) => {
       const pedidos = row.original.detalleRecibo
-        .map((detalle) => `#${detalle.idPedido.slice(0, 4)}`)
+        .map((detalle) => `#${detalle.idPedido.slice(0, 5).toUpperCase()}`)
         .join(", ");
       return pedidos || "—";
     },

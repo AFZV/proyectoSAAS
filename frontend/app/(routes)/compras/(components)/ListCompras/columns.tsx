@@ -79,7 +79,7 @@ export const columns: ColumnDef<Compra>[] = [
       const id = row.getValue("idCompra") as string;
       return (
         <div className="font-medium font-mono">
-          {id ? `...${id.slice(-8)}` : "N/A"}
+          {id ? `#${id.slice(0, 5).toUpperCase()}` : "N/A"}
         </div>
       );
     },

@@ -20,11 +20,12 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { SuperadminGuard } from 'src/common/guards/superadmin.guard';
 
-@UseGuards(UsuarioGuard, RolesGuard)
+@UseGuards(UsuarioGuard, RolesGuard, SuperadminGuard)
+@Roles('superadmin')
 @Controller('usuario')
 export class UsuarioController {
   constructor(private readonly usuarioService: UsuarioService) {}
-  @Roles('superadmin')
+
   @Post('admin')
   crearSuperAdmin(
     @Body() data: CreateSuperadminDto,
@@ -32,7 +33,6 @@ export class UsuarioController {
   ) {
     return this.usuarioService.createSuperAdmin(data, req.usuario.empresaId);
   }
-  @Roles('superadmin')
   @Patch('admin/:id')
   actualizarAdmin(
     @Param('id') id: string,
@@ -45,7 +45,7 @@ export class UsuarioController {
   obtenerUsuarios() {
     return this.usuarioService.obtenerSuperAdmins();
   }
-  @UseGuards(SuperadminGuard)
+
   @Roles('superadmin')
   @Get('resumen')
   getResumen(@Req() req: UsuarioRequest) {
@@ -81,13 +81,13 @@ export class UsuarioController {
     const usuario = req.usuario;
     return this.usuarioService.obtenerTodosUsuarios(usuario);
   }
-  @UseGuards(SuperadminGuard)
+
   @Roles('superadmin')
   @Get('porId/:userId')
   getUsuario(@Param('userId') userId: string) {
     return this.usuarioService.obtenerUsuarioPorId(userId);
   }
-  @UseGuards(SuperadminGuard)
+
   @Roles('superadmin')
   @Get('correo/:correo')
   getByEmail(@Param('correo') correo: string) {

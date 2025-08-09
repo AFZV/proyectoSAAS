@@ -5,9 +5,9 @@ import Link from "next/link";
 export default function NoDisponible() {
   return (
     <div className="flex flex-col justify-center items-center h-40">
-      NoDisponible
+      No Disponible para su rol
       <Button>
-        <Link href="/sign-in">Iniciar Sesion</Link>
+        <Link href="/catalog">Ir a Catalogo</Link>
       </Button>
     </div>
   );

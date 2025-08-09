@@ -230,6 +230,7 @@ model Recibo {
   revisado Boolean? @default(false)///agregar campo opcional para controlar cuando se revise un recibo
 
 
+
 empresa Empresa @relation(fields: [empresaId],references: [id])
   cliente     Cliente  @relation(fields: [clienteId], references: [id])
   usuario    Usuario  @relation(fields: [usuarioId], references: [id])
@@ -240,6 +241,7 @@ empresa Empresa @relation(fields: [empresaId],references: [id])
   @@index([usuarioId])
   @@index([clienteId])
 }
+
 
 model DetalleRecibo{
   idDetalleRecibo String   @id @default(uuid())
@@ -392,8 +394,6 @@ model DetalleAjusteCartera {
   @@index([idMovimiento])
   @@index([idPedido])
 }
-
-
 
 
 

@@ -278,7 +278,7 @@ export function InvoiceDetailModal({
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-xl font-semibold text-gray-900">
-              Detalles del Pedido #{pedido.id.slice(-8).toUpperCase()}
+              Detalles del Pedido #{pedido.id.slice(6).toUpperCase()}
             </DialogTitle>
             <Button variant="ghost" size="sm" onClick={onClose}>
               <X className="h-5 w-5" />
@@ -701,7 +701,7 @@ export function InvoiceDetailModal({
                               <div>
                                 <p className="font-medium text-gray-900">
                                   {item.producto?.nombre ||
-                                    `Producto ${item.productoId.slice(-6)}`}
+                                    `Producto ${item.productoId.slice(5)}`}
                                 </p>
                                 {item.producto?.categoria && (
                                   <p className="text-sm text-gray-500">

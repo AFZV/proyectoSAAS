@@ -362,7 +362,7 @@ export function EditPedidoModal({
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
-              <span>Editar Pedido #{pedido.id.slice(-8).toUpperCase()}</span>
+              <span>Editar Pedido #{pedido.id.slice(5).toUpperCase()}</span>
               <Button variant="ghost" size="sm" onClick={onClose}>
                 <X className="h-5 w-5" />
               </Button>

@@ -141,7 +141,9 @@ export function LastOrders({ pedidos = [] }: LastOrdersProps) {
             >
               <div className="flex items-center space-x-2 flex-1 min-w-0">
                 <div
-                  className={`w-6 h-6 bg-gradient-to-br ${avatarColors[index % avatarColors.length]} rounded-full flex items-center justify-center flex-shrink-0`}
+                  className={`w-6 h-6 bg-gradient-to-br ${
+                    avatarColors[index % avatarColors.length]
+                  } rounded-full flex items-center justify-center flex-shrink-0`}
                 >
                   <span className="text-white text-xs font-semibold">
                     {getInitials(nombreCliente)}
@@ -153,10 +155,12 @@ export function LastOrders({ pedidos = [] }: LastOrdersProps) {
                   </p>
                   <div className="flex items-center space-x-1">
                     <span className="text-xs text-muted-foreground">
-                      #{pedido.id.slice(-4)}
+                      #{pedido.id.slice(5)}
                     </span>
                     <span
-                      className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded-full ${getEstadoColor(estadoActual)}`}
+                      className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded-full ${getEstadoColor(
+                        estadoActual
+                      )}`}
                     >
                       {estadoActual}
                     </span>

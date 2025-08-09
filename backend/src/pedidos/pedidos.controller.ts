@@ -49,7 +49,7 @@ export class PedidosController {
     return this.pedidosService.obtenerPedidos(usuario);
   }
 
-  @Roles('admin')
+  @Roles('admin', 'bodega')
   @Patch(':idPedido')
   actualizarPedido(
     @Body() data: UpdatePedidoDto,

@@ -115,7 +115,7 @@ export function InvoicesClient({
 
   const getNombreCliente = (pedido: Pedido): string => {
     if (!pedido.cliente) {
-      return `Cliente ID: ${pedido.clienteId.slice(-8)}`;
+      return `Cliente ID: ${pedido.clienteId.slice(0, 5)}`;
     }
     return (
       pedido.cliente.rasonZocial ||
@@ -127,7 +127,7 @@ export function InvoicesClient({
 
   const getNombreVendedor = (pedido: Pedido): string => {
     if (!pedido.usuario) {
-      return `Usuario ID: ${pedido.usuarioId.slice(-8)}`;
+      return `Usuario ID: ${pedido.usuarioId.slice(0, 5)}`;
     }
     return `${pedido.usuario.nombre || "Usuario"} ${
       pedido.usuario.apellidos || ""
@@ -227,7 +227,7 @@ export function InvoicesClient({
 
       const a = document.createElement("a");
       a.href = url;
-      a.download = `pedido_${pedido.id.slice(-8)}.pdf`; // ✅ Nombre del archivo descargado
+      a.download = `pedido_${pedido.id.slice(0, 5)}.pdf`; // ✅ Nombre del archivo descargado
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url); // ✅ Limpieza
@@ -314,7 +314,7 @@ export function InvoicesClient({
                   {/* ID */}
                   <div className="col-span-2">
                     <span className="text-sm font-mono text-blue-600 font-medium">
-                      #{pedido.id.slice(-6).toUpperCase()}
+                      #{pedido.id.slice(0, 5).toUpperCase()}
                     </span>
                   </div>
 
@@ -387,7 +387,7 @@ export function InvoicesClient({
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      {userType === "admin" && (
+                      {(userType === "admin" || userType === "bodega") && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -395,7 +395,6 @@ export function InvoicesClient({
                             e.stopPropagation();
                             handleEditarPedido(pedido);
                           }}
-                          className="text-gray-600 hover:text-gray-700 hover:bg-gray-50 p-1"
                         >
                           <Edit3 className="h-4 w-4" />
                         </Button>
@@ -451,7 +450,7 @@ export function InvoicesClient({
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <span className="text-sm font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                    #{pedido.id.slice(-8).toUpperCase()}
+                    #{pedido.id.slice(0, 5).toUpperCase()}
                   </span>
                   <div className="flex items-center space-x-2">
                     {getEstadoBadge(estadoActual)}
@@ -736,7 +735,7 @@ export function InvoicesClient({
                 <tr key={pedido.id} className="hover:bg-gray-50">
                   {visibleColumns.id && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600">
-                      #{pedido.id.slice(-8).toUpperCase()}
+                      #{pedido.id.slice(0, 5).toUpperCase()}
                     </td>
                   )}
                   {visibleColumns.cliente && (
