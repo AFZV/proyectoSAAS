@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, Eye, Pencil } from "lucide-react";
+import { Eye, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -13,17 +13,18 @@ import {
 export type ClienteConBalance = {
   id: string;
   nombre: string;
-  apellidos: string;
-  telefono: string;
-  ciudad: string;
+  apellidos?: string; // <- opcional
+  telefono?: string; // <- opcional
+  ciudad?: string; // <- opcional
   email?: string;
   balance: number;
 };
 
-export function getColumns(
-  onVerDetalle: (cliente: ClienteConBalance) => void,
-  onAjusteManual: (cliente: ClienteConBalance) => void
-): ColumnDef<ClienteConBalance>[] {
+// Genérico sobre T, pero T debe tener al menos estas claves
+export function getColumns<T extends ClienteConBalance>(
+  onVerDetalle: (cliente: T) => void,
+  onAjusteManual: (cliente: T) => void
+): ColumnDef<T>[] {
   return [
     {
       accessorKey: "nombre",
@@ -33,7 +34,7 @@ export function getColumns(
         return (
           <div className="space-y-1">
             <div className="font-medium">
-              {nombre} {apellidos}
+              {nombre} {apellidos ?? ""}
             </div>
             {email && (
               <div className="text-xs text-muted-foreground">{email}</div>
@@ -47,13 +48,14 @@ export function getColumns(
       header: "Teléfono",
       cell: ({ row }) => (
         <div className="font-mono text-sm">
-          {row.original.telefono || "No especificado"}
+          {row.original.telefono ?? "No especificado"}
         </div>
       ),
     },
     {
       accessorKey: "ciudad",
       header: "Ciudad",
+      cell: ({ row }) => row.original.ciudad ?? "—",
     },
     {
       accessorKey: "balance",
@@ -79,7 +81,6 @@ export function getColumns(
       header: "Acciones",
       cell: ({ row }) => {
         const cliente = row.original;
-
         return (
           <div className="flex gap-2">
             <TooltipProvider>

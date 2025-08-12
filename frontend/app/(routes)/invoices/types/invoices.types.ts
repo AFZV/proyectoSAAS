@@ -31,6 +31,7 @@ export interface Cliente {
   ciudad: string;
   correo: string;
   direccion?: string;
+  email?: string;
 }
 
 export interface Usuario {

@@ -19,21 +19,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
 import { Search } from "lucide-react";
-import { ClienteConBalance } from "./columns"; // Asegúrate de importar el tipo correctamente
 
-interface DataTableBalanceProps {
-  data: ClienteConBalance[];
-  columns: ColumnDef<ClienteConBalance>[];
+// 👇🏼 OJO: elimina el import de ClienteConBalance
+// import { ClienteConBalance } from "./columns";
+
+interface DataTableBalanceProps<TData extends object> {
+  data: TData[];
+  columns: ColumnDef<TData>[];
 }
 
-export function DataTableBalance({ data, columns }: DataTableBalanceProps) {
+export function DataTableBalance<TData extends object>({
+  data,
+  columns,
+}: DataTableBalanceProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
 
-  const table = useReactTable({
+  const table = useReactTable<TData>({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
@@ -47,8 +51,6 @@ export function DataTableBalance({ data, columns }: DataTableBalanceProps) {
 
   return (
     <div className="space-y-4">
-      {/* Barra de búsqueda y filtros */}
-
       {/* Tabla */}
       <div className="rounded-md border">
         <Table>

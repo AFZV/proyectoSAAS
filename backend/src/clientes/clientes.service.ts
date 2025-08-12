@@ -11,6 +11,7 @@ import { UpdateClienteDto } from './dto/update-cliente.dto';
 
 //import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { formatearTexto } from 'src/lib/formatearTexto';
+
 @Injectable()
 export class ClienteService {
   constructor(private prisma: PrismaService) {}
@@ -165,6 +166,44 @@ export class ClienteService {
 
     // Retornar solo los clientes (puedes incluir info del usuario si quieres también)
     return relaciones.map((rel) => rel.cliente);
+  }
+
+  // clientes.service.ts
+
+  async getAllClientesDeEmpresa(usuario: UsuarioPayload) {
+    if (!usuario) throw new UnauthorizedException('Usuario no encontrado');
+
+    const { empresaId, rol, id: usuarioId } = usuario;
+
+    // admin y bodega -> toda la empresa; vendedor -> solo asignados a ese usuario
+    const where =
+      rol === 'admin' || rol === 'bodega'
+        ? { empresas: { some: { empresaId } } }
+        : { empresas: { some: { empresaId, usuarioId } } };
+
+    const items = await this.prisma.cliente.findMany({
+      where,
+      select: {
+        id: true,
+        nit: true,
+        rasonZocial: true,
+        nombre: true,
+        apellidos: true,
+        telefono: true,
+        email: true,
+        ciudad: true,
+        departamento: true,
+        estado: true,
+      },
+      orderBy: [
+        { rasonZocial: 'asc' },
+        { nombre: 'asc' },
+        { apellidos: 'asc' },
+      ],
+    });
+
+    // devolvemos el array tal cual (sin lanzar NotFound)
+    return items;
   }
 
   async getClientePorNit(nit: string, usuario: UsuarioPayload) {

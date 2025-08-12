@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,60 +42,151 @@ function ClienteSearch({
   onClienteSeleccionado,
   clienteSeleccionado,
   onLimpiarCliente,
-}: ClienteSearchProps) {
-  const [nitBusqueda, setNitBusqueda] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
+  endpointAll = `${process.env.NEXT_PUBLIC_API_URL}/clientes/all-min`, // <- trae TODOS
+}: ClienteSearchProps & { endpointAll?: string }) {
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const inputTriggerRef = useRef<HTMLInputElement>(null);
+
   const { getToken } = useAuth();
   const { toast } = useToast();
 
-  const buscarCliente = async () => {
-    if (!nitBusqueda.trim()) {
-      toast({
-        title: "Error",
-        description: "Ingrese un NIT para buscar",
-        variant: "destructive",
-        duration: 1000,
+  // utils locales
+  const normalize = (s: string) =>
+    (s || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
+  const onlyDigits = (s: string) => (s || "").replace(/\D/g, "");
+
+  const highlight = (text: string, q: string) => {
+    if (!q) return text;
+    const idx = normalize(text).indexOf(normalize(q));
+    if (idx === -1) return text;
+    const end = idx + q.length;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark className="bg-yellow-200">{text.slice(idx, end)}</mark>
+        {text.slice(end)}
+      </>
+    );
+  };
+
+  // Cargar TODOS los clientes una sola vez
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const token = await getToken();
+        if (!token) throw new Error("No se pudo obtener el token");
+
+        const res = await fetch(endpointAll, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("No se pudo cargar la lista de clientes");
+
+        const data: Cliente[] = await res.json();
+        if (mounted) setClientes(Array.isArray(data) ? data : []);
+      } catch (err: any) {
+        toast({
+          title: "Error",
+          description: err?.message || "Fallo cargando clientes",
+          variant: "destructive",
+          duration: 1200,
+        });
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [endpointAll, getToken, toast]);
+
+  // Filtrado en frontend por nombre/apellidos/razón social o NIT
+  const filtered = React.useMemo(() => {
+    const q = query.trim();
+    if (!q) return clientes; // mostrar todos si no hay query
+    const qDigits = onlyDigits(q);
+    const isNit = qDigits.length > 0;
+
+    const byName = (c: Cliente) => {
+      const full = `${c.rasonZocial || ""} ${c.nombre || ""} ${
+        c.apellidos || ""
+      }`.trim();
+      return normalize(full).includes(normalize(q));
+    };
+    const byNit = (c: Cliente) => onlyDigits(c.nit || "").includes(qDigits);
+
+    let res = clientes.filter((c) =>
+      isNit ? byNit(c) || byName(c) : byName(c)
+    );
+
+    // ordenar: exactos por NIT primero, luego alfabético
+    if (isNit) {
+      res = res.sort((a, b) => {
+        const aExact = onlyDigits(a.nit || "") === qDigits ? 0 : 1;
+        const bExact = onlyDigits(b.nit || "") === qDigits ? 0 : 1;
+        if (aExact !== bExact) return aExact - bExact;
+        const an = (
+          a.rasonZocial || `${a.nombre || ""} ${a.apellidos || ""}`
+        ).trim();
+        const bn = (
+          b.rasonZocial || `${b.nombre || ""} ${b.apellidos || ""}`
+        ).trim();
+        return an.localeCompare(bn, "es", { sensitivity: "base" });
       });
+    } else {
+      res = res.sort((a, b) => {
+        const an = (
+          a.rasonZocial || `${a.nombre || ""} ${a.apellidos || ""}`
+        ).trim();
+        const bn = (
+          b.rasonZocial || `${b.nombre || ""} ${b.apellidos || ""}`
+        ).trim();
+        return an.localeCompare(bn, "es", { sensitivity: "base" });
+      });
+    }
+    return res;
+  }, [clientes, query]);
+
+  const handleSelect = (c: Cliente) => {
+    onClienteSeleccionado(c);
+    setQuery(c.rasonZocial || `${c.nombre || ""} ${c.apellidos || ""}`.trim());
+    setOpen(false);
+    setActiveIndex(-1);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      setOpen(true);
       return;
     }
+    if (!filtered.length) return;
 
-    try {
-      setIsSearching(true);
-      const token = await getToken();
-      if (!token)
-        throw new Error("No se pudo obtener el token de autenticación");
-
-      const cliente = await catalogService.buscarClientePorNit(
-        token,
-        nitBusqueda
-      );
-      onClienteSeleccionado(cliente);
-
-      toast({
-        title: "Cliente encontrado",
-        description: `${cliente.nombre} ${cliente.apellidos}`,
-        duration: 1000,
-      });
-
-      setNitBusqueda("");
-    } catch (error: any) {
-      toast({
-        title: "Cliente no encontrado",
-        description: error.message || "No existe un cliente con ese NIT",
-        variant: "destructive",
-        duration: 1000,
-      });
-    } finally {
-      setIsSearching(false);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((p) => (p + 1) % filtered.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((p) => (p - 1 + filtered.length) % filtered.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const sel = filtered[activeIndex] || filtered[0];
+      if (sel) handleSelect(sel);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setActiveIndex(-1);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      buscarCliente();
-    }
-  };
-
+  // Si ya hay cliente seleccionado, mantenemos tu UI de “Cliente Seleccionado”
   if (clienteSeleccionado) {
     return (
       <Card>
@@ -138,6 +229,7 @@ function ClienteSearch({
     );
   }
 
+  // Selector con modal grande (anidado dentro del Dialog del checkout)
   return (
     <Card>
       <CardHeader>
@@ -148,38 +240,119 @@ function ClienteSearch({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {/* Trigger: input solo lectura que abre el modal */}
           <div>
-            <Label htmlFor="nit">NIT del Cliente</Label>
+            <Label htmlFor="cliente">Cliente</Label>
             <div className="flex gap-2 mt-1">
               <Input
-                id="nit"
-                placeholder="Ingrese el NIT"
-                value={nitBusqueda}
-                onChange={(e) =>
-                  setNitBusqueda(e.target.value.replace(/\D/g, ""))
-                }
-                onKeyPress={handleKeyPress}
-                disabled={isSearching}
-                maxLength={20}
+                id="cliente"
+                ref={inputTriggerRef}
+                value={query}
+                readOnly
+                placeholder="Click para seleccionar (buscar por nombre o NIT)"
+                onClick={() => setOpen(true)}
+                className="cursor-pointer"
               />
               <Button
-                onClick={buscarCliente}
-                disabled={isSearching || !nitBusqueda.trim()}
-                className="bg-gradient-to-r from-blue-600 to-blue-700"
+                type="button"
+                variant="secondary"
+                onClick={() => setOpen(true)}
               >
-                {isSearching ? (
-                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                ) : (
-                  <Search className="w-4 h-4" />
-                )}
+                <Search className="w-4 h-4" />
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Se cargan todos los clientes y puedes filtrar en tiempo real.
+            </p>
           </div>
 
-          <div className="text-sm text-muted-foreground">
-            <AlertCircle className="w-4 h-4 inline mr-1" />
-            Ingrese el NIT del cliente para buscar en la base de datos
-          </div>
+          {/* Modal selector */}
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              setOpen(v);
+              if (!v)
+                requestAnimationFrame(() => inputTriggerRef.current?.blur());
+            }}
+          >
+            <DialogContent className="max-w-4xl w-[90vw] max-h-[80vh] p-0 overflow-hidden">
+              <DialogHeader className="px-6 pt-6 pb-2">
+                <DialogTitle>Seleccionar cliente</DialogTitle>
+              </DialogHeader>
+
+              {/* Buscador dentro del modal */}
+              <div className="px-6 pb-3">
+                <Input
+                  autoFocus
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setActiveIndex(-1);
+                  }}
+                  onKeyDown={onKeyDown}
+                  placeholder="Escribe nombre/apellidos o NIT…"
+                />
+              </div>
+
+              {/* Lista */}
+              <div className="overflow-auto max-h-[60vh] border-t">
+                {loading && (
+                  <div className="px-6 py-4 text-sm text-muted-foreground">
+                    Cargando clientes…
+                  </div>
+                )}
+
+                {!loading && filtered.length === 0 && (
+                  <div className="px-6 py-4 text-sm text-muted-foreground">
+                    No hay coincidencias
+                  </div>
+                )}
+
+                {!loading &&
+                  filtered.map((c, i) => {
+                    const lineaNombre =
+                      (c.rasonZocial || "").trim() || "(Sin razón social)";
+                    const nombreCompleto = `${c.nombre || ""} ${
+                      c.apellidos || ""
+                    }`.trim();
+                    const isActive = i === activeIndex;
+
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className={`w-full text-left px-6 py-3 text-sm hover:bg-muted/60 ${
+                          isActive ? "bg-muted/80" : ""
+                        }`}
+                        onMouseEnter={() => setActiveIndex(i)}
+                        onClick={() => handleSelect(c)}
+                      >
+                        <div className="font-medium text-base">
+                          {highlight(lineaNombre, query)}
+                        </div>
+                        {nombreCompleto && (
+                          <div className="text-sm text-gray-600">
+                            {highlight(nombreCompleto, query)}
+                          </div>
+                        )}
+                        <div className="text-xs text-muted-foreground mt-1">
+                          NIT: {highlight(c.nit || "", onlyDigits(query))}
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+
+              <div className="px-6 py-3 border-t flex items-center justify-between text-xs text-muted-foreground">
+                <div>
+                  {filtered.length} resultados {query ? "filtrados" : "totales"}
+                </div>
+                <div>
+                  ↑/↓ para navegar • Enter para seleccionar • Esc para cerrar
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </CardContent>
     </Card>
@@ -225,39 +398,28 @@ export function CheckoutModal({
     if (!isOnline) return;
 
     const syncPedidosPendientes = async () => {
-      const pendientes = JSON.parse(
+      const pendientes: any[] = JSON.parse(
         localStorage.getItem("pedidosPendientes") || "[]"
       );
-
       if (pendientes.length === 0) return;
 
       const token = await getToken();
       if (!token) return;
 
-      const pedidosNoEnviados: any[] = [];
+      const requeue: any[] = [];
+      let enviados = 0;
 
       for (const pedido of pendientes) {
         try {
           let clienteId = pedido.clienteId;
 
           if (!clienteId && pedido.nitOffline) {
-            try {
-              const cliente = await catalogService.buscarClientePorNit(
-                token,
-                pedido.nitOffline
-              );
-              clienteId = cliente.id;
-            } catch {
-              // Si el cliente no existe, dejamos el pedido para reintentar
-              pedidosNoEnviados.push(pedido);
-              toast({
-                title: "Cliente no encontrado",
-                description: `NIT ${pedido.nitOffline} no existe. Corrige y reintenta.`,
-                variant: "destructive",
-                duration: 1000,
-              });
-              continue;
-            }
+            // Buscar cliente por NIT al reconectar
+            const cliente = await catalogService.buscarClientePorNit(
+              token,
+              pedido.nitOffline
+            );
+            clienteId = cliente.id;
           }
 
           await catalogService.crearPedidoDesdeCarrito(
@@ -266,26 +428,24 @@ export function CheckoutModal({
             pedido.productos,
             pedido.observaciones
           );
+
+          enviados++;
         } catch (err) {
-          console.error("Error reenviando pedido:", err);
-          pedidosNoEnviados.push(pedido);
+          // Sube contador de reintentos y reencola
+          pedido.retries = (pedido.retries || 0) + 1;
+          requeue.push(pedido);
         }
       }
 
-      if (pedidosNoEnviados.length > 0) {
-        localStorage.setItem(
-          "pedidosPendientes",
-          JSON.stringify(pedidosNoEnviados)
-        );
+      if (requeue.length > 0) {
+        localStorage.setItem("pedidosPendientes", JSON.stringify(requeue));
       } else {
         localStorage.removeItem("pedidosPendientes");
       }
 
       toast({
         title: "Sincronización completa",
-        description: `${
-          pendientes.length - pedidosNoEnviados.length
-        } pedidos enviados correctamente`,
+        description: `${enviados} pedidos enviados correctamente`,
         duration: 1000,
       });
     };
@@ -306,13 +466,36 @@ export function CheckoutModal({
   const limpiarCliente = () => setCliente(null);
 
   const finalizarPedido = async () => {
-    if (isOnline && !cliente) {
+    if (!isOnline) {
+      const pedidoOffline = {
+        idLocal:
+          (crypto as any)?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+        clienteId: null,
+        nitOffline: nitOffline.trim(),
+        productos: carrito.map((item) => ({
+          id: item.id,
+          cantidad: item.cantidad,
+          precio: item.precio,
+        })),
+        observaciones,
+        total: totalPrecio,
+        fecha: new Date().toISOString(),
+        retries: 0,
+      };
+
+      const pendientes = JSON.parse(
+        localStorage.getItem("pedidosPendientes") || "[]"
+      );
+      pendientes.push(pedidoOffline);
+      localStorage.setItem("pedidosPendientes", JSON.stringify(pendientes));
+
       toast({
-        title: "Error",
-        description: "Debe seleccionar un cliente",
-        variant: "destructive",
+        title: "Pedido guardado offline",
+        description: "Se enviará automáticamente cuando vuelva la conexión",
         duration: 1000,
       });
+
+      limpiarFormulario();
       return;
     }
 

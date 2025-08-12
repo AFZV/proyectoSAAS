@@ -54,6 +54,12 @@ export class ClienteController {
     if (!usuario) throw new UnauthorizedException('Usuario requerido');
     return this.clienteService.getClientesPorFiltro(filtro, usuario);
   }
+  @Roles('admin', 'vendedor')
+  @Get('all-min')
+  async getAllMin(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario; // Inyectado por UsuarioGuard
+    return await this.clienteService.getAllClientesDeEmpresa(usuario);
+  }
 
   @Roles('admin', 'vendedor')
   @Get('getByNit/:nit')

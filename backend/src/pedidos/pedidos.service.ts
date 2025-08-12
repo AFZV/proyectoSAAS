@@ -14,7 +14,15 @@ import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { ResendService } from 'src/resend/resend.service';
 import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
-
+import { Prisma } from '@prisma/client';
+type PedidoParaPDF = Prisma.PedidoGetPayload<{
+  include: {
+    cliente: true;
+    empresa: true;
+    usuario: { select: { nombre: true; telefono: true } };
+    productos: { include: { producto: true } };
+  };
+}>;
 @Injectable()
 export class PedidosService {
   constructor(
@@ -25,12 +33,59 @@ export class PedidosService {
     private hetznerStorage: HetznerStorageService
   ) {}
 
+  private async generarYSubirPDFPedido(pedido: PedidoParaPDF) {
+    const total = pedido.productos.reduce(
+      (s, p) => s + p.cantidad * p.precio,
+      0
+    );
+
+    const resumen: ResumenPedidoDto = {
+      nitCliente: pedido.cliente.nit,
+      direccionCliente: pedido.cliente.direccion,
+      telefonoCliente: pedido.cliente.telefono,
+      departamentoCliente: pedido.cliente.departamento,
+      emailCliente: pedido.cliente.email,
+      ciudadCliente: pedido.cliente.ciudad,
+      id: pedido.id,
+      nombreEmpresa: pedido.empresa.nombreComercial,
+      direccionEmpresa: pedido.empresa.direccion,
+      telefonoEmpresa: pedido.empresa.telefono,
+      cliente:
+        pedido.cliente.rasonZocial ||
+        `${pedido.cliente.nombre} ${pedido.cliente.apellidos}`,
+      fecha: new Date(),
+      vendedor: pedido.usuario?.nombre || '',
+      observaciones: pedido.observaciones ?? '',
+      productos: pedido.productos.map((i) => ({
+        nombre: i.producto.nombre,
+        cantidad: i.cantidad,
+        precio: i.precio,
+        subtotal: i.cantidad * i.precio,
+      })),
+      logoUrl: pedido.empresa.logoUrl,
+      total,
+    };
+
+    const pdfBuffer = await this.pdfUploaderService.generarPedidoPDF(resumen);
+    const folder = `empresas/${pedido.empresaId}/pedidos`;
+    const url = await this.hetznerStorage.uploadFile(
+      pdfBuffer.buffer,
+      `pedido_${pedido.id}.pdf`,
+      folder
+    );
+
+    await this.prisma.pedido.update({
+      where: { id: pedido.id },
+      data: { pdfUrl: url },
+    });
+    return url;
+  }
+
   ///crea un pedido en la bdd y sus relaciones
   async crearPedido(data: CreatePedidoDto, usuario: UsuarioPayload) {
-    // Validar que no haya productos duplicados
+    // 1) Validaciones
     const ids = data.productos.map((p) => p.productoId);
-    const set = new Set(ids);
-    if (set.size !== ids.length) {
+    if (new Set(ids).size !== ids.length) {
       throw new BadRequestException(
         'No se permiten productos duplicados en el pedido'
       );
@@ -38,27 +93,21 @@ export class PedidosService {
 
     const { empresaId } = usuario;
     const totalCalculado = data.productos.reduce(
-      (sum, p) => sum + p.cantidad * p.precio,
+      (s, p) => s + p.cantidad * p.precio,
       0
     );
-    const relacion = await this.prisma.clienteEmpresa.findFirst({
-      where: {
-        clienteId: data.clienteId,
-        empresaId, // aseguramos que es de la misma empresa
-      },
-      include: {
-        usuario: true, // para traer el vendedor
-      },
-    });
 
-    if (!relacion || !relacion.usuario) {
+    const relacion = await this.prisma.clienteEmpresa.findFirst({
+      where: { clienteId: data.clienteId, empresaId },
+      include: { usuario: true },
+    });
+    if (!relacion?.usuario)
       throw new BadRequestException('No hay usuario asociado a este cliente');
-    }
 
     const vendedorId = relacion.usuario.id;
 
-    return await this.prisma.$transaction(async (tx) => {
-      // Paso 1: Crear el pedido sin productos aún
+    // 2) Transacción mínima (solo DB)
+    const pedidoId = await this.prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.create({
         data: {
           clienteId: data.clienteId,
@@ -69,7 +118,6 @@ export class PedidosService {
         },
       });
 
-      // Paso 2: Insertar los productos (DetallePedido)
       await tx.detallePedido.createMany({
         data: data.productos.map((p) => ({
           pedidoId: pedido.id,
@@ -79,30 +127,36 @@ export class PedidosService {
         })),
       });
 
-      // Paso 3: Registrar el estado 'GENERADO'
       await tx.estadoPedido.create({
-        data: {
-          pedidoId: pedido.id,
-          estado: 'GENERADO',
-        },
+        data: { pedidoId: pedido.id, estado: 'GENERADO' },
       });
 
-      // Paso 4: Retornar el pedido completo con relaciones
-      return tx.pedido.findUnique({
-        where: { id: pedido.id },
-        include: {
-          productos: {
-            include: { producto: true },
-          },
-          cliente: true,
-          usuario: true,
-          empresa: true,
-          estados: {
-            orderBy: { fechaEstado: 'desc' },
-          },
-        },
-      });
+      return pedido.id;
     });
+
+    // 3) Cargar el pedido completo ya fuera de la transacción
+    const pedidoCreado = await this.prisma.pedido.findUnique({
+      where: { id: pedidoId },
+      include: {
+        productos: { include: { producto: true } },
+        cliente: true,
+        usuario: { select: { nombre: true, telefono: true } },
+        empresa: true,
+        estados: { orderBy: { fechaEstado: 'desc' } },
+      },
+    });
+
+    // 4) Generar/subir PDF en segundo plano (no bloquea la respuesta)
+    if (pedidoCreado) {
+      setImmediate(() => {
+        void this.generarYSubirPDFPedido(pedidoCreado as PedidoParaPDF).catch(
+          (err) => console.error('Error generando PDF al crear:', err)
+        );
+      });
+    }
+
+    // Devuelves el pedido (pdfUrl se llenará poco después)
+    return pedidoCreado;
   }
 
   ///// cambia el estado del pedido y verifica si esta facturado lo descuenta del stock
@@ -252,6 +306,7 @@ export class PedidosService {
                 `${pedido.cliente.nombre} ${pedido.cliente.apellidos}`,
               fecha: new Date(),
               vendedor: pedido.usuario.nombre,
+              observaciones: pedido.observaciones ?? '',
               productos: pedido.productos.map((item) => ({
                 nombre: item.producto.nombre,
                 cantidad: item.cantidad,
@@ -493,39 +548,40 @@ export class PedidosService {
 
   ////////////////////////////////////////////////////////////////
   //actualizar un pedido con el update
+
+  // ...
+  // type PedidoParaPDF = Prisma.PedidoGetPayload<{ include: { ... } }>
+  // private async generarYSubirPDFPedido(pedido: PedidoParaPDF) { ... }
+
   async actualizarPedido(
     pedidoId: string,
     data: UpdatePedidoDto,
     usuario: UsuarioPayload
   ) {
-    const { rol, empresaId } = usuario;
-    if (rol !== 'admin' && rol !== 'bodega')
+    const { rol, empresaId, id: usuarioId } = usuario;
+    if (rol !== 'admin' && rol !== 'bodega') {
       throw new UnauthorizedException('No está autorizado');
+    }
 
-    // 1. Traer pedido actual con estado y productos
+    // 1) Cargar pedido actual (para conocer estado previo)
     const pedidoExistente = await this.prisma.pedido.findUnique({
       where: { id: pedidoId, empresaId },
       include: {
         productos: true,
-        estados: {
-          orderBy: { fechaEstado: 'desc' },
-          take: 1,
-        },
+        estados: { orderBy: { fechaEstado: 'desc' }, take: 1 },
         cliente: true,
       },
     });
-
     if (!pedidoExistente) {
       throw new BadRequestException('Pedido no encontrado');
     }
 
-    const estadoActual = pedidoExistente.estados[0]?.estado || 'GENERADO';
+    const estadoPrevio = pedidoExistente.estados[0]?.estado || 'GENERADO';
 
-    // 2. Si está FACTURADO o ENVIADO, revertir movimientos anteriores
-    if (['FACTURADO', 'ENVIADO'].includes(estadoActual)) {
-      const accionesReversibles: any[] = [];
+    // 2) Si estaba FACTURADO/ENVIADO, revertir inventario/cartera previos
+    if (['FACTURADO', 'ENVIADO'].includes(estadoPrevio)) {
+      const accionesReversibles: Prisma.PrismaPromise<unknown>[] = [];
 
-      // Revertir stock
       for (const item of pedidoExistente.productos) {
         accionesReversibles.push(
           this.prisma.inventario.updateMany({
@@ -534,8 +590,6 @@ export class PedidosService {
           })
         );
       }
-
-      // Borrar movimientos de inventario y cartera
       accionesReversibles.push(
         this.prisma.movimientoInventario.deleteMany({
           where: { IdPedido: pedidoExistente.id },
@@ -550,7 +604,7 @@ export class PedidosService {
       await this.prisma.$transaction(accionesReversibles);
     }
 
-    // 3. Eliminar detalles anteriores y actualizar datos principales
+    // 3) Reemplazar detalles y actualizar datos principales
     await this.prisma.detallePedido.deleteMany({ where: { pedidoId } });
 
     const pedidoActualizado = await this.prisma.pedido.update({
@@ -558,11 +612,12 @@ export class PedidosService {
       data: {
         ...data,
         productos: {
-          create: data.productos?.map((item) => ({
-            productoId: item.productoId,
-            cantidad: item.cantidad,
-            precio: item.precio,
-          })),
+          create:
+            data.productos?.map((item) => ({
+              productoId: item.productoId,
+              cantidad: item.cantidad,
+              precio: item.precio,
+            })) ?? [],
         },
       },
       include: {
@@ -573,29 +628,27 @@ export class PedidosService {
       },
     });
 
-    // 4. Recalcular total
+    // 4) Recalcular total y persistir
     const totalCalculado = pedidoActualizado.productos.reduce(
       (sum, p) => sum + p.cantidad * p.precio,
       0
     );
-
     await this.prisma.pedido.update({
       where: { id: pedidoId },
       data: { total: totalCalculado },
     });
 
-    // 5. Si el estado actual era FACTURADO o ENVIADO, volver a aplicar lógica de inventario/cartera
-    if (['FACTURADO', 'ENVIADO'].includes(estadoActual)) {
+    // 5) Si estaba FACTURADO/ENVIADO, volver a aplicar inventario/cartera con los nuevos detalles
+    if (['FACTURADO', 'ENVIADO'].includes(estadoPrevio)) {
       const tipoSalida = await this.prisma.tipoMovimientos.findFirst({
         where: { tipo: 'SALIDA' },
+        select: { idTipoMovimiento: true },
       });
       if (!tipoSalida) {
         throw new BadRequestException('No se encontró el tipo SALIDA');
       }
 
-      const acciones: any[] = [];
-
-      // Descontar nuevo stock
+      const acciones: Prisma.PrismaPromise<unknown>[] = [];
       for (const item of pedidoActualizado.productos) {
         acciones.push(
           this.prisma.inventario.updateMany({
@@ -610,14 +663,12 @@ export class PedidosService {
               idProducto: item.productoId,
               cantidadMovimiendo: item.cantidad,
               idTipoMovimiento: tipoSalida.idTipoMovimiento,
-              IdUsuario: usuario.id,
+              IdUsuario: usuarioId,
               IdPedido: pedidoActualizado.id,
             },
           })
         );
       }
-
-      // Reinsertar movimiento en cartera
       acciones.push(
         this.prisma.movimientosCartera.create({
           data: {
@@ -632,103 +683,81 @@ export class PedidosService {
       );
 
       await this.prisma.$transaction(acciones);
-
-      // 6. Generar PDF actualizado y enviar correo (en segundo plano)
-      setImmediate(() => {
-        void (async () => {
-          try {
-            const resumen = {
-              nitCliente: pedidoActualizado.cliente.nit,
-              emailCliente: pedidoActualizado.cliente.email,
-              ciudadCliente: pedidoActualizado.cliente.ciudad,
-              id: pedidoActualizado.id,
-              nombreEmpresa: pedidoActualizado.empresa.nombreComercial,
-              direccionCliente: pedidoActualizado.cliente.direccion,
-              direccionEmpresa: pedidoActualizado.empresa.direccion,
-              departamentoCliente: pedidoActualizado.cliente.departamento,
-              telefonoCliente: pedidoActualizado.cliente.telefono,
-              telefonoEmpresa: pedidoActualizado.empresa.telefono,
-              cliente:
-                pedidoActualizado.cliente.rasonZocial ||
-                `${pedidoActualizado.cliente.nombre} ${pedidoActualizado.cliente.apellidos}`,
-              fecha: new Date(),
-              vendedor: pedidoActualizado.usuario.nombre,
-              productos: pedidoActualizado.productos.map((item) => ({
-                nombre: item.producto.nombre,
-                cantidad: item.cantidad,
-                precio: item.precio,
-                subtotal: item.cantidad * item.precio,
-              })),
-              logoUrl: pedidoActualizado.empresa.logoUrl,
-              total: totalCalculado,
-            };
-
-            const pdfBuffer =
-              await this.pdfUploaderService.generarPedidoPDF(resumen);
-
-            const folder = `empresas/${pedidoActualizado.empresaId}/pedidos`;
-
-            const url = await this.hetznerStorage.uploadFile(
-              pdfBuffer.buffer,
-              `pedido_${pedidoActualizado.id}.pdf`,
-              folder
-            );
-
-            // const { url } = await this.cloudinaryService.uploadPdf({
-            //   buffer: pdfBuffer.buffer,
-            //   fileName: `pedido_${pedidoActualizado.id}.pdf`,
-            //   empresaNit: pedidoActualizado.empresaId,
-            //   empresaNombre: resumen.cliente,
-            //   usuarioNombre: resumen.vendedor,
-            //   tipo: 'pedidos',
-            // });
-
-            await this.prisma.pedido.update({
-              where: { id: pedidoActualizado.id },
-              data: { pdfUrl: url },
-            });
-
-            if (!pedidoActualizado.cliente?.email)
-              throw new Error('Email del cliente no disponible');
-
-            const numeroWhatsApp = `+57${pedidoActualizado.usuario?.telefono?.replace(/\D/g, '')}`;
-
-            await this.resend.enviarCorreo(
-              pedidoActualizado.cliente.email,
-              'Actualización de tu pedido',
-              `
-  <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
-    <p>Hola <strong>${pedidoActualizado.cliente.nombre}</strong>,</p>
-    <p>Tu pedido ha sido actualizado y sigue en estado <strong>${estadoActual}</strong>. Adjuntamos el comprobante en PDF:</p>
-    <p style="margin: 16px 0;">
-      <a href="${url}" target="_blank"
-         style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
-        Ver Comprobante PDF
-      </a>
-    </p>
-    <p>¿Tienes alguna duda o deseas hacer otro pedido? Contáctanos:</p>
-    <p>
-      <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
-         style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
-        💬 Contactar por WhatsApp
-      </a>
-    </p>
-    <p style="margin-top: 30px;">Gracias por tu compra,</p>
-    <p><strong>Equipo de Ventas</strong></p>
-  </div>
-  `
-            );
-          } catch (error) {
-            console.error(
-              '❌ Error al generar/subir PDF tras actualización:',
-              error
-            );
-          }
-        })();
-      });
     }
 
-    return pedidoActualizado;
+    // 6) Regenerar SIEMPRE el PDF (sobrescribe) y, si estaba FACTURADO/ENVIADO, enviar correo con el PDF nuevo
+    setImmediate(() => {
+      void (async () => {
+        try {
+          const pedidoParaPdf = await this.prisma.pedido.findUnique({
+            where: { id: pedidoId },
+            include: {
+              productos: { include: { producto: true } },
+              cliente: true,
+              usuario: { select: { nombre: true, telefono: true } },
+              empresa: true,
+              estados: { orderBy: { fechaEstado: 'desc' } },
+            },
+          });
+          if (!pedidoParaPdf) return;
+
+          const url = await this.generarYSubirPDFPedido(
+            pedidoParaPdf as PedidoParaPDF
+          );
+
+          if (
+            ['FACTURADO', 'ENVIADO'].includes(estadoPrevio) &&
+            pedidoParaPdf.cliente?.email
+          ) {
+            const numeroWhatsApp = `+57${pedidoParaPdf.usuario?.telefono?.replace(
+              /\D/g,
+              ''
+            )}`;
+
+            await this.resend.enviarCorreo(
+              pedidoParaPdf.cliente.email,
+              'Actualización de tu pedido',
+              `
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+  <p>Hola <strong>${pedidoParaPdf.cliente.nombre}</strong>,</p>
+  <p>Tu pedido ha sido actualizado y sigue en estado <strong>${estadoPrevio}</strong>. Adjuntamos el comprobante en PDF:</p>
+  <p style="margin: 16px 0;">
+    <a href="${url}?t=${Date.now()}" target="_blank"
+       style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
+      Ver Comprobante PDF
+    </a>
+  </p>
+  <p>¿Tienes alguna duda o deseas hacer otro pedido? Contáctanos:</p>
+  <p>
+    <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
+       style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
+      💬 Contactar por WhatsApp
+    </a>
+  </p>
+  <p style="margin-top: 30px;">Gracias por tu compra,</p>
+  <p><strong>Equipo de Ventas</strong></p>
+</div>`
+            );
+          }
+        } catch (err) {
+          console.error('Error generando/enviando PDF tras update:', err);
+        }
+      })();
+    });
+
+    // 7) Devolver el pedido final consistente
+    const pedidoFinal = await this.prisma.pedido.findUnique({
+      where: { id: pedidoId },
+      include: {
+        productos: { include: { producto: true } },
+        cliente: true,
+        usuario: { select: { nombre: true, telefono: true } },
+        empresa: true,
+        estados: { orderBy: { fechaEstado: 'desc' } },
+      },
+    });
+
+    return pedidoFinal!;
   }
 
   /////////////////////////////////////////////////////////////////////

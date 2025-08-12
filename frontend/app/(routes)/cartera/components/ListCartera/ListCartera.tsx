@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { ClienteConBalance, getColumns } from "./columns";
+import { getColumns } from "./columns"; // 👈 ya no importamos ClienteConBalance
 import { DataTableBalance } from "./data-table";
-import { ClienteCartera } from "./ListCartera.types";
+
 import { useAuth } from "@clerk/nextjs";
 import { CarteraDetalleModal } from "./CarteraDetalleModal";
 import { ModalAjusteManual } from "../DetalleModalAjuste";
+import type { ClienteCartera } from "./ListCartera.types";
 
 export function ListCartera({ cliente }: { cliente: ClienteCartera | null }) {
   const [balance, setBalance] = useState<ClienteCartera | null>(null);
@@ -25,7 +26,7 @@ export function ListCartera({ cliente }: { cliente: ClienteCartera | null }) {
     })();
   }, [getToken]);
 
-  // Función reutilizable para obtener balance del cliente
+  // Obtener balance del cliente
   const fetchBalance = useCallback(async () => {
     if (!cliente) return;
 
@@ -37,9 +38,7 @@ export function ListCartera({ cliente }: { cliente: ClienteCartera | null }) {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/balance/balancePorCliente/${cliente.id}`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
@@ -49,14 +48,15 @@ export function ListCartera({ cliente }: { cliente: ClienteCartera | null }) {
 
       const nuevoBalance: ClienteCartera = {
         id: result.cliente.id,
-        nit: result.cliente.nit,
-        nombre: result.cliente.nombre,
-        apellidos: result.cliente.apellidos,
-        telefono: result.cliente.telefono,
-        ciudad: result.cliente.ciudad,
-        email: result.cliente.email,
-        usuario: result.nombre,
-        balance: result.saldo,
+        nit: result.cliente.nit ?? "",
+        nombre:
+          result.cliente.rasonZocial || result.cliente.nombre || "(Sin nombre)",
+        apellidos: result.cliente.apellidos ?? "",
+        telefono: result.cliente.telefono ?? "",
+        ciudad: result.cliente.ciudad ?? "",
+        email: result.cliente.email ?? "",
+        usuario: result.nombre ?? "",
+        balance: result.saldo ?? 0,
       };
 
       setBalance(nuevoBalance);
@@ -72,6 +72,8 @@ export function ListCartera({ cliente }: { cliente: ClienteCartera | null }) {
   useEffect(() => {
     if (cliente) {
       fetchBalance();
+    } else {
+      setBalance(null);
     }
   }, [cliente, fetchBalance]);
 
@@ -99,8 +101,8 @@ export function ListCartera({ cliente }: { cliente: ClienteCartera | null }) {
 
   return (
     <>
-      <DataTableBalance
-        columns={getColumns(
+      <DataTableBalance<ClienteCartera>
+        columns={getColumns<ClienteCartera>(
           () => setShowModal(true),
           () => setShowAjuste(true)
         )}
@@ -114,7 +116,7 @@ export function ListCartera({ cliente }: { cliente: ClienteCartera | null }) {
           cliente={{
             id: balance.id,
             nombre: balance.nombre,
-            apellidos: balance.apellidos,
+            apellidos: balance.apellidos ?? "",
             nit: balance.nit,
           }}
         />
@@ -131,7 +133,7 @@ export function ListCartera({ cliente }: { cliente: ClienteCartera | null }) {
           token={token}
           onSuccess={() => {
             setShowAjuste(false);
-            fetchBalance(); // 🔄 Actualiza el balance tras ajuste manual
+            fetchBalance(); // 🔄 Actualiza tras ajuste
           }}
         />
       )}

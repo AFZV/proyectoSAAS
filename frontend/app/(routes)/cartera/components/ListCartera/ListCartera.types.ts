@@ -2,12 +2,12 @@ export type ClienteCartera = {
   id: string;
   nit: string;
   nombre: string;
-  apellidos: string;
-  telefono: string;
-  ciudad: string;
+  apellidos?: string;
+  telefono?: string;
   email?: string;
-  usuario: string;
+  ciudad?: string;
   balance: number;
+  usuario?: string;
 };
 
 export type MovimientoCartera = {

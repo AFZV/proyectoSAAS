@@ -35,6 +35,9 @@ export class ResumenPedidoDto {
   @IsString()
   vendedor: string;
 
+  @IsString()
+  observaciones: string;
+
   @IsDate()
   @Type(() => Date)
   fecha: Date;

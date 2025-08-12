@@ -399,8 +399,13 @@ export function InvoicesClient({
                           <Edit3 className="h-4 w-4" />
                         </Button>
                       )}
-                      {userType === "admin" &&
-                        ["FACTURADO", "ENVIADO"].includes(estadoActual) && ( // ✅ QUITADO ENTREGADO
+                      {["admin", "vendedor"].includes(userType) &&
+                        [
+                          "GENERADO",
+                          "SEPARADO",
+                          "FACTURADO",
+                          "ENVIADO",
+                        ].includes(estadoActual) && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -414,6 +419,7 @@ export function InvoicesClient({
                             <FileText className="h-4 w-4" />
                           </Button>
                         )}
+
                       <Button
                         variant="ghost"
                         size="sm"
@@ -592,16 +598,18 @@ export function InvoicesClient({
                     Editar
                   </Button>
                 )}
-                {userType === "admin" && ( // ✅ QUITADO ENTREGADO
+                {["admin", "vendedor"].includes(userType) && (
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={() => handleDescargarPdf(pedido)}
-                    className="text-green-600 border-green-200 hover:bg-green-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDescargarPdf(pedido);
+                    }}
+                    className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1"
                     title="Descargar comprobante PDF"
                   >
-                    <FileText className="h-4 w-4 mr-1" />
-                    PDF
+                    <FileText className="h-4 w-4" />
                   </Button>
                 )}
               </div>

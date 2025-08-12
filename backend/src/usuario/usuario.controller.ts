@@ -20,7 +20,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { SuperadminGuard } from 'src/common/guards/superadmin.guard';
 
-@UseGuards(UsuarioGuard, RolesGuard, SuperadminGuard)
+@UseGuards(UsuarioGuard, RolesGuard)
 @Roles('superadmin')
 @Controller('usuario')
 export class UsuarioController {
