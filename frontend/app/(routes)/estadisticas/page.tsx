@@ -30,7 +30,7 @@ export default async function EstadisticasPage() {
         />
         <CarrouselProducts
           productos={resultStats.productos}
-          titulo="Productos con baja rotación"
+          titulo="Productos con tación"
         />
       </div>
 

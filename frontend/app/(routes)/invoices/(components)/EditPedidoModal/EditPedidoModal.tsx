@@ -708,7 +708,7 @@ export function EditPedidoModal({
                                   Math.max(1, parseInt(e.target.value) || 1)
                                 )
                               }
-                              className="w-16 text-center text-sm"
+                              className="w-40 text-center text-sm"
                             />
                             <Button
                               variant="outline"

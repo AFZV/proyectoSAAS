@@ -58,7 +58,7 @@ export class InventarioController {
       req.usuario,
       dto.observacion
     );
-    console.log('esto se recibe en el body:', dto);
+
     return {
       message: `Inventario actualizado para el producto ${productoId}`,
       actinvt,

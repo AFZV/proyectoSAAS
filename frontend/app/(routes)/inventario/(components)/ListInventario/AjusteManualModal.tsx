@@ -108,7 +108,7 @@ export function AjusteManualModal({
           }),
         }
       );
-      console.log("observacion para enviar al backend:", observacion);
+
       if (!res.ok) throw new Error("Error en la actualización");
 
       // Cerrar modal y auto-refresh

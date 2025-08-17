@@ -196,16 +196,6 @@ export class DashboardService {
 
     const { inicio: inicioDia, fin: finDia } = this.getDiaRango();
     const { rangoActual, rangoAnterior } = this.obtenerRangosComparativos();
-    console.log(
-      'rangoActual',
-      rangoActual.desde.toISOString(),
-      rangoActual.hasta.toISOString()
-    );
-    console.log(
-      'rangoAnterior',
-      rangoAnterior.desde.toISOString(),
-      rangoAnterior.hasta.toISOString()
-    );
 
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: empresaId },
@@ -335,8 +325,6 @@ export class DashboardService {
         },
       }),
     ]);
-    console.log('cobros actual', cobrosActual);
-    console.log('cobros anterior', cobrosAnterior);
 
     const totalActualCobros = cobrosActual._sum.valorTotal || 0;
     const totalAnteriorCobros = cobrosAnterior._sum.valorTotal || 0;

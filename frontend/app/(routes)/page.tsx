@@ -41,16 +41,6 @@ export default async function Home() {
   const totalCobrosFormat = formatValue(data.totalValorRecibos);
   const totalVentasFormat = formatValue(data.totalVentas);
 
-  console.log(
-    "variaciones ventas:",
-    data.variaciones?.variacionPorcentualVentas
-  );
-
-  console.log(
-    "variaciones cobros:",
-    data.variaciones?.variacionPorcentualCobros
-  );
-
   //Funcion para formatear porcentajes
   const formatTrend = (percentaje: number) => {
     const num = Number(percentaje) || 0;

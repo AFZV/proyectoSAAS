@@ -892,13 +892,20 @@ export function InvoicesClient({
         pedidosActivos: Object.entries(estadisticas.pedidosPorEstado)
           .filter(
             ([estado]) =>
-              !["SEPARADO", "CANCELADO", "ENVIADO", "SEPARADO"].includes(estado)
+              ![
+                "SEPARADO",
+                "CANCELADO",
+                "ENVIADO",
+                "SEPARADO",
+                "FACTURADO",
+              ].includes(estado)
           ) // ✅ ENVIADO ya no es activo
           .reduce((sum, [, count]) => sum + count, 0),
         pedidosCompletados: estadisticas.pedidosPorEstado.ENVIADO || 0, // ✅ ENVIADO = completados
         pedidosCancelados: estadisticas.pedidosPorEstado.CANCELADO || 0,
         pedidosSeparados: estadisticas.pedidosPorEstado.SEPARADO || 0,
         pedidosGenerados: estadisticas.pedidosPorEstado.GENERADO || 0,
+        pedidosFacturados: estadisticas.pedidosPorEstado.FACTURADO || 0,
       };
     }
 
@@ -919,10 +926,15 @@ export function InvoicesClient({
       const estado = getEstadoActual(p);
       return estado === "SEPARADO";
     }).length;
+    const pedidosFacturados = pedidosFiltrados.filter((p) => {
+      const estado = getEstadoActual(p);
+      return estado === "FACTURADO";
+    }).length;
 
     return {
       totalPedidos,
       pedidosGenerados,
+      pedidosFacturados,
       pedidosCompletados,
       pedidosCancelados,
       pedidosSeparados,
@@ -1019,6 +1031,21 @@ export function InvoicesClient({
             </div>
             <div className="bg-yellow-100 p-2 lg:p-4 rounded-xl">
               <div className="w-3 h-3 lg:w-6 lg:h-6 bg-yellow-600 rounded-lg"></div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-3 lg:p-6 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xl lg:text-3xl font-bold text-gray-900">
+                {stats.pedidosFacturados}
+              </p>
+              <p className="text-xs lg:text-sm text-gray-500 font-medium">
+                Facturados
+              </p>
+            </div>
+            <div className="bg-green-100 p-2 lg:p-4 rounded-xl">
+              <FileText className="w-3 h-3 lg:w-6 lg:h-6 text-purple-600" />
             </div>
           </div>
         </div>
