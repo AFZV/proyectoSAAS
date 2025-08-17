@@ -228,15 +228,25 @@ export class ReportesService {
       where: {
         empresaId: usuario.empresaId,
         fechaPedido: { gte: inicio, lte: fin },
+        total: { gt: 0 },
+        estados: { some: { estado: 'FACTURADO' } },
       },
-      include: { cliente: { select: { nombre: true } } },
+      include: {
+        cliente: {
+          select: { nombre: true, apellidos: true, rasonZocial: true },
+        },
+        usuario: { select: { nombre: true } },
+      },
     });
 
     return pedidos.map((p) => ({
-      id: p.id,
-      cliente: p.cliente.nombre,
+      id: p.id.slice(0, 6),
+      nombre: p.cliente.nombre,
+      apellidos: p.cliente.apellidos,
+      rasonZocial: p.cliente.rasonZocial,
       fecha: p.fechaPedido,
       total: p.total,
+      vendedor: p.usuario.nombre,
     }));
   }
 
@@ -255,15 +265,35 @@ export class ReportesService {
       where: {
         empresaId: usuario.empresaId,
         usuarioId: vendedorId,
-        fechaPedido: { gte: inicio, lte: fin },
+        total: { gt: 0 },
+        estados: {
+          some: {
+            estado: 'FACTURADO',
+            fechaEstado: { gte: inicio, lte: fin }, // si usas semiabierto: { gte: inicio, lt: finSiguiente }
+          },
+        },
       },
-      include: { cliente: { select: { nombre: true } } },
+      include: {
+        cliente: {
+          select: { nombre: true, apellidos: true, rasonZocial: true },
+        },
+        // Traer la fecha exacta de facturación
+        estados: {
+          where: { estado: 'FACTURADO' },
+          orderBy: { fechaEstado: 'desc' },
+          take: 1,
+          select: { fechaEstado: true },
+        },
+      },
     });
 
     return pedidos.map((p) => ({
-      id: p.id,
-      cliente: p.cliente.nombre,
-      fecha: p.fechaPedido,
+      id: p.id.slice(0, 6),
+      nombre: p.cliente.nombre,
+      apellidos: p.cliente.apellidos,
+      rasonZocial: p.cliente.rasonZocial,
+      fechaPedido: p.fechaPedido,
+      fechaFacturacion: p.estados[0]?.fechaEstado ?? null,
       total: p.total,
     }));
   }
@@ -278,12 +308,21 @@ export class ReportesService {
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         empresaId: usuario.empresaId,
-        fechaPedido: { gte: inicio, lte: fin },
+        total: { gt: 0 },
+        estados: {
+          some: {
+            estado: 'FACTURADO',
+            fechaEstado: { gte: inicio, lte: fin }, // si usas semiabierto: { gte: inicio, lt: finSiguiente }
+          },
+        },
       },
       include: {
-        cliente: { select: { nombre: true } },
+        cliente: {
+          select: { nombre: true, apellidos: true, rasonZocial: true },
+        },
         detalleRecibo: { select: { valorTotal: true } },
         detalleAjusteCartera: { select: { valor: true } },
+        usuario: { select: { nombre: true } },
       },
     });
 
@@ -294,9 +333,12 @@ export class ReportesService {
         const saldoPendiente = p.total - abonado - ajustes;
 
         return {
-          id: p.id,
-          cliente: p.cliente.nombre,
+          id: p.id.slice(0, 6),
+          nombre: p.cliente.nombre,
+          apellidos: p.cliente.apellidos,
+          rasonZocial: p.cliente.rasonZocial,
           fecha: p.fechaPedido,
+          vendedor: p.usuario.nombre,
           saldoPendiente,
         };
       })
@@ -314,11 +356,20 @@ export class ReportesService {
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         empresaId: usuario.empresaId,
-        usuarioId: vendedorId,
-        fechaPedido: { gte: inicio, lte: fin },
+        usuarioId: vendedorId, // respeta vendedor
+        total: { gt: 0 },
+        estados: {
+          some: {
+            estado: 'FACTURADO',
+            fechaEstado: { gte: inicio, lte: fin }, // ← rango por FACTURADO
+            // si prefieres semiabierto: { gte: inicio, lt: finSiguiente }
+          },
+        },
       },
       include: {
-        cliente: { select: { nombre: true } },
+        cliente: {
+          select: { nombre: true, apellidos: true, rasonZocial: true },
+        },
         detalleRecibo: { select: { valorTotal: true } },
         detalleAjusteCartera: { select: { valor: true } },
       },
@@ -326,13 +377,24 @@ export class ReportesService {
 
     return pedidos
       .map((p) => {
-        const abonado = p.detalleRecibo.reduce((s, d) => s + d.valorTotal, 0);
-        const ajustes = p.detalleAjusteCartera.reduce((s, d) => s + d.valor, 0);
-        const saldoPendiente = p.total - abonado - ajustes;
+        const abonado = p.detalleRecibo.reduce(
+          (s, d) => s + Number(d.valorTotal || 0),
+          0
+        );
+        const ajustes = p.detalleAjusteCartera.reduce(
+          (s, d) => s + Number(d.valor || 0),
+          0
+        );
+        const saldoPendiente = Math.max(
+          0,
+          Number(p.total || 0) - abonado - ajustes
+        );
 
         return {
-          id: p.id,
-          cliente: p.cliente.nombre,
+          id: p.id.slice(0, 6),
+          nombre: p.cliente.nombre,
+          apellidos: p.cliente.apellidos,
+          rasonZocial: p.cliente.rasonZocial,
           fecha: p.fechaPedido,
           saldoPendiente,
         };
@@ -415,7 +477,7 @@ export class ReportesService {
     });
 
     return recibos.map((r) => ({
-      reciboId: r.id,
+      reciboId: r.id.slice(0, 5),
       fecha: r.Fechacrecion,
       tipo: r.tipo,
       valor: r.detalleRecibo.reduce((s, d) => s + d.valorTotal, 0),
@@ -445,7 +507,7 @@ export class ReportesService {
     });
 
     return recibos.map((r) => ({
-      reciboId: r.id,
+      reciboId: r.id.slice(0, 5),
       fecha: r.Fechacrecion,
       tipo: r.tipo,
       valor: r.detalleRecibo.reduce((s, d) => s + d.valorTotal, 0),

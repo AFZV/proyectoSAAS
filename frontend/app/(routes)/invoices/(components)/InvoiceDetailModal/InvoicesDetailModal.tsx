@@ -6,7 +6,7 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check } from "lucide-react";
+import { Check, HomeIcon } from "lucide-react";
 
 import {
   Dialog,
@@ -490,6 +490,10 @@ export function InvoiceDetailModal({
               </div>
 
               <div className="space-y-3">
+                <div className="flex items-center text-sm text-gray-600">
+                  <HomeIcon className="h-4 w-4 mr-3 text-gray-400" />
+                  <span>{pedido.cliente?.direccion || "No especificado"}</span>
+                </div>
                 <div className="flex items-center text-sm text-gray-600">
                   <MapPin className="h-4 w-4 mr-3 text-gray-400" />
                   <span>{pedido.cliente?.ciudad || "No especificado"}</span>

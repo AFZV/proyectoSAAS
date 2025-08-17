@@ -223,7 +223,7 @@ export function ProductDetailModal({
                         );
                         setCantidad(value);
                       }}
-                      className="w-24 text-center text-lg font-medium"
+                      className="w-40 text-center text-lg font-medium"
                     />
 
                     <Button

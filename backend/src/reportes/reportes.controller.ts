@@ -276,8 +276,11 @@ export class ReportesController {
 
     const columns: ColumnDef<(typeof rows)[0]>[] = [
       { header: 'ID', key: 'id', width: 35 },
-      { header: 'Cliente', key: 'cliente', width: 30 },
+      { header: 'Nombre', key: 'nombre', width: 30 },
+      { header: 'Apellidos', key: 'apellidos', width: 30 },
+      { header: 'RazonSocial', key: 'rasonZocial', width: 30 },
       { header: 'Fecha', key: 'fecha', width: 25 },
+      { header: 'Vendedor', key: 'vendedor', width: 25 },
       {
         header: 'Total',
         key: 'total',
@@ -317,8 +320,10 @@ export class ReportesController {
 
     const columns: ColumnDef<(typeof rows)[0]>[] = [
       { header: 'ID', key: 'id', width: 35 },
-      { header: 'Cliente', key: 'cliente', width: 30 },
-      { header: 'Fecha', key: 'fecha', width: 25 },
+      { header: 'Nombre', key: 'nombre', width: 30 },
+      { header: 'Apellidos', key: 'apellidos', width: 30 },
+      { header: 'RazonSocial', key: 'rasonZocial', width: 30 },
+      { header: 'Fecha', key: 'fechaPedido', width: 25 },
       {
         header: 'Total',
         key: 'total',
@@ -359,13 +364,16 @@ export class ReportesController {
     if (format === 'excel') {
       const columns: ColumnDef<(typeof rows)[0]>[] = [
         { header: 'ID Pedido', key: 'id', width: 36 },
-        { header: 'Cliente', key: 'cliente', width: 40 },
+        { header: 'Nombre', key: 'nombre', width: 40 },
+        { header: 'Apellidos', key: 'apellidos', width: 40 },
+        { header: 'RazonSocial', key: 'rasonZocial', width: 40 },
         {
           header: 'Fecha Pedido',
           key: 'fecha',
           width: 20,
           numFmt: 'dd/mm/yyyy',
         },
+        { header: 'vendedor', key: 'vendedor', width: 40 },
         {
           header: 'Saldo Pendiente',
           key: 'saldoPendiente',
@@ -412,7 +420,9 @@ export class ReportesController {
     if (format === 'excel') {
       const columns: ColumnDef<(typeof rows)[0]>[] = [
         { header: 'ID Pedido', key: 'id', width: 36 },
-        { header: 'Cliente', key: 'cliente', width: 40 },
+        { header: 'Nombre', key: 'nombre', width: 40 },
+        { header: 'Apellidos', key: 'apellidos', width: 40 },
+        { header: 'RazonSocial', key: 'rasonZocial', width: 40 },
         {
           header: 'Fecha Pedido',
           key: 'fecha',

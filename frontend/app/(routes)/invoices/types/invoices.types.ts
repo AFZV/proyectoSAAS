@@ -55,6 +55,7 @@ export interface Pedido {
   flete?: number;
   actualizado?: string;
   pdfUrl?: string; // ✅ URL del PDF del pedido
+  correo?: string;
 
   // ✅ Relaciones opcionales
   cliente?: Cliente;

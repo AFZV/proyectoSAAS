@@ -670,60 +670,49 @@ export class RecibosService {
   //obtener estadisticas para el header de recibos
   async getResumen(usuario: UsuarioPayload) {
     const { empresaId, id: userId, rol } = usuario;
+
     const totalRecibos = await this.prisma.recibo.count({
-      where:
-        rol === 'admin'
-          ? {
-              empresaId: empresaId,
-            }
-          : {
-              empresaId: empresaId,
-              usuarioId: userId,
-            },
+      where: rol === 'admin' ? { empresaId } : { empresaId, usuarioId: userId },
     });
 
     const totalRecaudado = await this.prisma.detalleRecibo.aggregate({
       where: {
         recibo: {
-          empresaId: empresaId,
+          empresaId,
           ...(rol !== 'admin' && { usuarioId: userId }),
         },
       },
-      _sum: {
-        valorTotal: true,
-      },
+      _sum: { valorTotal: true },
     });
+
+    // 🚩 Solo pedidos FACTURADOS y con total > 0
     const pedidos = await this.prisma.pedido.findMany({
-      where: rol === 'admin' ? { empresaId } : { empresaId, usuarioId: userId },
-      include: {
-        detalleRecibo: true,
+      where: {
+        empresaId,
+        ...(rol !== 'admin' && { usuarioId: userId }),
+        total: { gt: 0 },
+        estados: { some: { estado: 'FACTURADO' } },
       },
-      orderBy: {
-        fechaPedido: 'asc',
+      select: {
+        total: true,
+        detalleRecibo: { select: { valorTotal: true } },
       },
+      orderBy: { fechaPedido: 'asc' },
     });
 
-    const pedidosConSaldo = pedidos
-      .map((pedido) => {
-        const totalAbonado = pedido.detalleRecibo.reduce(
-          (suma, d) => suma + d.valorTotal,
-          0
-        );
-        const saldoPendiente = pedido.total - totalAbonado;
-        return { saldoPendiente };
-      })
-      .filter((p) => p.saldoPendiente > 0);
-
-    // ✅ Sumar el total pendiente
-    const totalPorRecaudar = pedidosConSaldo.reduce(
-      (sum, p) => sum + p.saldoPendiente,
-      0
-    );
+    const totalPorRecaudar = pedidos.reduce((acc, p) => {
+      const abonado = p.detalleRecibo.reduce(
+        (s, d) => s + Number(d.valorTotal || 0),
+        0
+      );
+      const saldo = Math.max(0, Number(p.total || 0) - abonado); // clamp >= 0
+      return acc + saldo;
+    }, 0);
 
     return {
       totalRecibos,
       totalRecaudado: totalRecaudado._sum.valorTotal || 0,
-      totalPorRecaudar: totalPorRecaudar || 0,
+      totalPorRecaudar,
     };
   }
 

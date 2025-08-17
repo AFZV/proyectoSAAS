@@ -890,17 +890,22 @@ export function InvoicesClient({
       return {
         totalPedidos: estadisticas.totalPedidos,
         pedidosActivos: Object.entries(estadisticas.pedidosPorEstado)
-          .filter(([estado]) => !["CANCELADO", "ENVIADO"].includes(estado)) // ✅ ENVIADO ya no es activo
+          .filter(
+            ([estado]) =>
+              !["SEPARADO", "CANCELADO", "ENVIADO", "SEPARADO"].includes(estado)
+          ) // ✅ ENVIADO ya no es activo
           .reduce((sum, [, count]) => sum + count, 0),
         pedidosCompletados: estadisticas.pedidosPorEstado.ENVIADO || 0, // ✅ ENVIADO = completados
         pedidosCancelados: estadisticas.pedidosPorEstado.CANCELADO || 0,
+        pedidosSeparados: estadisticas.pedidosPorEstado.SEPARADO || 0,
+        pedidosGenerados: estadisticas.pedidosPorEstado.GENERADO || 0,
       };
     }
 
     const totalPedidos = pedidosFiltrados.length;
-    const pedidosActivos = pedidosFiltrados.filter((p) => {
+    const pedidosGenerados = pedidosFiltrados.filter((p) => {
       const estado = getEstadoActual(p);
-      return !["CANCELADO", "ENVIADO"].includes(estado); // ✅ ENVIADO ya no es activo
+      return estado === "GENERADO";
     }).length;
     const pedidosCompletados = pedidosFiltrados.filter((p) => {
       const estado = getEstadoActual(p);
@@ -910,12 +915,17 @@ export function InvoicesClient({
       const estado = getEstadoActual(p);
       return estado === "CANCELADO";
     }).length;
+    const pedidosSeparados = pedidosFiltrados.filter((p) => {
+      const estado = getEstadoActual(p);
+      return estado === "SEPARADO";
+    }).length;
 
     return {
       totalPedidos,
-      pedidosActivos,
+      pedidosGenerados,
       pedidosCompletados,
       pedidosCancelados,
+      pedidosSeparados,
     };
   }, [pedidosFiltrados, estadisticas]);
 
@@ -986,10 +996,25 @@ export function InvoicesClient({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xl lg:text-3xl font-bold text-gray-900">
-                {stats.pedidosActivos}
+                {stats.pedidosGenerados}
               </p>
               <p className="text-xs lg:text-sm text-gray-500 font-medium">
-                Proceso
+                Generados
+              </p>
+            </div>
+            <div className="bg-blue-100 p-2 lg:p-4 rounded-xl">
+              <div className="w-3 h-3 lg:w-6 lg:h-6 bg-blue-600 rounded-lg"></div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-3 lg:p-6 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xl lg:text-3xl font-bold text-gray-900">
+                {stats.pedidosSeparados}
+              </p>
+              <p className="text-xs lg:text-sm text-gray-500 font-medium">
+                Separados
               </p>
             </div>
             <div className="bg-yellow-100 p-2 lg:p-4 rounded-xl">

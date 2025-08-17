@@ -17,6 +17,21 @@ interface CompraDetalleModalProps {
   idCompra?: string | null;
   compraData?: CompraDetalle | null;
 }
+type RecepcionEstado = "PENDIENTE" | "RECIBIDA" | "PARCIAL" | "INCONSISTENTE";
+
+interface RecepcionCompra {
+  recibida?: boolean;
+  estado?: RecepcionEstado;
+  fecha?: string; // opcional
+  usuario?: { id?: string; nombre?: string }; // opcional
+}
+
+interface CompraDetalle {
+  idCompra: string;
+  FechaCompra: string;
+  productos: Producto[];
+  recepcion?: RecepcionCompra; // 👈 NUEVO (opcional)
+}
 
 interface Producto {
   nombre: string;
@@ -35,12 +50,6 @@ type ProductoCompra = {
   precio?: number;
   precioCompra?: number;
 };
-
-interface CompraDetalle {
-  idCompra: string;
-  FechaCompra: string;
-  productos: Producto[];
-}
 
 export function CompraDetalleModal({
   open,
@@ -81,24 +90,50 @@ export function CompraDetalleModal({
       return;
     }
 
-    // Si tenemos datos directos, usarlos
-    if (compraData) {
-      setCompra(compraData);
-      // Inicializar productos para edición
-      if (compraData.productos) {
+    // Helper: normaliza la compra y actualiza estados locales
+    const applyCompra = (raw: any) => {
+      const c = raw?.compra ?? raw; // puede venir envuelto o directo
+      if (!c) return;
+
+      setCompra(c);
+
+      // productos para edición (usa precio del backend o precioCompra como fallback)
+      if (Array.isArray(c.productos)) {
         setEditingProducts(
-          compraData.productos.map((p) => ({
+          c.productos.map((p: any) => ({
             idProducto: p.id || p.idProducto || "",
             cantidad: p.cantidad || 0,
-            precio: p.precio || p.precioCompra || 0, // 👈 USAR PRECIO
+            precio: p.precio ?? p.precioCompra ?? 0,
             nombre: p.nombre,
           }))
         );
       }
+
+      // Determinar si está recibida (prioriza bandera del backend)
+      const recibidaBackend =
+        c.recepcion?.recibida ||
+        (c.recepcion?.estado && c.recepcion.estado === "RECIBIDA");
+
+      // Fallback por compatibilidad: todos los productos recibidos
+      const recibidaPorProductos =
+        Array.isArray(c.productos) &&
+        c.productos.length > 0 &&
+        c.productos.every(
+          (p: any) =>
+            (p.cantidadRecibida ?? p.cantidadMovimiendo ?? 0) >=
+            (p.cantidad ?? 0)
+        );
+
+      setRecibida(Boolean(recibidaBackend || recibidaPorProductos));
+    };
+
+    // Si viene por props, úsalo directamente
+    if (compraData) {
+      applyCompra(compraData);
       return;
     }
 
-    // Solo hacer fetch si necesitamos datos y tenemos ID
+    // Si no hay id, error
     if (!idCompra) {
       setError("No se proporcionó ID de compra");
       return;
@@ -109,24 +144,12 @@ export function CompraDetalleModal({
       setError(null);
 
       try {
-        // Intentar obtener el token
-        let token;
-        try {
-          token = await getToken();
-        } catch (tokenError) {
-          try {
-            token = await getToken({ template: "default" });
-          } catch (templateError) {
-            throw new Error("No se pudo obtener el token de autenticación");
-          }
-        }
-
-        if (!token) {
-          throw new Error("Token de autenticación no disponible");
-        }
+        // Obtener token (con fallback al template)
+        let token = await getToken().catch(() => null);
+        if (!token) token = await getToken({ template: "default" });
+        if (!token) throw new Error("Token de autenticación no disponible");
 
         const url = `${process.env.NEXT_PUBLIC_API_URL?.trim()}/compras/find/${idCompra}`;
-
         const res = await fetch(url, {
           method: "GET",
           headers: {
@@ -142,42 +165,18 @@ export function CompraDetalleModal({
         }
 
         const data = await res.json();
-
-        // Los datos vienen envueltos en un objeto 'compra'
-        if (data && data.compra && data.compra.idCompra) {
-          setCompra(data.compra);
-          // Inicializar productos para edición
-          if (data.compra.productos) {
-            setEditingProducts(
-              data.compra.productos.map((p: ProductoCompra) => ({
-                idProducto: p.id || p.idProducto || "",
-                cantidad: p.cantidad || 0,
-                precio: p.precio || p.precioCompra || 0, // 👈 USAR PRECIO
-                nombre: p.nombre,
-              }))
-            );
-          }
-        } else if (data && data.idCompra) {
-          // Fallback si vienen directamente
-
-          setCompra(data);
-          if (data.productos) {
-            setEditingProducts(
-              data.productos.map((p: ProductoCompra) => ({
-                idProducto: p.id || p.idProducto || "",
-                cantidad: p.cantidad || 0,
-                precio: p.precio || p.precioCompra || 0, // 👈 USAR PRECIO
-                nombre: p.nombre,
-              }))
-            );
-          }
-        } else {
-          console.error("Data structure unexpected:", data);
-          setError("Estructura de datos inesperada");
+        if (!data) {
+          setError("Respuesta vacía del servidor");
+          return;
         }
+
+        applyCompra(data);
       } catch (err) {
         console.error("Error fetching compra:", err);
-        if (err instanceof Error && err.message.includes("token")) {
+        if (
+          err instanceof Error &&
+          err.message.toLowerCase().includes("token")
+        ) {
           setError(
             "Error de autenticación. Por favor, inicia sesión nuevamente."
           );
@@ -474,6 +473,23 @@ export function CompraDetalleModal({
         <DialogHeader>
           <DialogTitle>Detalle de Compra</DialogTitle>
         </DialogHeader>
+        {compra?.recepcion && (
+          <span
+            className={
+              "inline-flex items-center text-xs font-semibold px-2 py-1 rounded " +
+              (compra.recepcion.estado === "RECIBIDA"
+                ? "bg-green-100 text-green-700"
+                : compra.recepcion.estado === "PARCIAL"
+                ? "bg-yellow-100 text-yellow-700"
+                : compra.recepcion.estado === "INCONSISTENTE"
+                ? "bg-red-100 text-red-700"
+                : "bg-gray-100 text-gray-700")
+            }
+            title="Estado de recepción"
+          >
+            {compra.recepcion.estado}
+          </span>
+        )}
 
         {loading && (
           <div className="flex items-center justify-center py-8">

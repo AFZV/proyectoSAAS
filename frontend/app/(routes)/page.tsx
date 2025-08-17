@@ -41,6 +41,16 @@ export default async function Home() {
   const totalCobrosFormat = formatValue(data.totalValorRecibos);
   const totalVentasFormat = formatValue(data.totalVentas);
 
+  console.log(
+    "variaciones ventas:",
+    data.variaciones?.variacionPorcentualVentas
+  );
+
+  console.log(
+    "variaciones cobros:",
+    data.variaciones?.variacionPorcentualCobros
+  );
+
   //Funcion para formatear porcentajes
   const formatTrend = (percentaje: number) => {
     const num = Number(percentaje) || 0;
@@ -137,7 +147,14 @@ export default async function Home() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Gráficas - 3 columnas en desktop */}
         <div className="lg:col-span-3">
-          <SalesDistribution />
+          <SalesDistribution
+            variacionVentas={formatTrend(
+              data.variaciones?.variacionPorcentualVentas || 0
+            )}
+            variacionCobros={formatTrend(
+              data.variaciones?.variacionPorcentualCobros || 0
+            )}
+          />
         </div>
 
         {/* Panel Lateral - 1 columna en desktop */}

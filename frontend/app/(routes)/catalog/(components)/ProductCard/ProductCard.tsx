@@ -108,7 +108,7 @@ function AddToCartModal({
                     )
                   )
                 }
-                className="w-20 text-center focus:ring-blue-500 focus:border-blue-500"
+                className="w-40 text-center focus:ring-blue-500 focus:border-blue-500"
               />
 
               <Button

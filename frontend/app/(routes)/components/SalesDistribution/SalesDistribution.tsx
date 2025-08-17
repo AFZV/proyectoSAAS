@@ -5,8 +5,15 @@ import { GraphicsRecaudos } from "../GraphicsRecaudos";
 import { getToken } from "@/lib/getToken";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+type SalesDistributionProps = {
+  variacionVentas?: string;
+  variacionCobros?: string;
+};
 
-export async function SalesDistribution() {
+export async function SalesDistribution({
+  variacionVentas,
+  variacionCobros,
+}: SalesDistributionProps) {
   const token = await getToken();
 
   // Fetch ventas
@@ -46,7 +53,7 @@ export async function SalesDistribution() {
           </div>
           <div className="flex items-center space-x-1 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full">
             <TrendingUp className="h-3 w-3" />
-            <span>+12.5%</span>
+            <span>{variacionVentas}</span>
           </div>
         </div>
 
@@ -77,7 +84,7 @@ export async function SalesDistribution() {
           </div>
           <div className="flex items-center space-x-1 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full">
             <TrendingUp className="h-3 w-3" />
-            <span>+8.3%</span>
+            <span>{variacionCobros}</span>
           </div>
         </div>
 

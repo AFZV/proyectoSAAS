@@ -196,6 +196,16 @@ export class DashboardService {
 
     const { inicio: inicioDia, fin: finDia } = this.getDiaRango();
     const { rangoActual, rangoAnterior } = this.obtenerRangosComparativos();
+    console.log(
+      'rangoActual',
+      rangoActual.desde.toISOString(),
+      rangoActual.hasta.toISOString()
+    );
+    console.log(
+      'rangoAnterior',
+      rangoAnterior.desde.toISOString(),
+      rangoAnterior.hasta.toISOString()
+    );
 
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: empresaId },
@@ -227,14 +237,16 @@ export class DashboardService {
 
     //pedidos del dia
     const pedidos = await this.prisma.pedido.findMany({
-      where:
-        rol === 'admin'
-          ? { empresaId, fechaPedido: { gte: inicioDia, lte: finDia } }
-          : {
-              empresaId,
-              usuarioId: dbUserId,
-              fechaPedido: { gte: inicioDia, lte: finDia },
-            },
+      where: {
+        empresaId,
+        ...(rol !== 'admin' && { usuarioId: dbUserId }),
+        estados: {
+          some: {
+            estado: 'FACTURADO',
+            fechaEstado: { gte: inicioDia, lte: finDia },
+          },
+        },
+      },
     });
 
     // Ventas del día
@@ -243,9 +255,13 @@ export class DashboardService {
         _sum: { total: true },
         where: {
           empresaId,
-          fechaPedido: { gte: inicioDia, lte: finDia },
           ...(rol !== 'admin' && { usuarioId: dbUserId }),
-          estados: { some: { estado: 'FACTURADO' } },
+          estados: {
+            some: {
+              estado: 'FACTURADO',
+              fechaEstado: { gte: inicioDia, lte: finDia },
+            },
+          },
         },
       })
       .then((res) => res._sum.total ?? 0);
@@ -258,8 +274,12 @@ export class DashboardService {
           ...(rol === 'admin'
             ? { usuario: { empresaId } }
             : { usuarioId: dbUserId }),
-          fechaPedido: { gte: rangoActual.desde, lte: rangoActual.hasta },
-          estados: { some: { estado: 'FACTURADO' } },
+          estados: {
+            some: {
+              estado: 'FACTURADO',
+              fechaEstado: { gte: rangoActual.desde, lte: rangoActual.hasta },
+            },
+          },
         },
       }),
       this.prisma.pedido.aggregate({
@@ -268,8 +288,15 @@ export class DashboardService {
           ...(rol === 'admin'
             ? { usuario: { empresaId } }
             : { usuarioId: dbUserId }),
-          fechaPedido: { gte: rangoAnterior.desde, lte: rangoAnterior.hasta },
-          estados: { some: { estado: 'FACTURADO' } },
+          estados: {
+            some: {
+              estado: 'FACTURADO',
+              fechaEstado: {
+                gte: rangoAnterior.desde,
+                lte: rangoAnterior.hasta,
+              },
+            },
+          },
         },
       }),
     ]);
@@ -308,6 +335,8 @@ export class DashboardService {
         },
       }),
     ]);
+    console.log('cobros actual', cobrosActual);
+    console.log('cobros anterior', cobrosAnterior);
 
     const totalActualCobros = cobrosActual._sum.valorTotal || 0;
     const totalAnteriorCobros = cobrosAnterior._sum.valorTotal || 0;

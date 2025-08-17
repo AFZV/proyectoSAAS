@@ -13,7 +13,7 @@ export class EstadisticasService {
 
     const ProductsLowStock = await this.prisma.$queryRaw`
   SELECT 
-     p.id as id,
+    p.id as id,
     p.nombre,
     p."imagenUrl",
     p."precioCompra",
@@ -23,8 +23,8 @@ export class EstadisticasService {
   WHERE 
     i."idEmpresa" = ${empresaId}
     AND i."stockReferenciaOinicial" > 0
-    AND i."stockActual" <= i."stockReferenciaOinicial" * 0.2
-  ORDER BY i."stockActual" ASC
+    AND i."stockActual" <= i."stockReferenciaOinicial" * 0.3
+  ORDER BY p."nombre" ASC, i."stockActual" ASC
 `;
 
     const productos = await this.prisma.$queryRaw`

@@ -91,20 +91,33 @@ export class PedidosService {
       );
     }
 
-    const { empresaId } = usuario;
+    const { empresaId, id: ejecutorId, rol: rolEjecutor } = usuario;
+
     const totalCalculado = data.productos.reduce(
       (s, p) => s + p.cantidad * p.precio,
       0
     );
 
+    // Trae el usuario asignado al cliente (con su rol)
     const relacion = await this.prisma.clienteEmpresa.findFirst({
       where: { clienteId: data.clienteId, empresaId },
-      include: { usuario: true },
+      include: {
+        usuario: {
+          select: { id: true, rol: true, nombre: true, telefono: true },
+        },
+      },
     });
-    if (!relacion?.usuario)
-      throw new BadRequestException('No hay usuario asociado a este cliente');
 
-    const vendedorId = relacion.usuario.id;
+    if (!relacion?.usuario) {
+      throw new BadRequestException('No hay usuario asociado a este cliente');
+    }
+
+    // Regla: si asignado es admin y quien ejecuta también es admin -> usar ejecutor
+    const asignadoEsAdmin =
+      (relacion.usuario.rol || '').toLowerCase() === 'admin';
+    const ejecutorEsAdmin = (rolEjecutor || '').toLowerCase() === 'admin';
+    const vendedorId =
+      asignadoEsAdmin && ejecutorEsAdmin ? ejecutorId : relacion.usuario.id;
 
     // 2) Transacción mínima (solo DB)
     const pedidoId = await this.prisma.$transaction(async (tx) => {
@@ -113,7 +126,7 @@ export class PedidosService {
           clienteId: data.clienteId,
           observaciones: data.observaciones,
           empresaId,
-          usuarioId: vendedorId,
+          usuarioId: vendedorId, // <- aquí aplicamos la regla
           total: totalCalculado,
         },
       });
@@ -155,7 +168,6 @@ export class PedidosService {
       });
     }
 
-    // Devuelves el pedido (pdfUrl se llenará poco después)
     return pedidoCreado;
   }
 
@@ -235,7 +247,7 @@ export class PedidosService {
         const stock = inventarioMap.get(item.productoId);
         if (stock === undefined || stock < item.cantidad) {
           throw new BadRequestException(
-            `Stock insuficiente para producto ${item.productoId}. Disponible: ${stock}, requerido: ${item.cantidad}`
+            `Stock insuficiente para producto ${item.producto.nombre}. Disponible: ${stock}, requerido: ${item.cantidad}`
           );
         }
       }
@@ -563,129 +575,156 @@ export class PedidosService {
       throw new UnauthorizedException('No está autorizado');
     }
 
-    // 1) Cargar pedido actual (para conocer estado previo)
-    const pedidoExistente = await this.prisma.pedido.findUnique({
-      where: { id: pedidoId, empresaId },
-      include: {
-        productos: true,
-        estados: { orderBy: { fechaEstado: 'desc' }, take: 1 },
-        cliente: true,
-      },
-    });
-    if (!pedidoExistente) {
-      throw new BadRequestException('Pedido no encontrado');
+    // ✅ 0) Garantiza un producto por línea (sin duplicados)
+    const ids = (data.productos ?? []).map((p) => p.productoId);
+    if (new Set(ids).size !== ids.length) {
+      throw new BadRequestException(
+        'No se permiten productos duplicados en el pedido'
+      );
     }
 
-    const estadoPrevio = pedidoExistente.estados[0]?.estado || 'GENERADO';
-
-    // 2) Si estaba FACTURADO/ENVIADO, revertir inventario/cartera previos
-    if (['FACTURADO', 'ENVIADO'].includes(estadoPrevio)) {
-      const accionesReversibles: Prisma.PrismaPromise<unknown>[] = [];
-
-      for (const item of pedidoExistente.productos) {
-        accionesReversibles.push(
-          this.prisma.inventario.updateMany({
-            where: { idProducto: item.productoId, idEmpresa: empresaId },
-            data: { stockActual: { increment: item.cantidad } },
-          })
-        );
-      }
-      accionesReversibles.push(
-        this.prisma.movimientoInventario.deleteMany({
-          where: { IdPedido: pedidoExistente.id },
-        })
-      );
-      accionesReversibles.push(
-        this.prisma.movimientosCartera.deleteMany({
-          where: { idPedido: pedidoExistente.id },
-        })
-      );
-
-      await this.prisma.$transaction(accionesReversibles);
-    }
-
-    // 3) Reemplazar detalles y actualizar datos principales
-    await this.prisma.detallePedido.deleteMany({ where: { pedidoId } });
-
-    const pedidoActualizado = await this.prisma.pedido.update({
-      where: { id: pedidoId },
-      data: {
-        ...data,
-        productos: {
-          create:
-            data.productos?.map((item) => ({
-              productoId: item.productoId,
-              cantidad: item.cantidad,
-              precio: item.precio,
-            })) ?? [],
-        },
-      },
-      include: {
-        productos: { include: { producto: true } },
-        cliente: true,
-        usuario: { select: { nombre: true, telefono: true } },
-        empresa: true,
-      },
-    });
-
-    // 4) Recalcular total y persistir
-    const totalCalculado = pedidoActualizado.productos.reduce(
-      (sum, p) => sum + p.cantidad * p.precio,
-      0
-    );
-    await this.prisma.pedido.update({
-      where: { id: pedidoId },
-      data: { total: totalCalculado },
-    });
-
-    // 5) Si estaba FACTURADO/ENVIADO, volver a aplicar inventario/cartera con los nuevos detalles
-    if (['FACTURADO', 'ENVIADO'].includes(estadoPrevio)) {
-      const tipoSalida = await this.prisma.tipoMovimientos.findFirst({
-        where: { tipo: 'SALIDA' },
-        select: { idTipoMovimiento: true },
-      });
-      if (!tipoSalida) {
-        throw new BadRequestException('No se encontró el tipo SALIDA');
-      }
-
-      const acciones: Prisma.PrismaPromise<unknown>[] = [];
-      for (const item of pedidoActualizado.productos) {
-        acciones.push(
-          this.prisma.inventario.updateMany({
-            where: { idProducto: item.productoId, idEmpresa: empresaId },
-            data: { stockActual: { decrement: item.cantidad } },
-          })
-        );
-        acciones.push(
-          this.prisma.movimientoInventario.create({
-            data: {
-              idEmpresa: empresaId,
-              idProducto: item.productoId,
-              cantidadMovimiendo: item.cantidad,
-              idTipoMovimiento: tipoSalida.idTipoMovimiento,
-              IdUsuario: usuarioId,
-              IdPedido: pedidoActualizado.id,
-            },
-          })
-        );
-      }
-      acciones.push(
-        this.prisma.movimientosCartera.create({
-          data: {
-            idCliente: pedidoActualizado.clienteId,
-            idUsuario: pedidoActualizado.usuarioId,
-            empresaId,
-            valorMovimiento: totalCalculado,
-            idPedido: pedidoActualizado.id,
-            tipoMovimientoOrigen: 'PEDIDO',
+    // ✅ 1) Todo lo crítico en UNA sola transacción
+    const { estadoPrevio } = await this.prisma.$transaction(
+      async (tx) => {
+        // Cargar estado previo y datos base
+        const pedidoPrevio = await tx.pedido.findUnique({
+          where: { id: pedidoId, empresaId },
+          include: {
+            estados: { orderBy: { fechaEstado: 'desc' }, take: 1 },
+            cliente: true,
+            usuario: { select: { nombre: true, telefono: true } },
           },
-        })
-      );
+        });
+        if (!pedidoPrevio)
+          throw new BadRequestException('Pedido no encontrado');
 
-      await this.prisma.$transaction(acciones);
-    }
+        const estadoPrevio = pedidoPrevio.estados[0]?.estado ?? 'GENERADO';
+        const veniaFacturado = ['FACTURADO', 'ENVIADO'].includes(estadoPrevio);
 
-    // 6) Regenerar SIEMPRE el PDF (sobrescribe) y, si estaba FACTURADO/ENVIADO, enviar correo con el PDF nuevo
+        // Si venía facturado: revertir EXACTAMENTE lo que se había descontado (según movimientos)
+        if (veniaFacturado) {
+          const movPrevios = await tx.movimientoInventario.findMany({
+            where: { IdPedido: pedidoId },
+            select: { idProducto: true, cantidadMovimiendo: true },
+          });
+
+          if (movPrevios.length > 0) {
+            for (const m of movPrevios) {
+              await tx.inventario.updateMany({
+                where: { idEmpresa: empresaId, idProducto: m.idProducto },
+                data: { stockActual: { increment: m.cantidadMovimiendo } },
+              });
+            }
+            await tx.movimientoInventario.deleteMany({
+              where: { IdPedido: pedidoId },
+            });
+          }
+          // Limpia cartera previa ligada a este pedido
+          await tx.movimientosCartera.deleteMany({
+            where: { idPedido: pedidoId },
+          });
+        }
+
+        // Reemplazar detalles
+        await tx.detallePedido.deleteMany({ where: { pedidoId } });
+        if (data.productos?.length) {
+          await tx.detallePedido.createMany({
+            data: data.productos.map((it) => ({
+              pedidoId,
+              productoId: it.productoId,
+              cantidad: it.cantidad,
+              precio: it.precio,
+            })),
+          });
+        }
+
+        // Recalcular total (con los nuevos detalles)
+        const totalCalculado = (data.productos ?? []).reduce(
+          (acc, it) => acc + it.cantidad * it.precio,
+          0
+        );
+        await tx.pedido.update({
+          where: { id: pedidoId },
+          data: {
+            observaciones: data.observaciones ?? undefined,
+            total: totalCalculado,
+          },
+        });
+
+        // Si venía facturado: validar stock y descontar + recrear cartera/movs (todo dentro de la misma tx)
+        if (veniaFacturado && (data.productos?.length ?? 0) > 0) {
+          const tipoSalida = await tx.tipoMovimientos.findFirst({
+            where: { tipo: 'SALIDA' },
+            select: { idTipoMovimiento: true },
+          });
+          if (!tipoSalida)
+            throw new BadRequestException('No se encontró el tipo SALIDA');
+
+          // Validación simple por línea (no hay productos repetidos)
+          const inventarios = await tx.inventario.findMany({
+            where: { idEmpresa: empresaId, idProducto: { in: ids } },
+            select: { idProducto: true, stockActual: true },
+          });
+          const stockMap = new Map(
+            inventarios.map((i) => [i.idProducto, Number(i.stockActual || 0)])
+          );
+
+          for (const it of data.productos!) {
+            const disp = stockMap.get(it.productoId) ?? 0;
+            if (disp < it.cantidad) {
+              throw new BadRequestException(
+                `Stock insuficiente para producto ${it.productoId}. Disponible: ${disp}, requerido: ${it.cantidad}`
+              );
+            }
+          }
+
+          // Descuento atómico por línea + movimientos
+          for (const it of data.productos!) {
+            const ok = await tx.inventario.updateMany({
+              where: {
+                idEmpresa: empresaId,
+                idProducto: it.productoId,
+                stockActual: { gte: it.cantidad }, // check + decrement en un paso
+              },
+              data: { stockActual: { decrement: it.cantidad } },
+            });
+            if (ok.count === 0) {
+              throw new BadRequestException(
+                `El stock de "${it.productoId}" cambió. Intenta de nuevo.`
+              );
+            }
+
+            await tx.movimientoInventario.create({
+              data: {
+                idEmpresa: empresaId,
+                idProducto: it.productoId,
+                cantidadMovimiendo: it.cantidad,
+                idTipoMovimiento: tipoSalida.idTipoMovimiento,
+                IdUsuario: usuarioId,
+                IdPedido: pedidoId,
+              },
+            });
+          }
+
+          // Cartera por el total recalculado
+          await tx.movimientosCartera.create({
+            data: {
+              idCliente: pedidoPrevio.clienteId,
+              idUsuario: pedidoPrevio.usuarioId,
+              empresaId,
+              valorMovimiento: totalCalculado,
+              idPedido: pedidoId,
+              tipoMovimientoOrigen: 'PEDIDO',
+            },
+          });
+        }
+
+        return { estadoPrevio };
+      },
+      { timeout: 20000, maxWait: 10000 }
+    );
+
+    // PDF + correo (fuera de la tx)
     setImmediate(() => {
       void (async () => {
         try {
@@ -701,42 +740,27 @@ export class PedidosService {
           });
           if (!pedidoParaPdf) return;
 
-          const url = await this.generarYSubirPDFPedido(
-            pedidoParaPdf as PedidoParaPDF
-          );
+          const url = await this.generarYSubirPDFPedido(pedidoParaPdf as any);
 
           if (
             ['FACTURADO', 'ENVIADO'].includes(estadoPrevio) &&
             pedidoParaPdf.cliente?.email
           ) {
-            const numeroWhatsApp = `+57${pedidoParaPdf.usuario?.telefono?.replace(
-              /\D/g,
-              ''
-            )}`;
-
+            const numeroWhatsApp = `+57${pedidoParaPdf.usuario?.telefono?.replace(/\D/g, '')}`;
             await this.resend.enviarCorreo(
               pedidoParaPdf.cliente.email,
               'Actualización de tu pedido',
-              `
-<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
-  <p>Hola <strong>${pedidoParaPdf.cliente.nombre}</strong>,</p>
-  <p>Tu pedido ha sido actualizado y sigue en estado <strong>${estadoPrevio}</strong>. Adjuntamos el comprobante en PDF:</p>
-  <p style="margin: 16px 0;">
-    <a href="${url}?t=${Date.now()}" target="_blank"
-       style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
-      Ver Comprobante PDF
-    </a>
-  </p>
-  <p>¿Tienes alguna duda o deseas hacer otro pedido? Contáctanos:</p>
-  <p>
-    <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
-       style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
-      💬 Contactar por WhatsApp
-    </a>
-  </p>
-  <p style="margin-top: 30px;">Gracias por tu compra,</p>
-  <p><strong>Equipo de Ventas</strong></p>
-</div>`
+              `<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+              <p>Hola <strong>${pedidoParaPdf.cliente.nombre}</strong>,</p>
+              <p>Tu pedido ha sido actualizado y sigue en estado <strong>${estadoPrevio}</strong>. Adjuntamos el comprobante en PDF:</p>
+              <p style="margin:16px 0;">
+                <a href="${url}?t=${Date.now()}" target="_blank"
+                  style="display:inline-block;padding:10px 20px;background-color:#4F46E5;color:#fff;text-decoration:none;border-radius:6px;">
+                  Ver Comprobante PDF
+                </a>
+              </p>
+              <p>¿Dudas? <a href="https://wa.me/${numeroWhatsApp}" target="_blank">Escríbenos por WhatsApp</a>.</p>
+            </div>`
             );
           }
         } catch (err) {
@@ -745,7 +769,7 @@ export class PedidosService {
       })();
     });
 
-    // 7) Devolver el pedido final consistente
+    // Respuesta al front
     const pedidoFinal = await this.prisma.pedido.findUnique({
       where: { id: pedidoId },
       include: {
@@ -756,7 +780,6 @@ export class PedidosService {
         estados: { orderBy: { fechaEstado: 'desc' } },
       },
     });
-
     return pedidoFinal!;
   }
 

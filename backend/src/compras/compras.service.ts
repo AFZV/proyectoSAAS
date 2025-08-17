@@ -19,6 +19,90 @@ export class ComprasService {
   /**
    * Crea una compra + su detalle + actualiza/inicializa Inventario.
    */
+  // Dentro de ComprasService (privado)
+  private async computeRecepcion(
+    tx: PrismaService, // o Prisma.TransactionClient si prefieres tipar
+    params: { idCompra: string; empresaId: string }
+  ): Promise<{
+    estado: 'PENDIENTE' | 'PARCIAL' | 'RECIBIDA' | 'INCONSISTENTE';
+    recibida: boolean;
+    porProducto: Record<string, number>;
+  }> {
+    const { idCompra, empresaId } = params;
+
+    const tipoEntrada = await tx.tipoMovimientos.findFirst({
+      where: { tipo: 'ENTRADA' },
+      select: { idTipoMovimiento: true },
+    });
+    if (!tipoEntrada)
+      return { estado: 'PENDIENTE', recibida: false, porProducto: {} };
+
+    const detalles = await tx.detalleCompra.findMany({
+      where: { idCompra },
+      select: { idProducto: true, cantidad: true },
+    });
+    if (detalles.length === 0) {
+      return { estado: 'PENDIENTE', recibida: false, porProducto: {} };
+    }
+
+    // Sumatoria por producto de movimientos ENTRADA de esa compra
+    const entradas = await tx.movimientoInventario.groupBy({
+      by: ['idProducto'],
+      where: {
+        idCompra,
+        idEmpresa: empresaId,
+        idTipoMovimiento: tipoEntrada.idTipoMovimiento,
+      },
+      _sum: { cantidadMovimiendo: true },
+    });
+
+    const recMap = new Map<string, number>(
+      entradas.map((e) => [
+        e.idProducto,
+        Number(e._sum.cantidadMovimiendo ?? 0),
+      ])
+    );
+
+    const EPS = 1e-6;
+    let todoCero = true;
+    let todoIgual = true;
+
+    for (const d of detalles) {
+      const rec = recMap.get(d.idProducto) ?? 0;
+      if (rec > EPS) todoCero = false;
+      if (rec > d.cantidad + EPS) {
+        return {
+          estado: 'INCONSISTENTE',
+          recibida: false,
+          porProducto: Object.fromEntries(recMap),
+        };
+      }
+      if (Math.abs(rec - d.cantidad) > EPS) {
+        todoIgual = false;
+      }
+    }
+
+    if (todoIgual && !todoCero) {
+      return {
+        estado: 'RECIBIDA',
+        recibida: true,
+        porProducto: Object.fromEntries(recMap),
+      };
+    }
+    if (todoCero) {
+      return {
+        estado: 'PENDIENTE',
+        recibida: false,
+        porProducto: Object.fromEntries(recMap),
+      };
+    }
+    return {
+      estado: 'PARCIAL',
+      recibida: false,
+      porProducto: Object.fromEntries(recMap),
+    };
+  }
+
   async create(usuario: UsuarioPayload, data: CreateCompraDto) {
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -438,9 +522,7 @@ export class ComprasService {
     const detalle = await this.prisma.detalleCompra.findMany({
       where: {
         idCompra: idCompra,
-        compra: {
-          idEmpresa: usuario.empresaId,
-        },
+        compra: { idEmpresa: usuario.empresaId },
       },
       select: {
         cantidad: true,
@@ -448,18 +530,17 @@ export class ComprasService {
           select: {
             nombre: true,
             id: true,
-            precioCompra: true, // 👈 AGREGAR PRECIO DE COMPRA DEL PRODUCTO
-            precioVenta: true, // 👈 OPCIONAL: precio de venta también
+            precioCompra: true,
+            precioVenta: true,
           },
         },
         compra: {
           select: {
             idCompra: true,
             FechaCompra: true,
+            // 👇 MANTENGO tu select de movimientos por si lo usas en el front
             movimientosInventario: {
-              where: {
-                idTipoMovimiento: TipoEntrada?.idTipoMovimiento,
-              },
+              where: { idTipoMovimiento: TipoEntrada?.idTipoMovimiento },
               select: { cantidadMovimiendo: true },
               take: 1,
             },
@@ -472,12 +553,49 @@ export class ComprasService {
       throw new BadRequestException(`Compra ${idCompra} no encontrada.`);
     }
 
-    // Agrupamos por idCompra
+    // 👉 Cálculo de entradas por producto (NO cambia tu esquema)
+    const entradas = await this.prisma.movimientoInventario.groupBy({
+      by: ['idProducto'],
+      where: {
+        idCompra,
+        idEmpresa: usuario.empresaId,
+        idTipoMovimiento: TipoEntrada?.idTipoMovimiento,
+      },
+      _sum: { cantidadMovimiendo: true },
+    });
+
+    const recibidoPorProducto = new Map<string, number>(
+      entradas.map((e) => [
+        e.idProducto,
+        Number(e._sum.cantidadMovimiendo ?? 0),
+      ])
+    );
+
+    // 👉 Derivar estado de recepción (PENDIENTE | PARCIAL | RECIBIDA | INCONSISTENTE)
+    let estado: 'PENDIENTE' | 'PARCIAL' | 'RECIBIDA' | 'INCONSISTENTE' =
+      'PENDIENTE';
+    let todoCero = true;
+    let todoIgual = true;
+
+    for (const dc of detalle) {
+      const rec = recibidoPorProducto.get(dc.producto.id) ?? 0;
+      if (rec > 0) todoCero = false;
+      if (rec > dc.cantidad) {
+        estado = 'INCONSISTENTE';
+        break;
+      }
+      if (rec !== dc.cantidad) todoIgual = false;
+    }
+    if (estado !== 'INCONSISTENTE') {
+      if (todoIgual && !todoCero) estado = 'RECIBIDA';
+      else if (!todoCero) estado = 'PARCIAL';
+      else estado = 'PENDIENTE';
+    }
+
     const first = detalle[0].compra;
 
-    // 🔥 CALCULAR TOTALES
+    // 🔥 CALCULAR TOTALES + agregar cantidadRecibida por producto (sin quitar tu cantidadMovimiendo)
     const productos = detalle.map((dc) => {
-      // Usar precio del detalle si existe, sino el precioCompra del producto
       const precioUnitario = dc.producto.precioCompra || 0;
       const subtotal = dc.cantidad * precioUnitario;
 
@@ -485,33 +603,38 @@ export class ComprasService {
         id: dc.producto.id,
         nombre: dc.producto.nombre,
         cantidad: dc.cantidad,
-        precio: precioUnitario, // 👈 PRECIO UNITARIO
-        subtotal: subtotal, // 👈 SUBTOTAL CALCULADO
+        precio: precioUnitario,
+        subtotal,
         cantidadMovimiendo:
-          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0,
+          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0, // ← tu campo original
+        cantidadRecibida: recibidoPorProducto.get(dc.producto.id) ?? 0, // ← por-producto real
       };
     });
 
-    // 🔥 CALCULAR TOTAL GENERAL
     const totalCompra = productos.reduce((sum, prod) => sum + prod.subtotal, 0);
     const totalUnidades = productos.reduce(
       (sum, prod) => sum + prod.cantidad,
       0
     );
 
-    const resultado = {
-      idCompra: first.idCompra,
-      FechaCompra: first.FechaCompra,
-      productos: productos,
-      // 👈 AGREGAR TOTALES AL RESULTADO
-      resumen: {
-        cantidadProductos: productos.length,
-        totalUnidades: totalUnidades,
-        totalCompra: totalCompra,
-      },
+    // 👉 NUEVO: recepcion (no rompe nada existente)
+    const recepcion = {
+      estado,
+      recibida: estado === 'RECIBIDA',
+      porProducto: Object.fromEntries(recibidoPorProducto),
     };
 
-    return resultado;
+    return {
+      idCompra: first.idCompra,
+      FechaCompra: first.FechaCompra,
+      productos,
+      resumen: {
+        cantidadProductos: productos.length,
+        totalUnidades,
+        totalCompra,
+      },
+      recepcion, // 👈 añadido
+    };
   }
 
   async generarPdfCompra(
