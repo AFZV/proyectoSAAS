@@ -514,4 +514,127 @@ export class ReportesService {
       concepto: r.concepto,
     }));
   }
+  // Devuelve fletes de pedidos con saldo pendiente (sin filtro de fechas)
+  // Devuelve fletes de pedidos con saldo pendiente (sin filtro de fechas)
+  async fletesPendientesTotales(usuario: UsuarioPayload) {
+    const pedidos = await this.prisma.pedido.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+        total: { gt: 0 },
+        // Solo pedidos facturados (como en tus otros reportes)
+        estados: { some: { estado: 'ENVIADO' } },
+      },
+      include: {
+        cliente: {
+          select: {
+            nombre: true,
+            apellidos: true,
+            rasonZocial: true,
+            nit: true,
+            ciudad: true,
+          },
+        },
+        usuario: { select: { nombre: true } },
+        detalleRecibo: { select: { valorTotal: true } },
+        detalleAjusteCartera: { select: { valor: true } },
+      },
+    });
+
+    const rows = pedidos
+      .map((p) => {
+        const abonado = p.detalleRecibo.reduce(
+          (s, d) => s + Number(d.valorTotal || 0),
+          0
+        );
+        const ajustes = p.detalleAjusteCartera.reduce(
+          (s, d) => s + Number(d.valor || 0),
+          0
+        );
+        const total = Number(p.total || 0);
+        const saldoPendiente = Math.max(0, total - abonado - ajustes);
+
+        const flete = p.flete || 0; // 👈 renombra si tu columna se llama distinto
+
+        return {
+          id: p.id.slice(0, 6),
+          fecha: p.fechaPedido,
+          nombre: p.cliente.nombre,
+          apellidos: p.cliente.apellidos,
+          rasonZocial: p.cliente.rasonZocial,
+          nit: p.cliente.nit,
+          ciudad: p.cliente.ciudad,
+          vendedor: p.usuario?.nombre ?? '—',
+          flete,
+          saldoPendiente,
+        };
+      })
+      .filter((x) => x.saldoPendiente > 0); // Solo pendientes
+
+    return rows;
+  }
+
+  // Devuelve fletes de pedidos con saldo pendiente por rango de fechas
+  async fletesPendientesPorRango(
+    usuario: UsuarioPayload,
+    dto: CrearReporteInvDto
+  ) {
+    const { inicio, fin } = this.normalizarRango(dto.fechaInicio, dto.fechaFin);
+
+    const pedidos = await this.prisma.pedido.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+        total: { gt: 0 },
+        fechaPedido: { gte: inicio, lte: fin }, // 👈 rango por fecha de pedido
+        estados: { some: { estado: 'ENVIADO' } },
+      },
+      include: {
+        cliente: {
+          select: {
+            nombre: true,
+            apellidos: true,
+            rasonZocial: true,
+            nit: true,
+            ciudad: true,
+          },
+        },
+        usuario: { select: { nombre: true } },
+        detalleRecibo: { select: { valorTotal: true } },
+        detalleAjusteCartera: { select: { valor: true } },
+      },
+    });
+
+    const rows = pedidos
+      .map((p) => {
+        const abonado = p.detalleRecibo.reduce(
+          (s, d) => s + Number(d.valorTotal || 0),
+          0
+        );
+        const ajustes = p.detalleAjusteCartera.reduce(
+          (s, d) => s + Number(d.valor || 0),
+          0
+        );
+        const total = Number(p.total || 0);
+        const saldoPendiente = Math.max(0, total - abonado - ajustes);
+
+        const flete = p.flete || 0; // 👈 renombra si tu campo se llama distinto
+
+        return {
+          id: p.id.slice(0, 6),
+          fecha: p.fechaPedido,
+          nombre: p.cliente.nombre,
+          apellidos: p.cliente.apellidos,
+          rasonZocial: p.cliente.rasonZocial,
+          nit: p.cliente.nit,
+          ciudad: p.cliente.ciudad,
+          vendedor: p.usuario?.nombre ?? '—',
+          flete,
+          total,
+          abonado,
+          saldoPendiente,
+        };
+      })
+      .filter((x) => x.saldoPendiente > 0);
+
+    return rows;
+  }
 }

@@ -34,6 +34,8 @@ function AddToCartModal({
   isOpen,
   onClose,
   onConfirm,
+  observacion, // <- NUEVO
+  onChangeObservacion, // <- NUEVO
 }: AddToCartModalProps) {
   const [cantidad, setCantidad] = useState(1);
 
@@ -79,6 +81,20 @@ function AddToCartModal({
                 {formatValue(producto.precio)}
               </p>
             </div>
+          </div>
+          {/* NUEVO: Observación por producto */}
+          <div className="space-y-2">
+            <Label>Observación para este producto</Label>
+            <textarea
+              value={observacion ?? ""}
+              onChange={(e) => onChangeObservacion?.(e.target.value)}
+              className="w-full min-h-24 rounded-lg border border-input bg-background p-3 text-sm 
+                         focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Ej: Entregar sin bolsa, color alterno si no hay, etc."
+            />
+            <p className="text-xs text-muted-foreground">
+              Se incluirá automáticamente al finalizar el pedido.
+            </p>
           </div>
 
           {/* Selector de cantidad */}
@@ -159,10 +175,13 @@ export function ProductCard({
   onDescargarImagen,
   isInCart = false,
   cantidadEnCarrito = 0,
+  observacion,
+  onChangeObservacion,
 }: ProductCardProps & { onVerDetalles?: (producto: any) => void } & {
   onDescargarImagen?: (producto: any) => void;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showObs, setShowObs] = useState(false); // <- toggle inline opcional
 
   const handleModalAdd = (cantidad: number) => {
     onAgregarAlCarrito(producto, cantidad);
@@ -326,6 +345,8 @@ export function ProductCard({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onConfirm={handleModalAdd}
+        observacion={observacion} // <- pasa la observación
+        onChangeObservacion={onChangeObservacion}
       />
     </>
   );

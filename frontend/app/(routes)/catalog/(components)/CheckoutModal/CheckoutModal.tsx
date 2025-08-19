@@ -364,6 +364,8 @@ interface CheckoutModalProps {
   onOpenChange: (open: boolean) => void;
   carrito: CarritoItem[];
   onPedidoCreado: () => void;
+  initialNotes?: string; // <- NUEVA
+  onNotesChange?: (texto: string) => void; // <- NUEVA
 }
 
 export function CheckoutModal({
@@ -371,11 +373,24 @@ export function CheckoutModal({
   onOpenChange,
   carrito,
   onPedidoCreado,
+  initialNotes,
+  onNotesChange,
 }: CheckoutModalProps) {
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [observaciones, setObservaciones] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nitOffline, setNitOffline] = useState("");
+
+  const [notes, setNotes] = useState("");
+  const prevOpenRef = React.useRef(false);
+
+  useEffect(() => {
+    // Solo cargar initialNotes cuando el modal se ABRE (flanco false -> true)
+    if (isOpen && !prevOpenRef.current) {
+      setNotes(initialNotes ?? "");
+    }
+    prevOpenRef.current = isOpen;
+  }, [isOpen, initialNotes]);
 
   const { getToken } = useAuth();
   const { toast } = useToast();
@@ -477,7 +492,7 @@ export function CheckoutModal({
           cantidad: item.cantidad,
           precio: item.precio,
         })),
-        observaciones,
+        observaciones: notes,
         total: totalPrecio,
         fecha: new Date().toISOString(),
         retries: 0,
@@ -527,7 +542,7 @@ export function CheckoutModal({
         cantidad: item.cantidad,
         precio: item.precio,
       })),
-      observaciones,
+      observaciones: notes,
       total: totalPrecio,
       fecha: new Date().toISOString(),
     };
@@ -656,26 +671,23 @@ export function CheckoutModal({
             )}
 
             {/* Observaciones */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Observaciones
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <textarea
-                  placeholder="Notas del pedido (opcional)"
-                  value={observaciones}
-                  onChange={(e) => setObservaciones(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-input px-3 py-2 text-sm"
-                  maxLength={500}
-                />
-                <div className="mt-1 text-xs text-muted-foreground text-right">
-                  {observaciones.length}/500 caracteres
-                </div>
-              </CardContent>
-            </Card>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-muted-foreground">
+                Observaciones del pedido
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full min-h-32 rounded-lg border border-input bg-background p-3 text-sm 
+             focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Agrega instrucciones adicionales para el pedido..."
+              />
+
+              <p className="text-xs text-muted-foreground">
+                Este campo se envía con el pedido. Ya incluye las observaciones
+                por producto si agregaste alguna.
+              </p>
+            </div>
           </div>
 
           {/* Columna derecha */}

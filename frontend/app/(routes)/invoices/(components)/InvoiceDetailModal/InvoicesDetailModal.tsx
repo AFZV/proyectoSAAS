@@ -574,9 +574,50 @@ export function InvoiceDetailModal({
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
                     OBSERVACIONES
                   </p>
-                  <div className="bg-gray-50 p-3 rounded text-sm text-gray-700">
-                    {pedido.observaciones}
-                  </div>
+
+                  {(() => {
+                    const texto = pedido.observaciones || "";
+                    const sinTitulo = texto.replace(
+                      /^OBSERVACIONES POR PRODUCTO:\s*/i,
+                      ""
+                    );
+                    const [soloProductos, generalRaw] =
+                      sinTitulo.split(/OBSERVACIÓN GENERAL:/i);
+
+                    const items = (soloProductos || "")
+                      .split(/•\s*/)
+                      .filter(Boolean)
+                      .map((s) => s.trim());
+
+                    return (
+                      <div className="bg-gray-50 p-3 rounded">
+                        {items.length > 0 && (
+                          <>
+                            <p className="text-xs text-gray-500 mb-1">
+                              Por producto
+                            </p>
+                            <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700">
+                              {items.map((it, i) => (
+                                <li key={i}>{it}</li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+
+                        {generalRaw && generalRaw.trim() && (
+                          <>
+                            <div className="h-3" />
+                            <p className="text-xs text-gray-500 mb-1">
+                              Observación general
+                            </p>
+                            <div className="text-sm text-gray-700 whitespace-pre-line">
+                              {generalRaw.trim()}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

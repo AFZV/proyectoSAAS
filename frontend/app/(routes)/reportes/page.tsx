@@ -13,7 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Package, Users, FileText, CreditCard, DollarSign } from "lucide-react";
+import {
+  Package,
+  Users,
+  FileText,
+  CreditCard,
+  DollarSign,
+  Truck,
+} from "lucide-react";
 
 // Configuración de datos de reportes
 const REPORTES_DATA: ReporteCardData[] = [
@@ -86,6 +93,25 @@ const REPORTES_DATA: ReporteCardData[] = [
     ],
   },
   {
+    id: "fletes",
+    title: "FLETES",
+    description: "Fletes de pedidos con saldo pendiente (por cobrar)",
+    icon: Truck,
+    color: "bg-gradient-to-r from-rose-500 to-pink-600",
+    options: [
+      {
+        id: "general",
+        label: "General",
+        description: "Fletes de pedidos con saldo",
+      },
+      {
+        id: "rango",
+        label: "Por Fecha",
+        description: "Fletes pendientes filtrados por  fechas",
+      },
+    ],
+  },
+  {
     id: "cartera",
     title: "CARTERA",
     description: "Reportes de cuentas por cobrar",
@@ -131,7 +157,13 @@ const REPORTES_DATA: ReporteCardData[] = [
 ];
 
 interface SelectedReporte {
-  tipo: "inventario" | "clientes" | "pedidos" | "cartera" | "recaudos";
+  tipo:
+    | "inventario"
+    | "clientes"
+    | "pedidos"
+    | "cartera"
+    | "recaudos"
+    | "fletes";
   opcion: string;
 }
 
@@ -146,7 +178,8 @@ export default function ReportesPage() {
         | "clientes"
         | "pedidos"
         | "cartera"
-        | "recaudos",
+        | "recaudos"
+        | "fletes",
       opcion: opcionId,
     });
   };

@@ -70,7 +70,7 @@ export function CarrouselProducts({
                       Stock: {producto.stockActual}
                     </p>
                     <p className="text-base font-bold text-green-600">
-                      $ {producto.precioCompra.toLocaleString("es-CO")}
+                      $ {producto.precioVenta.toLocaleString("es-CO")}
                     </p>
                   </div>
                 </CardContent>

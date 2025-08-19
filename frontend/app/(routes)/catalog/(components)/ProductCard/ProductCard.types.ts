@@ -5,6 +5,8 @@ export interface ProductCardProps {
   onAgregarAlCarrito: (producto: Producto, cantidad: number) => void;
   isInCart?: boolean;
   cantidadEnCarrito?: number;
+  observacion?: string;
+  onChangeObservacion?: (texto: string) => void;
 }
 
 export interface AddToCartModalProps {
@@ -12,4 +14,6 @@ export interface AddToCartModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (cantidad: number) => void;
+  observacion?: string;
+  onChangeObservacion?: (texto: string) => void;
 }

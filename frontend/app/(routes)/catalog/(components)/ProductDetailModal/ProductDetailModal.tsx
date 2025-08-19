@@ -31,6 +31,8 @@ interface ProductDetailModalProps {
   onAgregarAlCarrito: (producto: Producto, cantidad: number) => void;
   isInCart?: boolean;
   cantidadEnCarrito?: number;
+  observacion?: string;
+  onChangeObservacion?: (texto: string) => void;
 }
 
 export function ProductDetailModal({
@@ -40,6 +42,8 @@ export function ProductDetailModal({
   onAgregarAlCarrito,
   isInCart = false,
   cantidadEnCarrito = 0,
+  observacion,
+  onChangeObservacion,
 }: ProductDetailModalProps) {
   const [cantidad, setCantidad] = useState(1);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -254,6 +258,21 @@ export function ProductDetailModal({
                   </div>
                 </div>
               )}
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">
+                  Observación para este producto
+                </label>
+                <textarea
+                  value={observacion ?? ""}
+                  onChange={(e) => onChangeObservacion?.(e.target.value)}
+                  className="w-full min-h-24 rounded-lg border border-input bg-background p-3 text-sm 
+               focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ej: Entregar sin bolsas, cambiar color si no hay stock, etc."
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Esta nota se agregará automáticamente al finalizar el pedido.
+                </p>
+              </div>
 
               {/* Botones */}
               <div className="space-y-3">

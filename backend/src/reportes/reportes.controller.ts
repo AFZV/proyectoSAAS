@@ -574,4 +574,95 @@ export class ReportesController {
       return res.end();
     }
   }
+
+  ///fletes
+  // FLETES - TOTALES (sin fechas)
+  @Roles('admin')
+  @Get('fletes/:format')
+  async exportFletesTotales(
+    @Req() req: UsuarioRequest,
+    @Param('format') format: 'excel' | 'pdf',
+    @Res() res: Response
+  ) {
+    const usuario = req.usuario;
+
+    // Debes implementar este método en ReportesService
+    // Debe retornar SOLO pedidos con saldo pendiente (> 0)
+    // y sus campos de flete.
+    const rows = await this.reportesService.fletesPendientesTotales(usuario);
+
+    // Definición de columnas (ajusta keys si tu service devuelve otros nombres)
+    const columns: ColumnDef<(typeof rows)[0]>[] = [
+      { header: 'ID Pedido', key: 'id', width: 18 },
+      { header: 'Fecha', key: 'fecha', width: 18, numFmt: 'dd/mm/yyyy' },
+      { header: 'Nombre', key: 'nombre', width: 35 },
+      { header: 'Apellidos', key: 'apellidos', width: 35 },
+      { header: 'RazonSocial', key: 'rasonZocial', width: 35 },
+      { header: 'NIT', key: 'nit', width: 20 },
+      { header: 'Ciudad', key: 'ciudad', width: 20 },
+      { header: 'Vendedor', key: 'vendedor', width: 25 },
+      { header: 'Flete', key: 'flete', width: 14, numFmt: '#,##0.00' },
+    ];
+
+    if (format === 'excel') {
+      const wb = buildExcel('Fletes Pendientes - Totales', columns, rows);
+      res.status(HttpStatus.OK).set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition':
+          'attachment; filename="fletes-pendientes-totales.xlsx"',
+      });
+      await wb.xlsx.write(res);
+      return res.end();
+    }
+
+    // Fallback JSON (si algún día habilitas PDF)
+    return res.status(HttpStatus.OK).json({ data: rows });
+  }
+
+  // FLETES - POR RANGO (con fechas)
+  @Roles('admin')
+  @Post('fletes/rango/:format')
+  async exportFletesPorRango(
+    @Req() req: UsuarioRequest,
+    @Param('format') format: 'excel' | 'pdf',
+    @Body() dto: CrearReporteInvDto, // { fechaInicio: string; fechaFin: string; }
+    @Res() res: Response
+  ) {
+    const usuario = req.usuario;
+
+    // Debes implementar este método en ReportesService
+    // Debe filtrar por fechaPedido entre fechaInicio y fechaFin,
+    // y considerar sólo pedidos con saldo pendiente (> 0).
+    const rows = await this.reportesService.fletesPendientesPorRango(
+      usuario,
+      dto
+    );
+
+    const columns: ColumnDef<(typeof rows)[0]>[] = [
+      { header: 'ID Pedido', key: 'id', width: 18 },
+      { header: 'Fecha', key: 'fecha', width: 18, numFmt: 'dd/mm/yyyy' },
+      { header: 'Nombre', key: 'nombre', width: 35 },
+      { header: 'Apellidos', key: 'apellidos', width: 35 },
+      { header: 'RazonSocial', key: 'rasonZocial', width: 35 },
+      { header: 'NIT', key: 'nit', width: 20 },
+      { header: 'Ciudad', key: 'ciudad', width: 20 },
+      { header: 'Vendedor', key: 'vendedor', width: 25 },
+      { header: 'Flete', key: 'flete', width: 14, numFmt: '#,##0.00' },
+    ];
+
+    if (format === 'excel') {
+      const wb = buildExcel(`Fletes`, columns, rows);
+      res.status(HttpStatus.OK).set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition':
+          'attachment; filename="fletes-pendientes-rango.xlsx"',
+      });
+      await wb.xlsx.write(res);
+      return res.end();
+    }
+
+    return res.status(HttpStatus.OK).json({ data: rows });
+  }
 }

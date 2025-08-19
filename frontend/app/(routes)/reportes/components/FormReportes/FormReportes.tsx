@@ -91,7 +91,13 @@ const carteraVendedorSchema = formatoBaseSchema.extend({
   fechaFin: z.string().min(1, "Fecha final requerida"),
   vendedorId: z.string().min(1, "Vendedor requerido"),
 });
+// FLETES
 
+const fletesTotalesSchema = formatoBaseSchema; // sin fechas
+const fletesRangoSchema = formatoBaseSchema.extend({
+  fechaInicio: z.string().min(1, "Fecha inicial requerida"),
+  fechaFin: z.string().min(1, "Fecha final requerida"),
+});
 const balanceGeneralSchema = formatoBaseSchema;
 
 export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
@@ -198,7 +204,10 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       if (opcion === "general") return recaudoGeneralSchema;
       if (opcion === "vendedor") return recaudoVendedorSchema;
     }
-
+    if (tipo === "fletes") {
+      if (opcion === "totales") return fletesTotalesSchema; // no pide fechas
+      if (opcion === "rango") return fletesRangoSchema; // pide fechas
+    }
     return formatoBaseSchema;
   };
 
@@ -309,6 +318,19 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
           fechaFin: data.fechaFin,
         };
       }
+    } else if (tipo === "fletes") {
+      if (opcion === "general") {
+        endpoint = `/reportes/fletes/${data.formato}`; // sin fechas
+        method = "GET";
+        body = {};
+      } else if (opcion === "rango") {
+        endpoint = `/reportes/fletes/rango/${data.formato}`; // con fechas
+        method = "POST";
+        body = {
+          fechaInicio: data.fechaInicio,
+          fechaFin: data.fechaFin,
+        };
+      }
     }
 
     const fetchOptions: RequestInit = {
@@ -381,6 +403,7 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
     return (
       tipo === "pedidos" ||
       tipo === "recaudos" ||
+      (tipo === "fletes" && opcion === "rango") ||
       (tipo === "cartera" && opcion !== "balance")
     );
   };

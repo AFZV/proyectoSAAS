@@ -11,6 +11,8 @@ import {
   Search as SearchIcon,
   Filter,
   ShoppingCart,
+  ArrowUp01Icon,
+  ArrowUpCircle,
 } from "lucide-react";
 import { Pagination } from "./Pagination";
 import { useAuth } from "@clerk/nextjs";
@@ -40,6 +42,10 @@ export function CatalogClient({
   const [productos] = useState<Producto[]>(productosIniciales);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [carrito, setCarrito] = useState<CarritoItem[]>([]);
+  const [observacionesPorProducto, setObservacionesPorProducto] = useState<
+    Record<string, string>
+  >({});
+  const [observacionGeneral, setObservacionGeneral] = useState<string>("");
 
   // Estados de filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -77,6 +83,35 @@ export function CatalogClient({
     } catch (error) {
       console.error("Error al cargar categorías:", error);
     }
+  };
+  const setObservacionProducto = (productoId: string, texto: string) => {
+    setObservacionesPorProducto((prev) => ({ ...prev, [productoId]: texto }));
+  };
+
+  const getObservacionProducto = (productoId: string) => {
+    return observacionesPorProducto[productoId] || "";
+  };
+
+  // Construye el texto que se mostrará en el checkout (editable)
+  const buildTextoObservacionesCheckout = () => {
+    const lineas = Object.entries(observacionesPorProducto)
+      .filter(([, obs]) => obs?.trim())
+      .map(([id, obs]) => {
+        const p = productos.find((x) => x.id === id);
+        const nombre = p?.nombre ?? "Producto";
+        return `• ${nombre}: ${obs.trim()}`;
+      });
+
+    const bloqueProductos = lineas.length
+      ? `OBSERVACIONES POR PRODUCTO:\n${lineas.join("\n")}`
+      : "";
+    const bloqueGeneral = observacionGeneral.trim()
+      ? `${
+          lineas.length ? "\n\n" : ""
+        }OBSERVACIÓN GENERAL:\n${observacionGeneral.trim()}`
+      : "";
+
+    return `${bloqueProductos}${bloqueGeneral}`.trim();
   };
 
   // Filtrar productos basado en búsqueda y categoría
@@ -228,6 +263,7 @@ export function CatalogClient({
 
   // Función para proceder al checkout
   const handleCheckout = () => {
+    const textoInicial = buildTextoObservacionesCheckout();
     setIsCartOpen(false);
     setIsCheckoutOpen(true);
   };
@@ -453,6 +489,7 @@ export function CatalogClient({
             totalPaginas={totalPaginas}
             setPaginaActual={setPaginaActual}
           />
+
           {productosFiltrados.length === 0 ? (
             /* No hay productos */
             <Card>
@@ -504,17 +541,31 @@ export function CatalogClient({
                     onVerDetalles={handleVerDetalles}
                     isInCart={!!enCarrito}
                     cantidadEnCarrito={enCarrito?.cantidad || 0}
+                    observacion={observacionesPorProducto[producto.id] || ""}
+                    onChangeObservacion={(texto) =>
+                      setObservacionProducto(producto.id, texto)
+                    }
                   />
                 );
               })}
             </div>
           )}
-          {/* paginacion */}
+
           <Pagination
             paginaActual={paginaActual}
             totalPaginas={totalPaginas}
             setPaginaActual={setPaginaActual}
           />
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="fixed bottom-6 right-6 flex items-center gap-2 px-4 py-2 
+             bg-blue-600 hover:bg-blue-700 text-white font-semibold 
+             rounded-full shadow-lg transition-all duration-300 
+             hover:scale-105"
+          >
+            <ArrowUpCircle className="w-5 h-5" />
+            Ir Arriba
+          </button>
         </div>
 
         {/* Carrito lateral fijo (solo desktop) */}
@@ -599,6 +650,13 @@ export function CatalogClient({
         onOpenChange={setIsCheckoutOpen}
         carrito={carrito}
         onPedidoCreado={handlePedidoCreado}
+        initialNotes={buildTextoObservacionesCheckout()}
+        onNotesChange={(nuevoTexto) => {
+          // Opcional: si quieres dividir otra vez en general vs por producto puedes hacerlo,
+          // pero normalmente guardamos todo en una sola cadena final para el pedido.
+          // Aquí solo guardo en observacionGeneral lo que no sea por-producto si lo deseas.
+          setObservacionGeneral(nuevoTexto);
+        }}
       />
 
       {/* NUEVO: Modal de detalles del producto */}
@@ -611,6 +669,13 @@ export function CatalogClient({
         cantidadEnCarrito={
           getProductoEnCarrito(selectedProduct?.id || "")?.cantidad || 0
         }
+        observacion={
+          selectedProduct ? getObservacionProducto(selectedProduct.id) : ""
+        }
+        onChangeObservacion={(texto) => {
+          if (selectedProduct)
+            setObservacionProducto(selectedProduct.id, texto);
+        }}
       />
     </div>
   );

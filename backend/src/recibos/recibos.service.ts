@@ -366,6 +366,11 @@ export class RecibosService {
     usuario: UsuarioPayload
   ) {
     if (!usuario) throw new UnauthorizedException('Usuario no autorizado');
+    if (usuario.rol !== 'admin') {
+      throw new UnauthorizedException(
+        'No tienes permiso para editar este recibo'
+      );
+    }
 
     const { clienteId } = data;
     if (!clienteId) throw new UnauthorizedException('Usuario no autorizado');
@@ -572,6 +577,27 @@ export class RecibosService {
       mensaje: 'Recibo actualizado con éxito',
       recibo: reciboActualizado,
     };
+  }
+
+  //marcar recibo como revisado
+  async marcarRevisado(usuario: UsuarioPayload, id: string) {
+    const { empresaId } = usuario;
+    const result = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.recibo.findFirst({
+        where: { id, empresaId },
+        select: { revisado: true },
+      });
+      if (!current) throw new BadRequestException('Recibo no encontrado');
+
+      const updated = await tx.recibo.update({
+        where: { id }, // id es PK; empresaId se validó arriba
+        data: { revisado: !current.revisado },
+        select: { revisado: true },
+      });
+      return updated.revisado; // 👈 devolvemos boolean
+    });
+
+    return result; // 👈 devolvemos el boolean al controller
   }
 
   //logica para obtener acceso a un recibo por su id

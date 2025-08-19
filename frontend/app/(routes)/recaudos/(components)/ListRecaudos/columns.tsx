@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { ColumnDef, type Column } from "@tanstack/react-table";
-import { ArrowUpDown, MoreHorizontal } from "lucide-react";
+import {
+  ArrowUpDown,
+  MoreHorizontal,
+  CheckCircle,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +20,7 @@ import {
 import { formatValue } from "@/utils/FormartValue";
 import { ReciboDetallesModal } from "../DetalleModalRecibo";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@clerk/nextjs";
 
 export type ReciboConRelaciones = {
   id: string;
@@ -24,6 +30,7 @@ export type ReciboConRelaciones = {
   concepto: string;
   Fechacrecion: string;
   empresaId: string;
+  revisado?: boolean; // 👈 nuevo
   cliente: {
     nombre: string;
     apellidos: string;
@@ -43,19 +50,118 @@ export type ReciboConRelaciones = {
   }[];
 };
 
+function toBool(v: unknown) {
+  return typeof v === "string" ? v === "true" : !!v;
+}
+
+/** Toggle de "revisado" con chulo verde */
+function RevisadoToggle({ recibo }: { recibo: ReciboConRelaciones }) {
+  const [revisado, setRevisado] = useState(!!recibo.revisado);
+  const [loading, setLoading] = useState(false);
+  const { getToken } = useAuth();
+  const { toast } = useToast();
+  React.useEffect(() => {
+    setRevisado(!!recibo.revisado); // 👈 resync al cambiar props
+  }, [recibo.id, recibo.revisado]);
+
+  const toggle = async () => {
+    try {
+      setLoading(true);
+      const token = await getToken();
+      const BACKEND_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+      const resp = await fetch(`${BACKEND_URL}/recibos/${recibo.id}/revisado`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        // sin body: el backend hace toggle
+      });
+
+      // intenta leer JSON solo una vez
+      let payload: any = null;
+      const ct = resp.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        try {
+          payload = await resp.json();
+        } catch {
+          payload = null;
+        }
+      }
+
+      if (!resp.ok) {
+        const msg =
+          (payload && (payload.message || payload.error)) ||
+          resp.statusText ||
+          "Error al actualizar";
+        throw new Error(msg);
+      }
+
+      // backend devuelve { revisado: boolean } o boolean
+      const next =
+        typeof payload === "boolean"
+          ? payload
+          : !!(payload && payload.revisado);
+
+      setRevisado(next);
+      // asegura consistencia con la tabla al paginar
+      (recibo as any).revisado = next;
+
+      toast({
+        title: next
+          ? "Recibo marcado como revisado"
+          : "Marca de revisión quitada",
+        duration: 900,
+      });
+    } catch (e: any) {
+      toast({
+        title: "No se pudo actualizar",
+        description: e?.message || "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={loading}
+      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-medium
+        ${
+          revisado
+            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+            : "bg-muted border-muted-foreground/20 text-muted-foreground"
+        }`}
+      title={revisado ? "Revisado" : "Marcar como revisado"}
+    >
+      {loading ? (
+        <Loader2 className="w-4 h-4 animate-spin" />
+      ) : (
+        <CheckCircle
+          className={`w-4 h-4 ${
+            revisado ? "text-emerald-600" : "text-muted-foreground"
+          }`}
+        />
+      )}
+      {revisado ? "Revisado" : "Pendiente"}
+    </button>
+  );
+}
+
+/** Acciones desplegable (opcionalmente podrías agregar aquí también el toggle) */
 function ReciboDropdownActions({ recibo }: { recibo: ReciboConRelaciones }) {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
 
   const handleCopy = () => {
     navigator.clipboard.writeText(recibo.id);
-    toast({
-      title: `Número copiado: ${recibo.id}`,
-      duration: 1000,
-    });
+    toast({ title: `Número copiado: ${recibo.id}`, duration: 1000 });
   };
 
-  // ✅ URL dinámica del PDF
   const pdfUrl = `https://files.bgacloudsaas.com/empresas/${recibo.empresaId}/recibos/recibo_${recibo.id}.pdf`;
 
   return (
@@ -123,8 +229,7 @@ export const columns: ColumnDef<ReciboConRelaciones>[] = [
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
-        Cliente
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        Cliente <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) => {
@@ -164,8 +269,7 @@ export const columns: ColumnDef<ReciboConRelaciones>[] = [
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
-        Fecha
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        Fecha <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) =>
@@ -181,17 +285,26 @@ export const columns: ColumnDef<ReciboConRelaciones>[] = [
     header: "Pedidos Afectados",
     cell: ({ row }) => {
       const pedidos = row.original.detalleRecibo
-        .map((detalle) => `#${detalle.idPedido.slice(0, 5).toUpperCase()}`)
+        .map((d) => `#${d.idPedido.slice(0, 5).toUpperCase()}`)
         .join(", ");
       return pedidos || "—";
     },
   },
+
+  // 👇 NUEVA COLUMNA
+  {
+    accessorKey: "revisado",
+    header: "Estado",
+    cell: ({ row }) => (
+      <RevisadoToggle key={row.original.id} recibo={row.original} />
+    ),
+    // permite ocultarla desde el menú de columnas si quieres
+    enableHiding: true,
+  },
+
   {
     id: "acciones",
     header: "Acciones",
-    cell: ({ row }) => {
-      const recibo = row.original;
-      return <ReciboDropdownActions recibo={recibo} />;
-    },
+    cell: ({ row }) => <ReciboDropdownActions recibo={row.original} />,
   },
 ];

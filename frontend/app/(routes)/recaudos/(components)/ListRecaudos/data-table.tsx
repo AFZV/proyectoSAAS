@@ -60,6 +60,8 @@ export function ClienteDataTable<TData, TValue>({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getRowId: (row: any) => row.id, // 👈 clave estable por registro
+
     state: {
       sorting,
       columnFilters,
@@ -147,7 +149,7 @@ export function ClienteDataTable<TData, TValue>({
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
-                  key={row.id}
+                  key={row.original.id}
                   data-state={row.getIsSelected() && "selected"}
                   className="hover:bg-muted/50"
                 >
