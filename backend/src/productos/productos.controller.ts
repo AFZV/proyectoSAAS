@@ -10,6 +10,8 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { createReadStream, statSync } from 'fs';
+import { Response } from 'express';
 import { ProductosService } from './productos.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/actualizar-producto.dto';
@@ -18,7 +20,6 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { CreateCategoriaProductoDto } from './dto/create-categoria-producto.dto';
-import { Response } from 'express';
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('productos')
@@ -135,12 +136,17 @@ export class ProductosController {
   @Get('catalogo/pdf')
   async descargarCatalogo(@Res() res: Response, @Req() req: UsuarioRequest) {
     const usuario = req.usuario;
-    const buffer = await this.productosService.findAllforCatalog(usuario);
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': 'attachment; filename=catalogo_productos.pdf',
-      'Content-Length': buffer.length.toString(),
-    });
-    res.end(buffer);
+    const { path: filePath } =
+      await this.productosService.findAllforCatalog(usuario);
+
+    const { size } = statSync(filePath);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="catalogo_productos.pdf"'
+    );
+    res.setHeader('Content-Length', String(size)); // (opcional; puedes omitir para chunked)
+
+    createReadStream(filePath).pipe(res); // 👈 sin cargar a RAM
   }
 }

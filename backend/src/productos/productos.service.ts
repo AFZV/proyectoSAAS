@@ -116,7 +116,7 @@ export class ProductosService {
   }
 
   /////productos para pdf de catalogo
-  async findAllforCatalog(usuario: UsuarioPayload): Promise<Buffer> {
+  async findAllforCatalog(usuario: UsuarioPayload): Promise<{ path: string }> {
     if (!usuario) throw new BadRequestException('no permitido');
     const { empresaId, rol } = usuario;
 
@@ -165,10 +165,9 @@ export class ProductosService {
       ),
     }));
 
-    const { buffer } =
+    const { path } =
       await this.pdfUploaderService.generarCatalogoPDF(productosFormateados);
-
-    return buffer;
+    return { path };
   }
 
   async UpdateEstadoProduct(productoId: string) {
