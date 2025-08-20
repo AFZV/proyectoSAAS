@@ -49,6 +49,30 @@ export class InvoicesService {
       body: JSON.stringify(data),
     });
   }
+  // invoices.service.ts
+  async actualizarEnvioPedido(
+    token: string,
+    pedidoId: string,
+    data: { guiaTransporte?: string | null; flete?: number | null }
+  ) {
+    const payload = {
+      guiaTransporte:
+        typeof data.guiaTransporte === "string"
+          ? data.guiaTransporte.trim() || null
+          : data.guiaTransporte ?? null,
+      flete:
+        typeof data.flete === "number"
+          ? Number.isFinite(data.flete)
+            ? data.flete
+            : null
+          : data.flete ?? null,
+    };
+
+    return this.makeRequest<Pedido>(`/pedidos/${pedidoId}/envio`, token, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
 
   // 🔄 ACTUALIZAR ESTADO DE PEDIDO - SIN ENTREGADO
   async actualizarEstadoPedido(

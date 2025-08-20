@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -15,6 +16,7 @@ import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { ResendService } from 'src/resend/resend.service';
 import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
 import { Prisma } from '@prisma/client';
+import { UpdateEnvioDto } from './dto/update-envio-pedido.dto';
 type PedidoParaPDF = Prisma.PedidoGetPayload<{
   include: {
     cliente: true;
@@ -783,6 +785,53 @@ export class PedidosService {
     return pedidoFinal!;
   }
 
+  ///actualizar guia y flete
+
+  async actualizarEnvio(
+    pedidoId: string,
+    data: UpdateEnvioDto, // debe incluir guiaTransporte?: string|null; flete?: number|null
+    usuario: UsuarioPayload
+  ) {
+    const { rol, empresaId } = usuario;
+
+    // 1) Permisos
+    if (rol !== 'admin' && rol !== 'bodega') {
+      throw new UnauthorizedException('No está autorizado');
+    }
+
+    // 3) Cargar pedido y validar estado actual
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id: pedidoId, empresaId },
+      select: {
+        id: true,
+        estados: {
+          select: { estado: true, fechaEstado: true },
+          orderBy: { fechaEstado: 'desc' },
+          take: 1,
+        },
+      },
+    });
+    if (!pedido) throw new NotFoundException('Pedido no encontrado');
+
+    const estadoActual = pedido.estados[0]?.estado ?? 'GENERADO';
+    if (estadoActual !== 'ENVIADO') {
+      throw new BadRequestException(
+        'Solo se puede editar guía y flete cuando el pedido está ENVIADO.'
+      );
+    }
+
+    // 5) Actualizar y devolver (incluye lo que necesites)
+    return this.prisma.pedido.update({
+      where: { id: pedidoId },
+      data: { flete: data.flete, guiaTransporte: data.guiaTransporte },
+      include: {
+        cliente: true,
+        usuario: true,
+        estados: true,
+        productos: { include: { producto: true } },
+      },
+    });
+  }
   /////////////////////////////////////////////////////////////////////
   async obtenerPedidosFiltro(data: FilterPedidoDto, usuario: UsuarioPayload) {
     const { filtro, tipoFiltro } = data;

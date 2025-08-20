@@ -11,6 +11,7 @@ import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CreateCategoriaProductoDto } from './dto/create-categoria-producto.dto';
 import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import { formatearTexto } from 'src/lib/formatearTexto';
+
 @Injectable()
 export class ProductosService {
   constructor(

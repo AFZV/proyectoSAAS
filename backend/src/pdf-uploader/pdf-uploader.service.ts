@@ -150,7 +150,7 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   private async loadContent(page: Page, html: string): Promise<void> {
     await page.setContent(html, {
       waitUntil: 'domcontentloaded',
-      timeout: 10000,
+      timeout: 120_000, // ⬅️ sube de 10s a 120s
     });
 
     // Esperar que cargue al menos una imagen
@@ -201,16 +201,22 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async createPage(): Promise<Page> {
-    if (!this.browser) {
-      throw new Error('Browser no inicializado');
-    }
-
+    if (!this.browser) throw new Error('Browser no inicializado');
     const page = await this.browser.newPage();
+
+    // Aumenta timeouts por defecto del Page
+    page.setDefaultTimeout(180_000); // 3 min (interacciones)
+    page.setDefaultNavigationTimeout(180_000); // 3 min (navegación)
+
     await page.setViewport({ width: 794, height: 1123 }); // A4
+    await page.emulateMediaType('screen'); // por si tu CSS difiere
     return page;
   }
 
   private async generatePdfBuffer(page: Page): Promise<Buffer> {
+    try {
+      await page.waitForNetworkIdle({ idleTime: 1200, timeout: 90_000 });
+    } catch {}
     const buffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -221,6 +227,7 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
         bottom: '10mm',
         left: '10mm',
       },
+      timeout: 180_000,
     });
 
     return Buffer.from(buffer);

@@ -17,6 +17,7 @@ import { CrearEstadoPedidoDto } from './dto/create-estado-pedido.dto';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
 import { FilterPedidoDto } from './dto/filter-pedido.dto';
+import { UpdateEnvioDto } from './dto/update-envio-pedido.dto';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('pedidos')
 export class PedidosController {
@@ -65,5 +66,25 @@ export class PedidosController {
   filtrarPedidos(@Body() data: FilterPedidoDto, @Req() req: UsuarioRequest) {
     const usuario = req.usuario;
     return this.pedidosService.obtenerPedidosFiltro(data, usuario);
+  }
+
+  @Roles('admin', 'bodega')
+  @Patch(':pedidoId/envio')
+  async actualizarEnvio(
+    @Param('pedidoId') pedidoId: string,
+    @Body() data: UpdateEnvioDto, // debe contener guiaTransporte?: string|null; flete?: number|null
+    @Req() req: UsuarioRequest
+  ) {
+    const usuario = req.usuario; // viene del UsuarioGuard
+    const pedido = await this.pedidosService.actualizarEnvio(
+      pedidoId,
+      data,
+      usuario
+    );
+
+    return {
+      message: 'Información de envío actualizada',
+      pedido,
+    };
   }
 }

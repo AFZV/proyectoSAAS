@@ -6,7 +6,7 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, HomeIcon } from "lucide-react";
+import { Check, HomeIcon, Pencil, Save } from "lucide-react";
 
 import {
   Dialog,
@@ -64,23 +64,34 @@ export function InvoiceDetailModal({
   const [nuevoEstado, setNuevoEstado] = useState("");
   const [guiaTransporte, setGuiaTransporte] = useState("");
   const [flete, setFlete] = useState("");
+  // ✨ NUEVO: edición directa de envío
+  const [editEnvio, setEditEnvio] = useState(false);
+  const [savingEnvio, setSavingEnvio] = useState(false);
   // ✅ NUEVO: Estado visual para bodegueros
   const [productosSeparados, setProductosSeparados] = useState<string[]>([]);
+
   useEffect(() => {
     if (isOpen && pedido) {
-      const saved = localStorage.getItem(`separados_${pedido.id}`);
-      if (saved) {
-        const parsed = JSON.parse(saved) as string[];
-        // ✅ Filtrar solo por productoId en el pedido actual
-        const stillValid = parsed.filter((id) =>
-          (pedido.productos ?? []).some((p) => p.productoId === id)
-        );
-        setProductosSeparados(stillValid);
-      } else {
-        setProductosSeparados([]);
-      }
+      setGuiaTransporte(pedido.guiaTransporte ?? "");
+      setFlete(pedido.flete != null ? String(pedido.flete) : "");
     }
   }, [isOpen, pedido]);
+  // resetea al abrir/cerrar y cuando cambia el pedido
+  useEffect(() => {
+    if (!isOpen) {
+      setEditEnvio(false);
+      setShowEstadoForm(false);
+      setNuevoEstado("");
+      return;
+    }
+    if (pedido) {
+      setEditEnvio(false); // 👈 clave
+      setShowEstadoForm(false);
+      setNuevoEstado("");
+      setGuiaTransporte(pedido.guiaTransporte ?? "");
+      setFlete(pedido.flete != null ? String(pedido.flete) : "");
+    }
+  }, [isOpen, pedido?.id]);
 
   const { getToken } = useAuth();
   const { toast } = useToast();
@@ -247,6 +258,66 @@ export function InvoiceDetailModal({
       });
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  // ✨ NUEVO: detectar si hay cambios en envío
+  const envioChanged =
+    guiaTransporte.trim() !== (pedido?.guiaTransporte ?? "").trim() ||
+    (flete.trim() === "" ? null : Number(flete)) !== (pedido?.flete ?? null);
+  // ---------- GUARDAR SOLO ENVÍO ----------
+  const handleGuardarEnvio = async () => {
+    try {
+      setSavingEnvio(true);
+      const token = await getToken();
+      if (!token) {
+        toast({
+          title: "Error de autenticación",
+          description: "No se pudo obtener el token",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const payload = {
+        guiaTransporte: guiaTransporte.trim() || null,
+        flete: flete.trim() === "" ? null : Number(flete),
+      };
+      if (estadoActual !== "ENVIADO") {
+        toast({
+          title: "No permitido",
+          description: "Solo puedes editar envío cuando el pedido está ENVIADO",
+          variant: "destructive",
+        });
+        return;
+      }
+      // ⬇️ Endpoint DEDICADO (impleméntalo en invoicesService)
+      await invoicesService.actualizarEnvioPedido(token, pedido.id, payload);
+
+      const pedidoActualizado: Pedido = {
+        ...pedido,
+        guiaTransporte: payload.guiaTransporte ?? undefined,
+        flete: payload.flete ?? undefined,
+        // fechaEnvio NO se toca aquí (la maneja el cambio de estado ENVIADO)
+      };
+
+      onUpdate(pedidoActualizado);
+      setEditEnvio(false);
+
+      toast({
+        title: "✅ Envío actualizado",
+        description: "Guía y/o flete guardados correctamente",
+      });
+    } catch (err: any) {
+      console.error("❌ Error al actualizar envío:", err);
+      toast({
+        title: "Error",
+        description:
+          err?.message || "No se pudo actualizar la información de envío",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingEnvio(false);
     }
   };
 
@@ -621,18 +692,89 @@ export function InvoiceDetailModal({
                 </div>
               )}
 
-              {/* Información de envío */}
-              {pedido.guiaTransporte && (
-                <div className="mt-4 bg-green-50 border border-green-200 rounded p-4">
-                  <h4 className="font-medium text-green-900 mb-3 flex items-center">
-                    <Truck className="h-4 w-4 mr-2" />
-                    Información de Envío{" "}
-                    {estadoActual === "ENVIADO" && "(COMPLETADO)"}
-                  </h4>
+              {/* ✨ Información de envío (EDITABLE) */}
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Truck className="h-5 w-5 text-green-600 mr-2" />
+                  Información de Envío
+                  {estadoActual === "ENVIADO" && (
+                    <span className="ml-2 text-sm text-green-600">
+                      (COMPLETADO)
+                    </span>
+                  )}
+                  {(userType === "admin" || userType === "bodega") &&
+                    estadoActual === "ENVIADO" &&
+                    !editEnvio && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto flex items-center gap-2"
+                        onClick={() => setEditEnvio(true)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Editar
+                      </Button>
+                    )}
+                </h3>
+
+                {editEnvio && estadoActual === "ENVIADO" ? (
+                  // 👉 Formulario de edición (solo si ENVIADO + editEnvio = true)
+                  <div className="bg-green-50 border border-green-200 rounded p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label>Guía de Transporte</Label>
+                        <Input
+                          value={guiaTransporte}
+                          onChange={(e) => setGuiaTransporte(e.target.value)}
+                          placeholder="Número de guía"
+                        />
+                      </div>
+                      <div>
+                        <Label>Valor del Flete</Label>
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          value={flete}
+                          onChange={(e) => setFlete(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        onClick={handleGuardarEnvio}
+                        disabled={savingEnvio || !envioChanged}
+                        className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {savingEnvio ? (
+                          "Guardando..."
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" /> Guardar
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setGuiaTransporte(pedido.guiaTransporte ?? "");
+                          setFlete(
+                            pedido.flete != null ? String(pedido.flete) : ""
+                          );
+                          setEditEnvio(false);
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  // 👉 Vista SOLO lectura (cuando no está en edición o no está ENVIADO)
                   <div className="space-y-2 text-sm">
                     {pedido.fechaEnvio && (
                       <div className="flex justify-between">
-                        <span className="text-green-700">Fecha de envío:</span>
+                        <span className="text-gray-600">Fecha de envío:</span>
                         <span className="font-medium">
                           {new Date(pedido.fechaEnvio).toLocaleDateString(
                             "es-CO"
@@ -641,24 +783,20 @@ export function InvoiceDetailModal({
                       </div>
                     )}
                     <div className="flex justify-between">
-                      <span className="text-green-700">
-                        Guía de transporte:
-                      </span>
+                      <span className="text-gray-600">Guía de transporte:</span>
                       <span className="font-medium">
-                        {pedido.guiaTransporte}
+                        {pedido.guiaTransporte || "—"}
                       </span>
                     </div>
-                    {pedido.flete && (
-                      <div className="flex justify-between">
-                        <span className="text-green-700">Valor del flete:</span>
-                        <span className="font-medium">
-                          {formatValue(pedido.flete)}
-                        </span>
-                      </div>
-                    )}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Valor del flete:</span>
+                      <span className="font-medium">
+                        {pedido.flete != null ? formatValue(pedido.flete) : "—"}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 

@@ -135,15 +135,12 @@ export class ProductosController {
   @Get('catalogo/pdf')
   async descargarCatalogo(@Res() res: Response, @Req() req: UsuarioRequest) {
     const usuario = req.usuario;
-
     const buffer = await this.productosService.findAllforCatalog(usuario);
-
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename=catalogo_productos.pdf',
       'Content-Length': buffer.length.toString(),
     });
-
     res.end(buffer);
   }
 }

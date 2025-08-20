@@ -83,19 +83,6 @@ function AddToCartModal({
             </div>
           </div>
           {/* NUEVO: Observación por producto */}
-          <div className="space-y-2">
-            <Label>Observación para este producto</Label>
-            <textarea
-              value={observacion ?? ""}
-              onChange={(e) => onChangeObservacion?.(e.target.value)}
-              className="w-full min-h-24 rounded-lg border border-input bg-background p-3 text-sm 
-                         focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Ej: Entregar sin bolsa, color alterno si no hay, etc."
-            />
-            <p className="text-xs text-muted-foreground">
-              Se incluirá automáticamente al finalizar el pedido.
-            </p>
-          </div>
 
           {/* Selector de cantidad */}
           <div className="space-y-2">
@@ -119,8 +106,8 @@ function AddToCartModal({
                 onChange={(e) =>
                   setCantidad(
                     Math.max(
-                      1,
-                      Math.min(producto.stock, parseInt(e.target.value) || 1)
+                      0,
+                      Math.min(producto.stock, parseInt(e.target.value) || 0)
                     )
                   )
                 }
@@ -137,6 +124,19 @@ function AddToCartModal({
                 <Plus className="w-4 h-4" />
               </Button>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Observación para este producto</Label>
+            <textarea
+              value={observacion ?? ""}
+              onChange={(e) => onChangeObservacion?.(e.target.value)}
+              className="w-full min-h-24 rounded-lg border border-input bg-background p-3 text-sm 
+                         "
+              placeholder="Ej: Entregar sin bolsa, color alterno si no hay, etc."
+            />
+            <p className="text-xs text-muted-foreground">
+              Se incluirá automáticamente al finalizar el pedido.
+            </p>
           </div>
 
           {/* Total */}

@@ -156,17 +156,17 @@ export function ProductDetailModal({
                 </div>
 
                 {/* Precio */}
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex flex-col justify-center">
-                  <span className="text-sm font-medium text-green-800">
-                    Precio:
-                  </span>
-                  <span className="text-xl font-bold text-green-600">
-                    {formatValue(producto.precio)}
-                  </span>
-                </div>
 
                 {/* Stock */}
                 <div className="md:col-span-2 flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex flex-col justify-center">
+                    <span className="text-sm font-medium text-green-800">
+                      Precio:
+                    </span>
+                    <span className="text-xl font-bold bg-transparent">
+                      {formatValue(producto.precio)}
+                    </span>
+                  </div>
                   <Package className="w-5 h-5 text-blue-600" />
                   <div className="flex-1">
                     <span className="font-medium text-blue-900">
