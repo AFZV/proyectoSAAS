@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { lookup as mimeLookup } from 'mime-types';
+import { createReadStream } from 'fs';
 
 @Injectable()
 export class HetznerStorageService {
@@ -46,5 +51,33 @@ export class HetznerStorageService {
     );
 
     return `${this.baseUrl}/${fileKey}`;
+  }
+  // Sube el PDF privado y devuelve URL firmado (24h por defecto)
+  async uploadPublicFromPath(
+    filePath: string,
+    fileName: string,
+    folder: string
+  ): Promise<{ key: string; url: string }> {
+    const fileKey = `${folder}/${fileName}`;
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: fileKey,
+        Body: createReadStream(filePath),
+        ACL: 'public-read',
+        ContentType: 'application/pdf',
+        ContentDisposition: `attachment; filename="${fileName}"`,
+        CacheControl: 'public, max-age=31536000, immutable',
+      })
+    );
+
+    return { key: fileKey, url: `${this.baseUrl}/${fileKey}` }; // 👈 ajustar aquí
+  }
+
+  async deleteByKey(key: string): Promise<void> {
+    await this.s3.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: key })
+    );
   }
 }

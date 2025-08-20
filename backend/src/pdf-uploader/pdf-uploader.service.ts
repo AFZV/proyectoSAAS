@@ -249,22 +249,32 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     }
     await this.initializeBrowser();
   }
-
-  async generarCatalogoPDFConNombre(
-    productos: {
-      nombre: string;
-      imagenUrl: string;
-      precioVenta: number;
-      categoria?: { nombre: string };
-      stockDisponible: number;
-    }[],
-    fileName: string
+  async generarCatalogoPDFaDisco(
+    productos: CatalogoProducto[],
+    fileName = 'catalogo_productos.pdf'
   ): Promise<{ path: string }> {
-    const { path } = await this.generarPDF({
-      data: { productos },
-      fileName,
-      tipo: 'catalogo',
-    });
-    return { path };
+    const html = this.renderTemplate('catalogo', { productos });
+    const page = await this.createPage();
+    try {
+      await this.loadContent(page, html);
+      const filePath = join(os.tmpdir(), fileName);
+
+      // 👇 escribe directo a disco (no crea Buffer gigante en RAM)
+      await page.pdf({
+        path: filePath,
+        format: 'A4',
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+        timeout: 180_000,
+      });
+
+      this.logger.log(`📄 PDF generado: ${filePath}`);
+      return { path: filePath };
+    } finally {
+      await page.close();
+    }
   }
+
+  // pdf-uploader.service.ts
 }

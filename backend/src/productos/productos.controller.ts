@@ -9,11 +9,10 @@ import {
   UseGuards,
   Req,
   Res,
-  Query,
 } from '@nestjs/common';
-import { createReadStream } from 'fs';
 
 import { Response } from 'express';
+
 import { ProductosService } from './productos.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/actualizar-producto.dto';
@@ -133,26 +132,25 @@ export class ProductosController {
     );
     return { productos };
   }
-  @Roles('admin')
-  @Get('catalogo/parte')
-  async descargarCatalogoParte(
-    @Res() res: Response,
-    @Req() req: UsuarioRequest,
-    @Query('part') part: string,
-    @Query('parts') parts?: string,
-    @Query('perPart') perPart?: string
-  ) {
-    const { path, name } = await this.productosService.generarCatalogoParte(
-      req.usuario,
-      {
-        part: parseInt(part, 10) || 1,
-        parts: parts ? parseInt(parts, 10) : undefined,
-        perPart: perPart ? parseInt(perPart, 10) : undefined,
-      }
-    );
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
-    createReadStream(path).pipe(res); // streaming
+  @Roles('admin')
+  @Get('catalogo/link')
+  async catalogoLink(@Req() req: UsuarioRequest) {
+    const { url } = await this.productosService.generarCatalogoLink(
+      req.usuario
+    );
+    return { url }; // { url: 'https://...' }
+  }
+
+  // 2) Redirección 302 al enlace (descarga directa desde el bucket)
+  @Roles('admin')
+  @Get('catalogo/link-redirect')
+  async catalogoLinkRedirect(@Res() res: Response, @Req() req: UsuarioRequest) {
+    const { url } = await this.productosService.generarCatalogoLink(
+      req.usuario
+    );
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    res.setHeader('Cache-Control', 'no-store');
+    return res.redirect(url);
   }
 }

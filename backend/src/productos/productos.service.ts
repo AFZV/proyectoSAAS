@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   BadRequestException,
   Injectable,
@@ -11,12 +12,15 @@ import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CreateCategoriaProductoDto } from './dto/create-categoria-producto.dto';
 import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import { formatearTexto } from 'src/lib/formatearTexto';
-
+import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
+import { randomUUID } from 'crypto';
+import { promises as fs } from 'fs';
 @Injectable()
 export class ProductosService {
   constructor(
     private prisma: PrismaService,
-    private pdfUploaderService: PdfUploaderService
+    private pdfUploaderService: PdfUploaderService,
+    private hetznerService: HetznerStorageService
   ) {}
 
   async create(usuario: UsuarioPayload, data: CreateProductoDto) {
@@ -53,58 +57,58 @@ export class ProductosService {
   }
   // productos.service.ts
   // productos.service.ts
-  async generarCatalogoParte(
-    usuario: UsuarioPayload,
-    opts: { part: number; parts?: number; perPart?: number }
-  ): Promise<{ path: string; name: string }> {
-    if (!usuario) throw new BadRequestException('no permitido');
-    if (usuario.rol !== 'admin')
-      throw new UnauthorizedException('usuario no autorizado');
+  // productos.service.ts
+  // async generarCatalogoParte(
+  //   usuario: UsuarioPayload,
+  //   opts: { part: number; parts?: number; perPart?: number }
+  // ): Promise<{ path: string; name: string }> {
+  //   if (!usuario) throw new BadRequestException('no permitido');
+  //   if (usuario.rol !== 'admin')
+  //     throw new UnauthorizedException('usuario no autorizado');
 
-    const productos = await this.prisma.producto.findMany({
-      where: {
-        empresaId: usuario.empresaId,
-        estado: 'activo',
-        inventario: { some: { stockActual: { gt: 0 } } },
-      },
-      orderBy: { nombre: 'asc' },
-      include: {
-        inventario: {
-          where: { idEmpresa: usuario.empresaId },
-          select: { stockActual: true },
-        },
-        categoria: { select: { nombre: true } },
-      },
-    });
-    if (!productos?.length) throw new BadRequestException('no hay productos');
+  //   const productos = await this.prisma.producto.findMany({
+  //     where: {
+  //       empresaId: usuario.empresaId,
+  //       estado: 'activo',
+  //       inventario: { some: { stockActual: { gt: 0 } } },
+  //     },
+  //     orderBy: { nombre: 'asc' },
+  //     include: {
+  //       inventario: {
+  //         where: { idEmpresa: usuario.empresaId },
+  //         select: { stockActual: true },
+  //       },
+  //       categoria: { select: { nombre: true } },
+  //     },
+  //   });
+  //   if (!productos?.length) throw new BadRequestException('no hay productos');
 
-    const all = productos.map((p) => ({
-      nombre: p.nombre,
-      imagenUrl: p.imagenUrl ?? '',
-      precioVenta: p.precioVenta ?? 0,
-      categoria: p.categoria ?? undefined,
-      stockDisponible: p.inventario.reduce(
-        (a, inv) => a + (inv.stockActual || 0),
-        0
-      ),
-    }));
+  //   const all = productos.map((p) => ({
+  //     nombre: p.nombre,
+  //     imagenUrl: p.imagenUrl ?? '',
+  //     precioVenta: p.precioVenta ?? 0,
+  //     categoria: p.categoria ?? undefined,
+  //     stockDisponible: p.inventario.reduce(
+  //       (a, inv) => a + (inv.stockActual || 0),
+  //       0
+  //     ),
+  //   }));
 
-    const total = all.length;
-    const parts = Math.max(1, opts.parts ?? 3);
-    const perPart = Math.max(1, opts.perPart ?? Math.ceil(total / parts));
-    const partIndex = Math.max(1, Math.min(parts, opts.part));
+  //   const total = all.length;
+  //   const parts = Math.max(1, opts.parts ?? 3);
+  //   const perPart = Math.max(1, opts.perPart ?? Math.ceil(total / parts));
+  //   const partIndex = Math.max(1, Math.min(parts, opts.part));
 
-    const start = (partIndex - 1) * perPart;
-    const end = start + perPart;
-    const slice = all.slice(start, end);
+  //   const start = (partIndex - 1) * perPart;
+  //   const end = start + perPart;
+  //   const slice = all.slice(start, end);
 
-    const name = `catalogo_parte_${partIndex}.pdf`;
-    const { path } = await this.pdfUploaderService.generarCatalogoPDFConNombre(
-      slice,
-      name
-    ); // método ya mostrado antes
-    return { path, name };
-  }
+  //   const { path } = await this.pdfUploaderService.generarCatalogoPDFaDisco(
+  //     all,
+  //     'catalogo_productos.pdf'
+  //   );
+  //   return { path };
+  // }
 
   async findAllforEmpresa(usuario: UsuarioPayload) {
     try {
@@ -170,43 +174,31 @@ export class ProductosService {
   }
 
   /////productos para pdf de catalogo
-  async findAllforCatalog(usuario: UsuarioPayload): Promise<{ path: string }> {
+  async generarCatalogoLink(
+    usuario: UsuarioPayload
+  ): Promise<{ url: string; key: string }> {
     if (!usuario) throw new BadRequestException('no permitido');
-    const { empresaId, rol } = usuario;
-
-    if (rol !== 'admin') {
+    if (usuario.rol !== 'admin')
       throw new UnauthorizedException('usuario no autorizado');
-    }
 
+    // 1) Obtén los productos igual que en findAllforCatalog:
+    const empresaId = usuario.empresaId;
     const productos = await this.prisma.producto.findMany({
       where: {
-        empresaId: empresaId,
+        empresaId: usuario.empresaId,
         estado: 'activo',
-        inventario: {
-          some: {
-            stockActual: { gt: 0 },
-          },
-        },
+        inventario: { some: { stockActual: { gt: 0 } } },
       },
-      orderBy: {
-        nombre: 'asc', // ✅ Orden alfabético ascendente
-      },
+      orderBy: { nombre: 'asc' },
       include: {
         inventario: {
           where: { idEmpresa: usuario.empresaId },
-          select: {
-            stockActual: true,
-          },
+          select: { stockActual: true },
         },
-        categoria: {
-          select: {
-            nombre: true,
-          },
-        },
+        categoria: { select: { nombre: true } },
       },
     });
-
-    if (!productos) throw new BadRequestException('no hay productos');
+    if (!productos?.length) throw new BadRequestException('no hay productos');
 
     const productosFormateados = productos.map((p) => ({
       nombre: p.nombre,
@@ -219,11 +211,35 @@ export class ProductosService {
       ),
     }));
 
-    const { path } =
-      await this.pdfUploaderService.generarCatalogoPDF(productosFormateados);
-    return { path };
-  }
+    // 2) Genera el PDF a disco (no Buffer en RAM)
+    const { path } = await this.pdfUploaderService.generarCatalogoPDFaDisco(
+      productosFormateados,
+      'catalogo_productos.pdf'
+    );
 
+    // 3a) Subir PÚBLICO (misma lógica que tus imágenes)
+    // const folder = `tmp/catalogos/${usuario.empresaId}/${randomUUID()}`;
+    // const fileName = 'catalogo_productos.pdf';
+    // const url = await this.hetznerStorageService.uploadPublicFromPath(path, fileName, folder);
+    // const key = `${folder}/${fileName}`;
+
+    // 3b) O subir PRIVADO y devolver URL firmada 24h:
+    const key = `tmp/catalogos/${usuario.empresaId}/${randomUUID()}/catalogo_productos.pdf`;
+    const { url } = await this.hetznerService.uploadPublicFromPath(
+      path,
+      'catalogo.pdf',
+      `tmp/catalogos/${empresaId}`
+    );
+
+    // 4) Limpia el archivo local
+    try {
+      await fs.unlink(path);
+    } catch {
+      /* empty */
+    }
+
+    return { url, key };
+  }
   async UpdateEstadoProduct(productoId: string) {
     const producto = await this.prisma.producto.findUnique({
       where: { id: productoId },
