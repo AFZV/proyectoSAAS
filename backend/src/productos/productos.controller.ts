@@ -9,8 +9,10 @@ import {
   UseGuards,
   Req,
   Res,
+  Query,
 } from '@nestjs/common';
-import { createReadStream, statSync } from 'fs';
+import { createReadStream } from 'fs';
+
 import { Response } from 'express';
 import { ProductosService } from './productos.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
@@ -131,22 +133,26 @@ export class ProductosController {
     );
     return { productos };
   }
-
   @Roles('admin')
-  @Get('catalogo/pdf')
-  async descargarCatalogo(@Res() res: Response, @Req() req: UsuarioRequest) {
-    const usuario = req.usuario;
-    const { path: filePath } =
-      await this.productosService.findAllforCatalog(usuario);
-
-    const { size } = statSync(filePath);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      'attachment; filename="catalogo_productos.pdf"'
+  @Get('catalogo/parte')
+  async descargarCatalogoParte(
+    @Res() res: Response,
+    @Req() req: UsuarioRequest,
+    @Query('part') part: string,
+    @Query('parts') parts?: string,
+    @Query('perPart') perPart?: string
+  ) {
+    const { path, name } = await this.productosService.generarCatalogoParte(
+      req.usuario,
+      {
+        part: parseInt(part, 10) || 1,
+        parts: parts ? parseInt(parts, 10) : undefined,
+        perPart: perPart ? parseInt(perPart, 10) : undefined,
+      }
     );
-    res.setHeader('Content-Length', String(size)); // (opcional; puedes omitir para chunked)
 
-    createReadStream(filePath).pipe(res); // 👈 sin cargar a RAM
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+    createReadStream(path).pipe(res); // streaming
   }
 }

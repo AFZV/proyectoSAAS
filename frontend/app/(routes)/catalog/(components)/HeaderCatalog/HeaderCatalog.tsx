@@ -43,37 +43,45 @@ export function HeaderCatalog({
   const handleRefresh = () => {
     window.location.reload();
   };
-
   const generarPdf = async () => {
     const token = await getToken();
     if (!token) return console.error("❌ No tiene acceso");
 
     setLoading(true);
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/productos/catalogo/pdf`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+    try {
+      const TOTAL_PARTS = 3; // o usa perPart=100 y omite parts
+      for (let i = 1; i <= TOTAL_PARTS; i++) {
+        const url = `${process.env.NEXT_PUBLIC_API_URL}/productos/catalogo/parte?part=${i}&parts=${TOTAL_PARTS}`;
+        const resp = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!resp.ok) throw new Error(`Parte ${i} falló (${resp.status})`);
+
+        // intenta leer nombre desde Content-Disposition
+        const dispo = resp.headers.get("content-disposition") || "";
+        const m = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(dispo);
+        const filename = m
+          ? decodeURIComponent(m[1].replace(/"/g, ""))
+          : `catalogo_parte_${i}.pdf`;
+
+        const blob = await resp.blob(); // ⚠️ sólo una parte en RAM
+        const objectUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(objectUrl);
+
+        // pequeño respiro para el GC y el disco
+        await new Promise((r) => setTimeout(r, 300));
       }
-    );
-
-    if (!response.ok) {
-      console.error("❌ Error al generar el PDF");
+    } catch (e) {
+      console.error(e);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "catalogo_productos.pdf";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-    setLoading(false);
   };
 
   if (loading) return <Loading title="Cargando PDF" />;

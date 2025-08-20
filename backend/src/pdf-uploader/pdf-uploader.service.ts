@@ -249,4 +249,22 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     }
     await this.initializeBrowser();
   }
+
+  async generarCatalogoPDFConNombre(
+    productos: {
+      nombre: string;
+      imagenUrl: string;
+      precioVenta: number;
+      categoria?: { nombre: string };
+      stockDisponible: number;
+    }[],
+    fileName: string
+  ): Promise<{ path: string }> {
+    const { path } = await this.generarPDF({
+      data: { productos },
+      fileName,
+      tipo: 'catalogo',
+    });
+    return { path };
+  }
 }

@@ -51,6 +51,60 @@ export class ProductosService {
       throw new InternalServerErrorException('Error al crear el producto');
     }
   }
+  // productos.service.ts
+  // productos.service.ts
+  async generarCatalogoParte(
+    usuario: UsuarioPayload,
+    opts: { part: number; parts?: number; perPart?: number }
+  ): Promise<{ path: string; name: string }> {
+    if (!usuario) throw new BadRequestException('no permitido');
+    if (usuario.rol !== 'admin')
+      throw new UnauthorizedException('usuario no autorizado');
+
+    const productos = await this.prisma.producto.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+        estado: 'activo',
+        inventario: { some: { stockActual: { gt: 0 } } },
+      },
+      orderBy: { nombre: 'asc' },
+      include: {
+        inventario: {
+          where: { idEmpresa: usuario.empresaId },
+          select: { stockActual: true },
+        },
+        categoria: { select: { nombre: true } },
+      },
+    });
+    if (!productos?.length) throw new BadRequestException('no hay productos');
+
+    const all = productos.map((p) => ({
+      nombre: p.nombre,
+      imagenUrl: p.imagenUrl ?? '',
+      precioVenta: p.precioVenta ?? 0,
+      categoria: p.categoria ?? undefined,
+      stockDisponible: p.inventario.reduce(
+        (a, inv) => a + (inv.stockActual || 0),
+        0
+      ),
+    }));
+
+    const total = all.length;
+    const parts = Math.max(1, opts.parts ?? 3);
+    const perPart = Math.max(1, opts.perPart ?? Math.ceil(total / parts));
+    const partIndex = Math.max(1, Math.min(parts, opts.part));
+
+    const start = (partIndex - 1) * perPart;
+    const end = start + perPart;
+    const slice = all.slice(start, end);
+
+    const name = `catalogo_parte_${partIndex}.pdf`;
+    const { path } = await this.pdfUploaderService.generarCatalogoPDFConNombre(
+      slice,
+      name
+    ); // método ya mostrado antes
+    return { path, name };
+  }
 
   async findAllforEmpresa(usuario: UsuarioPayload) {
     try {
