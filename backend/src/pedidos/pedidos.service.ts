@@ -650,6 +650,7 @@ export class PedidosService {
           data: {
             observaciones: data.observaciones ?? undefined,
             total: totalCalculado,
+            ...(data.clienteId ? { clienteId: data.clienteId } : {}),
           },
         });
 

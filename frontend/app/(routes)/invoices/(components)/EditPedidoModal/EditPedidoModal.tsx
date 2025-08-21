@@ -512,6 +512,7 @@ export function EditPedidoModal({
 
   // Guardar (incluye clienteId NUEVO si se cambió)
   const handleGuardar = async () => {
+    console.log("ejecutando guardar cambios");
     if (!pedido) return;
     if (carrito.length === 0) {
       toast({
@@ -543,12 +544,14 @@ export function EditPedidoModal({
           precio: item.precio,
         })),
       };
-
+      console.log("datos enviados para actualizar pedido:", datosActualizados);
       await invoicesService.actualizarPedido(
         token!,
         pedido.id,
         datosActualizados
       );
+
+      console.log("datos enviados para actualizar pedido:", datosActualizados);
 
       toast({
         title: "Pedido actualizado",

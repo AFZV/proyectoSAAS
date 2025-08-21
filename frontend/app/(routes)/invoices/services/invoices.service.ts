@@ -131,6 +131,7 @@ export class InvoicesService {
     pedidoId: string,
     data: Partial<CreatePedidoDto>
   ): Promise<Pedido> {
+    console.log("data que se enviara a backend:", data);
     return this.makeRequest<Pedido>(`/pedidos/${pedidoId}`, token, {
       method: "PATCH",
       body: JSON.stringify(data),
