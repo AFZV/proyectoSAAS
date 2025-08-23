@@ -29,6 +29,7 @@ export interface Cliente {
   nit?: string;
   telefono: string;
   ciudad: string;
+  departamento: string;
   correo: string;
   direccion?: string;
   email?: string;

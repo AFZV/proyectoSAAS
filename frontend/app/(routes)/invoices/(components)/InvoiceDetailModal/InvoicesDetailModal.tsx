@@ -567,7 +567,10 @@ export function InvoiceDetailModal({
                 </div>
                 <div className="flex items-center text-sm text-gray-600">
                   <MapPin className="h-4 w-4 mr-3 text-gray-400" />
-                  <span>{pedido.cliente?.ciudad || "No especificado"}</span>
+                  <span>{pedido.cliente?.ciudad || "No especificado"}-</span>
+                  <span>
+                    {pedido.cliente?.departamento || "No especificado"}
+                  </span>
                 </div>
                 <div className="flex items-center text-sm text-gray-600">
                   <Phone className="h-4 w-4 mr-3 text-gray-400" />
@@ -639,7 +642,6 @@ export function InvoiceDetailModal({
                   </p>
                 </div>
               </div>
-
               {pedido.observaciones && (
                 <div className="mt-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
@@ -648,17 +650,40 @@ export function InvoiceDetailModal({
 
                   {(() => {
                     const texto = pedido.observaciones || "";
+                    // Quita encabezado si existe
                     const sinTitulo = texto.replace(
                       /^OBSERVACIONES POR PRODUCTO:\s*/i,
                       ""
                     );
-                    const [soloProductos, generalRaw] =
-                      sinTitulo.split(/OBSERVACIÓN GENERAL:/i);
 
+                    // 👇 Detecta logs de auditoría:
+                    // - [AUDIT ...]
+                    // - [dd/mm/aa, hh:mm] Estado ...
+                    const auditRegex =
+                      /\[(?:AUDIT|\d{2}\/\d{2}\/\d{2},\s*\d{2}:\d{2})\][^\[]*/g;
+                    const audits = Array.from(
+                      sinTitulo.matchAll(auditRegex)
+                    ).map((m) => m[0].trim());
+
+                    // Quita los audits del texto para que no "se peguen" a otras partes
+                    const sinAudits = sinTitulo
+                      .replace(auditRegex, "")
+                      .replace(/\s+$/, "");
+
+                    // Separa bloque general si lo usas
+                    const [soloProductos, generalRaw] =
+                      sinAudits.split(/OBSERVACIÓN GENERAL:/i);
+
+                    // Ítems por producto (si usas viñetas "•")
                     const items = (soloProductos || "")
                       .split(/•\s*/)
                       .filter(Boolean)
                       .map((s) => s.trim());
+
+                    // Mantén saltos de línea del bloque general
+                    const generalClean = (generalRaw ?? "").replace(/\s+$/, "");
+                    const hayGeneral =
+                      generalClean.replace(/\s+/g, "").length > 0;
 
                     return (
                       <div className="bg-gray-50 p-3 rounded">
@@ -667,23 +692,39 @@ export function InvoiceDetailModal({
                             <p className="text-xs text-gray-500 mb-1">
                               Por producto
                             </p>
-                            <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700">
+                            <ol className="list-disc pl-5 space-y-1 text-sm text-gray-700">
                               {items.map((it, i) => (
                                 <li key={i}>{it}</li>
                               ))}
-                            </ul>
+                            </ol>
                           </>
                         )}
 
-                        {generalRaw && generalRaw.trim() && (
+                        {hayGeneral && (
                           <>
                             <div className="h-3" />
                             <p className="text-xs text-gray-500 mb-1">
                               Observación general
                             </p>
                             <div className="text-sm text-gray-700 whitespace-pre-line">
-                              {generalRaw.trim()}
+                              {generalClean}
                             </div>
+                          </>
+                        )}
+
+                        {audits.length > 0 && (
+                          <>
+                            <div className="h-3" />
+                            <p className="text-xs text-gray-500 mb-1">
+                              Auditoría
+                            </p>
+                            <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700">
+                              {audits.map((line, i) => (
+                                <li key={i} className="whitespace-pre-wrap">
+                                  {line}
+                                </li>
+                              ))}
+                            </ul>
                           </>
                         )}
                       </div>

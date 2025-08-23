@@ -45,9 +45,58 @@ export function ReciboDetallesModal({ open, onClose, recibo }: Props) {
             <p>
               <strong>Tipo:</strong> {recibo.tipo}
             </p>
-            <p>
-              <strong>Concepto:</strong> {recibo.concepto}
-            </p>
+            {/* Concepto + Auditoría (separados) */}
+            {(() => {
+              const texto = recibo.concepto || "";
+
+              // Extrae cualquier log encerrado en corchetes hasta fin de línea:
+              // - [AUDIT ...]
+              // - (opcional) [dd/mm/aa, hh:mm] ... si algún día lo usas
+              const auditRegex =
+                /(\[(?:AUDIT|\d{2}\/\d{2}\/\d{2},\s*\d{2}:\d{2})\][^\n]*)/g;
+
+              const audits: string[] = [];
+              const conceptoSinAudits = texto
+                .replace(auditRegex, (m) => {
+                  audits.push(m.trim());
+                  return ""; // eliminamos los logs del concepto
+                })
+                .replace(/\s+$/, ""); // limpia SOLO el final
+
+              const hayConcepto = conceptoSinAudits.trim().length > 0;
+
+              return (
+                <div className="space-y-2">
+                  {/* Concepto "limpio" respetando saltos */}
+                  {hayConcepto && (
+                    <div>
+                      <p>
+                        <strong>Concepto:</strong>
+                      </p>
+                      <div className="text-sm whitespace-pre-line">
+                        {conceptoSinAudits}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Auditoría: cada entrada en su propia línea */}
+                  {audits.length > 0 && (
+                    <div>
+                      <p className="mt-2">
+                        <strong>Auditoría:</strong>
+                      </p>
+                      <ul className="list-disc pl-5 space-y-1 text-sm">
+                        {audits.map((line, i) => (
+                          <li key={i} className="whitespace-pre-wrap">
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex items-start gap-2">

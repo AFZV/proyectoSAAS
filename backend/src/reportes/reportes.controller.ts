@@ -520,6 +520,7 @@ export class ReportesController {
       { header: 'Valor', key: 'valor', width: 25, numFmt: '#,##0.00' },
       { header: 'Vendedor', key: 'vendedor', width: 20 },
       { header: 'Concepto', key: 'concepto', width: 45 },
+      { header: 'Estado', key: 'estado', width: 45 },
     ];
 
     // 3) Generar y devolver Excel o PDF
@@ -560,6 +561,7 @@ export class ReportesController {
       { header: 'Tipo', key: 'tipo', width: 20 },
       { header: 'Valor', key: 'valor', width: 25, numFmt: '#,##0.00' },
       { header: 'Concepto', key: 'concepto', width: 45 },
+      { header: 'Estado', key: 'estado', width: 45 },
     ];
 
     // 3) Generar y devolver Excel o PDF

@@ -114,14 +114,23 @@ export function InvoicesClient({
   };
 
   const getNombreCliente = (pedido: Pedido): string => {
-    if (!pedido.cliente) {
-      return `Cliente ID: ${pedido.clienteId.slice(0, 5)}`;
+    if (!pedido?.cliente) {
+      return `Cliente ID: ${pedido?.clienteId?.slice(0, 5) ?? ""}`;
     }
+
+    const razon = pedido.cliente.rasonZocial?.trim();
+    const nombreCompleto = `${pedido.cliente.nombre ?? ""} ${
+      pedido.cliente.apellidos ?? ""
+    }`.trim();
+
+    if (razon && nombreCompleto) {
+      // Muestra ambas: razón social y abajo nombre completo
+      return `${razon}\n${nombreCompleto}`;
+    }
+
+    // Si solo hay una de las dos, muestra la disponible
     return (
-      pedido.cliente.rasonZocial ||
-      `${pedido.cliente.nombre || "Cliente"} ${
-        pedido.cliente.apellidos || ""
-      }`.trim()
+      razon || nombreCompleto || `Cliente ID: ${pedido.clienteId.slice(0, 5)}`
     );
   };
 
@@ -321,9 +330,14 @@ export function InvoicesClient({
                   {/* Cliente */}
                   <div className="col-span-4 min-w-0">
                     <div className="truncate">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {nombreCliente}
-                      </p>
+                      <div className="text-sm font-medium text-gray-900 break-words">
+                        {pedido.cliente?.rasonZocial}
+                      </div>
+                      <div className="text-sm text-gray-700 -mt-0.5 break-words">
+                        {(pedido.cliente?.nombre ?? "") +
+                          " " +
+                          (pedido.cliente?.apellidos ?? "")}
+                      </div>
                       <div className="flex items-center space-x-2 mt-1">
                         {pedido.cliente?.telefono && (
                           <span className="text-xs text-gray-500 flex items-center">
@@ -490,9 +504,14 @@ export function InvoicesClient({
                 {/* Columna izquierda - Información del cliente */}
                 <div className="space-y-3">
                   <div>
-                    <h3 className="font-medium text-gray-900 mb-1">
-                      {nombreCliente}
-                    </h3>
+                    <div className="text-sm font-medium text-gray-900 break-words">
+                      {pedido.cliente?.rasonZocial}
+                    </div>
+                    <div className="text-sm text-gray-700 -mt-0.5 break-words">
+                      {(pedido.cliente?.nombre ?? "") +
+                        " " +
+                        (pedido.cliente?.apellidos ?? "")}
+                    </div>
                     {pedido.cliente?.nit && (
                       <p className="text-sm text-gray-500">
                         NIT: {pedido.cliente.nit}
@@ -749,10 +768,16 @@ export function InvoicesClient({
                   {visibleColumns.cliente && (
                     <td className="px-6 py-4">
                       <div className="max-w-[200px]">
-                        <div className="text-sm font-medium text-gray-900 truncate">
-                          {nombreCliente}
+                        <div className="text-sm font-medium text-gray-900 break-words">
+                          {pedido.cliente?.rasonZocial}
                         </div>
-                        <div className="text-sm text-gray-500 truncate">
+                        <div className="text-sm text-gray-700 -mt-0.5 break-words">
+                          {(pedido.cliente?.nombre ?? "") +
+                            " " +
+                            (pedido.cliente?.apellidos ?? "")}
+                        </div>
+
+                        <div className="text-sm text-gray-500 truncate mt-0.5">
                           {pedido.cliente?.nit
                             ? `NIT: ${pedido.cliente.nit}`
                             : "Sin NIT"}

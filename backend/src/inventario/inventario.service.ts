@@ -58,9 +58,7 @@ export class InventarioService {
         },
       });
     } catch (error) {
-      throw new InternalServerErrorException(
-        'Error al obtener los tipos de movimiento'
-      );
+      throw new InternalServerErrorException(error);
     }
   }
 
@@ -85,7 +83,7 @@ export class InventarioService {
         },
       });
     } catch (error) {
-      throw new InternalServerErrorException('Error al obtener los productos');
+      throw new InternalServerErrorException(error);
     }
   }
 
@@ -136,17 +134,18 @@ export class InventarioService {
           const delta = m.cantidadMovimiendo;
           const isManual = !m.IdPedido && !m.idCompra;
 
+          // 👇 PRIORIDAD: usa lo guardado en BD si existe
+          const rawObs = (m.observacion ?? '').trim();
+
           let obsText: string;
-          if (isManual) {
-            if (m.observacion && m.observacion.trim() !== '') {
-              obsText = m.observacion; // la que guardaste (ya incluye usuario si así la guardas)
-            } else {
-              obsText = 'Ajuste manual';
-            }
+          if (rawObs) {
+            obsText = rawObs;
+          } else if (isManual) {
+            obsText = 'Ajuste manual';
           } else if (tipo === 'SALIDA') {
-            obsText = `Pedido # ${m.IdPedido}`;
+            obsText = `Pedido # ${m.IdPedido?.slice(0, 6)}`;
           } else {
-            obsText = `Compra # ${m.idCompra}`;
+            obsText = `Compra # ${m.idCompra?.slice(0, 6)}`;
           }
 
           runningStock += tipo === 'SALIDA' ? -delta : delta;
@@ -161,7 +160,7 @@ export class InventarioService {
             stockInicial,
             stockActual: m.producto.inventario?.[0]?.stockActual ?? 0,
             fecha: m.fechaMovimiento,
-            observacion: obsText,
+            observacion: obsText, // 👈 ahora respeta lo que viene de BD
             stock: runningStock,
           };
         })

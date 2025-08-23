@@ -483,6 +483,7 @@ export class ReportesService {
       valor: r.detalleRecibo.reduce((s, d) => s + d.valorTotal, 0),
       vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
       concepto: r.concepto,
+      estado: r.revisado === true ? 'revisado' : 'pendiente', // 👈 aquí
     }));
   }
 
@@ -512,6 +513,7 @@ export class ReportesService {
       tipo: r.tipo,
       valor: r.detalleRecibo.reduce((s, d) => s + d.valorTotal, 0),
       concepto: r.concepto,
+      estado: r.revisado === true ? 'revisado' : 'pendiente', // 👈 aquí
     }));
   }
   // Devuelve fletes de pedidos con saldo pendiente (sin filtro de fechas)

@@ -579,25 +579,51 @@ export class RecibosService {
     };
   }
 
-  //marcar recibo como revisado
   async marcarRevisado(usuario: UsuarioPayload, id: string) {
-    const { empresaId } = usuario;
+    const { empresaId, id: usuarioId } = usuario;
+
     const result = await this.prisma.$transaction(async (tx) => {
+      // 1) Trae el estado actual + concepto
       const current = await tx.recibo.findFirst({
         where: { id, empresaId },
-        select: { revisado: true },
+        select: { revisado: true, concepto: true },
       });
       if (!current) throw new BadRequestException('Recibo no encontrado');
 
+      // 2) Preparar auditoría
+      const actor = await tx.usuario.findUnique({
+        where: { id: usuarioId },
+        select: { nombre: true, apellidos: true },
+      });
+      const actorNombre =
+        `${actor?.nombre ?? 'Usuario'} ${actor?.apellidos ?? ''}`.trim();
+
+      const marca = new Date().toLocaleString('es-CO', {
+        timeZone: 'America/Bogota',
+        hour12: false,
+        dateStyle: 'short',
+        timeStyle: 'short',
+      });
+
+      const nuevoValor = !current.revisado; // toggle
+      const linea = `[${marca}] ${nuevoValor ? 'Marcado REVISADO' : 'Marcado PENDIENTE'} por ${actorNombre}`;
+
+      // 3) Construir concepto final (append, con una línea en blanco)
+      const base = current.concepto ?? '';
+      const baseLimpia = base.replace(/\s+$/, ''); // no borres saltos iniciales
+      const conceptoFinal = baseLimpia ? `${baseLimpia}\n\n${linea}` : linea;
+
+      // 4) Un único update que cambia ambos campos
       const updated = await tx.recibo.update({
-        where: { id }, // id es PK; empresaId se validó arriba
-        data: { revisado: !current.revisado },
+        where: { id }, // id es PK; empresaId ya se validó arriba
+        data: { revisado: nuevoValor, concepto: conceptoFinal },
         select: { revisado: true },
       });
-      return updated.revisado; // 👈 devolvemos boolean
+
+      return updated.revisado; // devolvemos boolean
     });
 
-    return result; // 👈 devolvemos el boolean al controller
+    return result;
   }
 
   //logica para obtener acceso a un recibo por su id

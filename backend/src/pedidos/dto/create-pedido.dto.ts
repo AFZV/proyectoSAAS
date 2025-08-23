@@ -31,6 +31,10 @@ class DetalleProductoDto {
   @IsNotEmpty()
   productoId: string;
 
+  @IsOptional()
+  @IsString()
+  nombre: string;
+
   @IsNumber()
   @IsNotEmpty()
   cantidad: number;

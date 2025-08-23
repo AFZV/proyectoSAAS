@@ -33,11 +33,13 @@ export class PedidosController {
 
   @Roles('admin', 'bodega')
   @Post('estado')
-  crearEstado(@Body() data: CrearEstadoPedidoDto) {
+  crearEstado(@Body() data: CrearEstadoPedidoDto, @Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
     const { estado, pedidoId, flete, guiaTransporte } = data;
     return this.pedidosService.agregarEstado(
       pedidoId,
       estado,
+      usuario,
       guiaTransporte,
       flete
     );

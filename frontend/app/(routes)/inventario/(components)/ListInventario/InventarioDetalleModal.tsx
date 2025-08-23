@@ -13,9 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { Loader2, X, Download, Filter, FileSpreadsheet } from "lucide-react";
-import * as XLSX from 'xlsx';
+import * as XLSX from "xlsx";
 import { ArrowUp, ArrowDown } from "lucide-react";
-
 
 interface Movimiento {
   tipoMovimiento: string;
@@ -47,7 +46,9 @@ export function InventarioDetalleModal({
   producto,
 }: InventarioDetalleModalProps) {
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
-  const [filteredMovimientos, setFilteredMovimientos] = useState<Movimiento[]>([]);
+  const [filteredMovimientos, setFilteredMovimientos] = useState<Movimiento[]>(
+    []
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<string>("todos");
@@ -81,6 +82,8 @@ export function InventarioDetalleModal({
         const movimientosData = movimientos || [];
         setMovimientos(movimientosData);
         setFilteredMovimientos(movimientosData);
+        console.log("movimientos que llegan", movimientos);
+        console.log("movimientos filtrados:", filteredMovimientos);
       } catch (e: any) {
         setError(e.message);
       } finally {
@@ -94,7 +97,7 @@ export function InventarioDetalleModal({
     if (filtroTipo === "todos") {
       setFilteredMovimientos(movimientos);
     } else {
-      const filtered = movimientos.filter(m => 
+      const filtered = movimientos.filter((m) =>
         m.tipoMovimiento.toLowerCase().includes(filtroTipo.toLowerCase())
       );
       setFilteredMovimientos(filtered);
@@ -112,59 +115,76 @@ export function InventarioDetalleModal({
 
   const getMovimientoColor = (tipo: string) => {
     const t = tipo.toLowerCase();
-    if (t.includes("entrada")) return "bg-green-100 text-green-800 border-green-200";
+    if (t.includes("entrada"))
+      return "bg-green-100 text-green-800 border-green-200";
     if (t.includes("salida")) return "bg-red-100 text-red-800 border-red-200";
-    if (t.includes("ajuste")) return "bg-blue-100 text-blue-800 border-blue-200";
-    if (t.includes("compra")) return "bg-purple-100 text-purple-800 border-purple-200";
+    if (t.includes("ajuste"))
+      return "bg-blue-100 text-blue-800 border-blue-200";
+    if (t.includes("compra"))
+      return "bg-purple-100 text-purple-800 border-purple-200";
     return "bg-gray-100 text-gray-800 border-gray-200";
   };
 
-  const tiposUnicos = ["todos", ...Array.from(new Set(movimientos.map(m => m.tipoMovimiento)))];
+  const tiposUnicos = [
+    "todos",
+    ...Array.from(new Set(movimientos.map((m) => m.tipoMovimiento))),
+  ];
 
   const exportarExcel = () => {
     // Crear datos para el Excel con información del producto
     const datosProducto = [
-      ['CARDEX DE INVENTARIO'],
-      [''],
-      ['Producto:', producto.nombre],
-      ['Precio de Compra:', `$ ${producto.precioCompra.toLocaleString("es-CO")}`],
-      ['Stock Inicial:', (producto.inventario?.[0]?.stockReferenciaOinicial || 0).toLocaleString("es-CO")],
-      ['Stock Actual:', (producto.inventario?.[0]?.stockActual || 0).toLocaleString("es-CO")],
-      ['Fecha de Creación:', fmt(producto.fechaCreado)],
-      ['Total de Movimientos:', filteredMovimientos.length.toString()],
-      ['Fecha de Reporte:', new Date().toLocaleDateString("es-CO")],
-      [''],
-      ['MOVIMIENTOS DE INVENTARIO']
+      ["CARDEX DE INVENTARIO"],
+      [""],
+      ["Producto:", producto.nombre],
+      [
+        "Precio de Compra:",
+        `$ ${producto.precioCompra.toLocaleString("es-CO")}`,
+      ],
+      [
+        "Stock Inicial:",
+        (producto.inventario?.[0]?.stockReferenciaOinicial || 0).toLocaleString(
+          "es-CO"
+        ),
+      ],
+      [
+        "Stock Actual:",
+        (producto.inventario?.[0]?.stockActual || 0).toLocaleString("es-CO"),
+      ],
+      ["Fecha de Creación:", fmt(producto.fechaCreado)],
+      ["Total de Movimientos:", filteredMovimientos.length.toString()],
+      ["Fecha de Reporte:", new Date().toLocaleDateString("es-CO")],
+      [""],
+      ["MOVIMIENTOS DE INVENTARIO"],
     ];
 
     // Headers de la tabla
     const headers = [
-      'Fecha',
-      'Tipo de Movimiento', 
-      'Precio Unitario',
-      'Cantidad',
-      'Stock Resultante',
-      'Usuario',
-      'Observación'
+      "Fecha",
+      "Tipo de Movimiento",
+      "Precio Unitario",
+      "Cantidad",
+      "Stock Resultante",
+      "Usuario",
+      "Observación",
     ];
 
     // Datos de movimientos
-    const datosMovimientos = filteredMovimientos.map(m => [
+    const datosMovimientos = filteredMovimientos.map((m) => [
       fmt(m.fecha),
       m.tipoMovimiento,
       m.precioCompra,
-      m.cantidadMovimiendo,     
+      m.cantidadMovimiendo,
       m.stock || 0,
       m.usuario,
-      m.observacion || ''
+      m.observacion || "",
     ]);
 
     // Combinar todos los datos
     const datosCompletos = [
       ...datosProducto,
-      [''], // Fila vacía
+      [""], // Fila vacía
       headers,
-      ...datosMovimientos
+      ...datosMovimientos,
     ];
 
     // Crear workbook y worksheet
@@ -179,18 +199,18 @@ export function InventarioDetalleModal({
       { wch: 12 }, // Cantidad
       { wch: 15 }, // Stock Resultante
       { wch: 20 }, // Usuario
-      { wch: 30 }  // Observación
+      { wch: 30 }, // Observación
     ];
-    ws['!cols'] = colWidths;
+    ws["!cols"] = colWidths;
 
     // Estilos para el header del producto
-    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-    
+    const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+
     // Aplicar formato a la primera fila (título)
-    if (ws['A1']) {
-      ws['A1'].s = {
+    if (ws["A1"]) {
+      ws["A1"].s = {
         font: { bold: true, sz: 14 },
-        alignment: { horizontal: 'center' }
+        alignment: { horizontal: "center" },
       };
     }
 
@@ -202,18 +222,21 @@ export function InventarioDetalleModal({
         ws[cellRef].s = {
           font: { bold: true },
           fill: { fgColor: { rgb: "F3F4F6" } },
-          alignment: { horizontal: 'center' }
+          alignment: { horizontal: "center" },
         };
       }
     }
 
     // Agregar la hoja al workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Cardex');
+    XLSX.utils.book_append_sheet(wb, ws, "Cardex");
 
     // Generar y descargar el archivo
-    const fecha = new Date().toISOString().split('T')[0];
-    const nombreArchivo = `Cardex_${producto.nombre.replace(/[^a-zA-Z0-9]/g, '_')}_${fecha}.xlsx`;
-    
+    const fecha = new Date().toISOString().split("T")[0];
+    const nombreArchivo = `Cardex_${producto.nombre.replace(
+      /[^a-zA-Z0-9]/g,
+      "_"
+    )}_${fecha}.xlsx`;
+
     XLSX.writeFile(wb, nombreArchivo);
   };
 
@@ -245,23 +268,31 @@ export function InventarioDetalleModal({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 p-4 bg-gray-50 rounded-lg">
             <div className="text-center">
               <p className="text-xs text-gray-500">Precio Compra</p>
-              <p className="font-semibold text-sm">$ {producto.precioCompra.toLocaleString("es-CO")}</p>
+              <p className="font-semibold text-sm">
+                $ {producto.precioCompra.toLocaleString("es-CO")}
+              </p>
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-500">Stock Inicial</p>
               <p className="font-semibold text-sm">
-                {(producto.inventario?.[0]?.stockReferenciaOinicial || 0).toLocaleString("es-CO")}
+                {(
+                  producto.inventario?.[0]?.stockReferenciaOinicial || 0
+                ).toLocaleString("es-CO")}
               </p>
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-500">Stock Actual</p>
               <p className="font-semibold text-sm">
-                {(producto.inventario?.[0]?.stockActual || 0).toLocaleString("es-CO")}
+                {(producto.inventario?.[0]?.stockActual || 0).toLocaleString(
+                  "es-CO"
+                )}
               </p>
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-500">Fecha Creación</p>
-              <p className="font-semibold text-sm">{fmt(producto.fechaCreado)}</p>
+              <p className="font-semibold text-sm">
+                {fmt(producto.fechaCreado)}
+              </p>
             </div>
           </div>
 
@@ -275,7 +306,7 @@ export function InventarioDetalleModal({
                   onChange={(e) => setFiltroTipo(e.target.value)}
                   className="text-sm border border-gray-300 rounded-md px-2 py-1"
                 >
-                  {tiposUnicos.map(tipo => (
+                  {tiposUnicos.map((tipo) => (
                     <option key={tipo} value={tipo}>
                       {tipo === "todos" ? "Todos los tipos" : tipo}
                     </option>
@@ -319,7 +350,9 @@ export function InventarioDetalleModal({
               {filteredMovimientos.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-gray-500">
                   <p className="text-lg">No hay movimientos registrados</p>
-                  <p className="text-sm">Para este producto o filtro seleccionado</p>
+                  <p className="text-sm">
+                    Para este producto o filtro seleccionado
+                  </p>
                 </div>
               ) : (
                 <div className="overflow-auto max-h-[50vh]">
@@ -328,7 +361,7 @@ export function InventarioDetalleModal({
                       <tr>
                         {[
                           "Fecha",
-                          "Tipo",                          
+                          "Tipo",
                           "Cantidad",
                           "Stock",
                           "Usuario",
@@ -345,8 +378,8 @@ export function InventarioDetalleModal({
                     </thead>
                     <tbody className="bg-white">
                       {filteredMovimientos.map((m, i) => (
-                        <tr 
-                          key={i} 
+                        <tr
+                          key={i}
                           className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                         >
                           <td className="px-4 py-3 text-sm text-gray-600 w-1/6">
@@ -361,24 +394,30 @@ export function InventarioDetalleModal({
                             >
                               {m.tipoMovimiento}
                             </span>
-                          </td>                         
-                      <td className="px-4 py-3 text-sm font-medium text-center flex items-center justify-center space-x-1">
-                          {m.tipoMovimiento.toLowerCase().includes("salida") ? (
-                            <>
-                              <span className="text-red-600 font-bold">–</span>
-                              <span className="text-red-600">
-                                {m.cantidadMovimiendo.toLocaleString("es-CO")}
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="text-green-600 font-bold">+</span>
-                              <span className="text-green-600">
-                                {m.cantidadMovimiendo.toLocaleString("es-CO")}
-                              </span>
-                            </>
-                          )}
-                        </td>
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-center flex items-center justify-center space-x-1">
+                            {m.tipoMovimiento
+                              .toLowerCase()
+                              .includes("salida") ? (
+                              <>
+                                <span className="text-red-600 font-bold">
+                                  –
+                                </span>
+                                <span className="text-red-600">
+                                  {m.cantidadMovimiendo.toLocaleString("es-CO")}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-green-600 font-bold">
+                                  +
+                                </span>
+                                <span className="text-green-600">
+                                  {m.cantidadMovimiendo.toLocaleString("es-CO")}
+                                </span>
+                              </>
+                            )}
+                          </td>
 
                           <td className="px-4 py-3 text-sm text-gray-900 text-left">
                             {(m.stock || 0).toLocaleString("es-CO")}
@@ -403,11 +442,12 @@ export function InventarioDetalleModal({
         {!loading && !error && filteredMovimientos.length > 0 && (
           <div className="border-t bg-gray-50 px-6 py-3">
             <div className="flex items-center justify-between text-sm text-gray-600">
+              <span>Total de movimientos: {filteredMovimientos.length}</span>
               <span>
-                Total de movimientos: {filteredMovimientos.length}
-              </span>
-              <span>
-                Última actualización: {filteredMovimientos.length > 0 ? fmt(filteredMovimientos[0].fecha) : "N/A"}
+                Última actualización:{" "}
+                {filteredMovimientos.length > 0
+                  ? fmt(filteredMovimientos[0].fecha)
+                  : "N/A"}
               </span>
             </div>
           </div>

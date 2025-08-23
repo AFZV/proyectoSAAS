@@ -153,7 +153,7 @@ export class PedidosService {
     const pedidoCreado = await this.prisma.pedido.findUnique({
       where: { id: pedidoId },
       include: {
-        productos: { include: { producto: true } },
+        productos: { include: { producto: true } }, // sin orderBy aquí
         cliente: true,
         usuario: { select: { nombre: true, telefono: true } },
         empresa: true,
@@ -161,14 +161,19 @@ export class PedidosService {
       },
     });
 
-    // 4) Generar/subir PDF en segundo plano (no bloquea la respuesta)
     if (pedidoCreado) {
-      setImmediate(() => {
-        void this.generarYSubirPDFPedido(pedidoCreado as PedidoParaPDF).catch(
-          (err) => console.error('Error generando PDF al crear:', err)
-        );
+      // 🔹 Ordenar productos en memoria por nombre
+      pedidoCreado.productos.sort((a, b) => {
+        const nombreA = a.producto?.nombre?.toLowerCase() ?? '';
+        const nombreB = b.producto?.nombre?.toLowerCase() ?? '';
+        return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base' });
       });
     }
+    setImmediate(() => {
+      void this.generarYSubirPDFPedido(pedidoCreado as PedidoParaPDF).catch(
+        (err) => console.error('Error generando PDF al crear:', err)
+      );
+    });
 
     return pedidoCreado;
   }
@@ -178,10 +183,45 @@ export class PedidosService {
   async agregarEstado(
     pedidoId: string,
     estado: string,
+    usuario: UsuarioPayload,
     guiaTransporte?: string,
     flete?: number
   ) {
     const estadoNormalizado = estado.toUpperCase();
+
+    // 👉 Funcióncita simple para anexar en observaciones (sin helpers externos)
+    // Versión minimalista dentro de agregarEstado (o como helper)
+    const anexarObs = async () => {
+      // Actor + fecha/hora (Colombia)
+      const actor = usuario ? `${usuario.nombre}`.trim() : 'Usuario';
+      const marca = new Date().toLocaleString('es-CO', {
+        timeZone: 'America/Bogota',
+        hour12: false,
+        dateStyle: 'short',
+        timeStyle: 'short',
+      });
+
+      const linea = `[${marca}] Estado ${estadoNormalizado} por ${actor}`;
+
+      // Leer observaciones actuales
+      const ped = await this.prisma.pedido.findUnique({
+        where: { id: pedidoId },
+        select: { observaciones: true },
+      });
+
+      const prev = ped?.observaciones ?? '';
+
+      // 👉 Quita espacios/nuevas líneas solo del final, y agrega una línea en blanco
+      const prevLimpio = prev.replace(/\s+$/, ''); // similar a trimEnd()
+      const nueva = prevLimpio
+        ? `${prevLimpio}\n\n${linea}` // ← una línea en blanco entre entradas
+        : linea;
+
+      await this.prisma.pedido.update({
+        where: { id: pedidoId },
+        data: { observaciones: nueva },
+      });
+    };
 
     const yaTieneEstado = await this.prisma.estadoPedido.findFirst({
       where: { pedidoId, estado: estadoNormalizado },
@@ -194,6 +234,7 @@ export class PedidosService {
     }
 
     if (['SEPARADO'].includes(estadoNormalizado)) {
+      await anexarObs();
       return this.prisma.estadoPedido.create({
         data: { pedidoId, estado: estadoNormalizado },
       });
@@ -208,6 +249,7 @@ export class PedidosService {
               include: {
                 producto: { select: { nombre: true } },
               },
+              orderBy: { producto: { nombre: 'asc' } },
             },
             cliente: true,
             usuario: {
@@ -261,6 +303,11 @@ export class PedidosService {
         })
       );
 
+      const clienteNombre =
+        pedido.cliente.rasonZocial && pedido.cliente.rasonZocial.trim() !== ''
+          ? pedido.cliente.rasonZocial
+          : `${pedido.cliente.nombre} ${pedido.cliente.apellidos}`.trim();
+
       const movimientosInventario = pedido.productos.map((item) =>
         this.prisma.movimientoInventario.create({
           data: {
@@ -270,6 +317,7 @@ export class PedidosService {
             idTipoMovimiento: tipoSalida.idTipoMovimiento,
             IdUsuario: pedido.usuarioId,
             IdPedido: pedido.id,
+            observacion: `Venta por pedido ${pedido.id.slice(0, 6)} - Cliente: ${clienteNombre}`,
           },
         })
       );
@@ -299,6 +347,7 @@ export class PedidosService {
           ])
           .then((res) => res[res.length - 1]),
       ]);
+      await anexarObs();
 
       // Generar y subir el PDF sin bloquear la respuesta
       setImmediate(() => {
@@ -422,6 +471,7 @@ export class PedidosService {
           data: { pedidoId, estado: estadoNormalizado },
         }),
       ]);
+      await anexarObs();
 
       return estadoNuevo;
     }
@@ -515,7 +565,7 @@ export class PedidosService {
 
       return pedidoActualizado;
     }
-
+    await anexarObs();
     return this.prisma.estadoPedido.create({
       data: { pedidoId, estado: estadoNormalizado },
     });
@@ -543,6 +593,7 @@ export class PedidosService {
           include: {
             producto: true, // ✅ Incluir información del producto
           },
+          orderBy: { producto: { nombre: 'asc' } },
         },
         estados: {
           orderBy: {
@@ -645,10 +696,45 @@ export class PedidosService {
           (acc, it) => acc + it.cantidad * it.precio,
           0
         );
+
+        // 1) Actor (quién edita)
+        const actor = await tx.usuario.findUnique({
+          where: { id: usuarioId },
+          select: { nombre: true, apellidos: true },
+        });
+        const actorNombre =
+          `${actor?.nombre ?? 'Usuario'} ${actor?.apellidos ?? ''}`.trim();
+
+        // 2) Marca de tiempo (Colombia)
+        const marca = new Date().toLocaleString('es-CO', {
+          timeZone: 'America/Bogota',
+          hour12: false,
+          dateStyle: 'short',
+          timeStyle: 'short',
+        });
+
+        // 3) Línea de auditoría
+        const lineaAudit = `[${marca}] Pedido EDITADO por ${actorNombre}`;
+
+        // 4) Base de observaciones (si el front envió texto úsalo, si no, toma lo que ya hay)
+        const pedObsPrev = await tx.pedido.findUnique({
+          where: { id: pedidoId, empresaId },
+          select: { observaciones: true },
+        });
+
+        const baseObs = data.observaciones ?? pedObsPrev?.observaciones ?? '';
+        // limpiar solo el final para no borrar saltos previos
+        const baseObsLimpia = baseObs.replace(/\s+$/, '');
+        // Observaciones finales = base + línea en blanco + audit
+        const observacionesFinal = baseObsLimpia
+          ? `${baseObsLimpia}\n\n${lineaAudit}`
+          : lineaAudit;
+
+        // 5) Un solo update que NO se pisa después
         await tx.pedido.update({
           where: { id: pedidoId },
           data: {
-            observaciones: data.observaciones ?? undefined,
+            observaciones: observacionesFinal,
             total: totalCalculado,
             ...(data.clienteId ? { clienteId: data.clienteId } : {}),
           },
@@ -666,23 +752,40 @@ export class PedidosService {
           // Validación simple por línea (no hay productos repetidos)
           const inventarios = await tx.inventario.findMany({
             where: { idEmpresa: empresaId, idProducto: { in: ids } },
-            select: { idProducto: true, stockActual: true },
+            include: { producto: { select: { nombre: true } } },
           });
+
+          // Mapa productoId -> stock y productoId -> nombre
           const stockMap = new Map(
             inventarios.map((i) => [i.idProducto, Number(i.stockActual || 0)])
           );
+          const nameMap = new Map(
+            inventarios.map((i) => [
+              i.idProducto,
+              i.producto?.nombre ?? i.idProducto,
+            ])
+          );
 
+          // Si falta inventario para algún producto, avisa con el nombre
           for (const it of data.productos!) {
-            const disp = stockMap.get(it.productoId) ?? 0;
+            const nombre = nameMap.get(it.productoId) ?? it.productoId;
+            if (!stockMap.has(it.productoId)) {
+              throw new BadRequestException(
+                `No existe inventario configurado para el producto "${nombre}".`
+              );
+            }
+            const disp = stockMap.get(it.productoId)!;
             if (disp < it.cantidad) {
               throw new BadRequestException(
-                `Stock insuficiente para producto ${it.productoId}. Disponible: ${disp}, requerido: ${it.cantidad}`
+                `Stock insuficiente para el producto "${nombre}". Disponible: ${disp}, requerido: ${it.cantidad}`
               );
             }
           }
 
           // Descuento atómico por línea + movimientos
           for (const it of data.productos!) {
+            const nombre = nameMap.get(it.productoId) ?? it.productoId;
+
             const ok = await tx.inventario.updateMany({
               where: {
                 idEmpresa: empresaId,
@@ -691,11 +794,23 @@ export class PedidosService {
               },
               data: { stockActual: { decrement: it.cantidad } },
             });
+
             if (ok.count === 0) {
               throw new BadRequestException(
-                `El stock de "${it.productoId}" cambió. Intenta de nuevo.`
+                `El stock de "${nombre}" cambió durante la operación. Intenta de nuevo.`
               );
             }
+            const clienteIdEfectivo = data.clienteId ?? pedidoPrevio.clienteId;
+            const clienteObs = await tx.cliente.findUnique({
+              where: { id: clienteIdEfectivo },
+              select: { rasonZocial: true, nombre: true, apellidos: true },
+            });
+
+            const clienteNombre =
+              (clienteObs?.rasonZocial?.trim()?.length
+                ? clienteObs.rasonZocial.trim()
+                : `${clienteObs?.nombre ?? ''} ${clienteObs?.apellidos ?? ''}`.trim()) ||
+              'Cliente';
 
             await tx.movimientoInventario.create({
               data: {
@@ -704,7 +819,8 @@ export class PedidosService {
                 cantidadMovimiendo: it.cantidad,
                 idTipoMovimiento: tipoSalida.idTipoMovimiento,
                 IdUsuario: usuarioId,
-                IdPedido: pedidoId,
+                IdPedido: pedidoId, ///////////////////////////////////////////////////////////////
+                observacion: `Venta por pedido ${pedidoId.slice(0, 6)} - Cliente: ${clienteNombre}`,
               },
             });
           }
@@ -734,7 +850,10 @@ export class PedidosService {
           const pedidoParaPdf = await this.prisma.pedido.findUnique({
             where: { id: pedidoId },
             include: {
-              productos: { include: { producto: true } },
+              productos: {
+                include: { producto: true },
+                orderBy: { producto: { nombre: 'asc' } },
+              },
               cliente: true,
               usuario: { select: { nombre: true, telefono: true } },
               empresa: true,
@@ -776,7 +895,10 @@ export class PedidosService {
     const pedidoFinal = await this.prisma.pedido.findUnique({
       where: { id: pedidoId },
       include: {
-        productos: { include: { producto: true } },
+        productos: {
+          include: { producto: true },
+          orderBy: { producto: { nombre: 'asc' } },
+        },
         cliente: true,
         usuario: { select: { nombre: true, telefono: true } },
         empresa: true,
