@@ -1,5 +1,6 @@
 // CatalogClient.tsx
 "use client";
+
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import React, { useState, useEffect, useMemo, useRef } from "react";
@@ -26,6 +27,7 @@ import { CheckoutModal } from "./CheckoutModal/CheckoutModal";
 import { catalogService } from "../services/catalog.services";
 import type { Producto, CarritoItem, Categoria } from "../types/catalog.types";
 import { formatValue } from "@/utils/FormartValue";
+import { v4 as uuid } from "uuid"; // npm i uuid && npm i -D @types/uuid
 
 interface CatalogClientProps {
   productos: Producto[];
@@ -38,7 +40,7 @@ export function CatalogClient({
   userType,
   userName,
 }: CatalogClientProps) {
-  // Estados principales
+  // -------------------- ESTADOS BASE --------------------
   const [productos] = useState<Producto[]>(productosIniciales);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [carrito, setCarrito] = useState<CarritoItem[]>([]);
@@ -47,52 +49,161 @@ export function CatalogClient({
   >({});
   const [observacionGeneral, setObservacionGeneral] = useState<string>("");
 
-  // Estados de filtros
+  // Flags de hidratación independientes para evitar “carreras”
+  const [cartHydrated, setCartHydrated] = React.useState(false);
+  const [obsHydrated, setObsHydrated] = React.useState(false);
+
+  // Clerk (cliente)
+  const { userId, isSignedIn, getToken } = useAuth();
+
+  // empresaNs: leer sincrónicamente al primer render
+  const [empresaNs] = React.useState<string>(() => {
+    if (typeof window === "undefined") return "default";
+    try {
+      return localStorage.getItem("empresaId") || "default";
+    } catch {
+      return "default";
+    }
+  });
+
+  // deviceId: generar/leer sincrónicamente al primer render
+  const [deviceId] = React.useState<string>(() => {
+    if (typeof window === "undefined") return "guest";
+    try {
+      let d = localStorage.getItem("bgacloud:deviceId");
+      if (!d) {
+        d = uuid();
+        localStorage.setItem("bgacloud:deviceId", d);
+      }
+      return d;
+    } catch {
+      return "guest";
+    }
+  });
+
+  // Namespace final estable desde el inicio: empresa + (user | guest:device)
+  const ns = React.useMemo(() => {
+    const userPart =
+      isSignedIn && userId ? `user:${userId}` : `guest:${deviceId}`;
+    return `${empresaNs}:${userPart}`;
+  }, [empresaNs, isSignedIn, userId, deviceId]);
+
+  // Claves por espacio
+  const LS_CART_KEY = `bgacloud:cart:v1:${ns}`;
+  const LS_OBS_PROD_KEY = `bgacloud:cart:obsPorProducto:v1:${ns}`;
+  const LS_OBS_GENERAL_KEY = `bgacloud:cart:obsGeneral:v1:${ns}`;
+
+  // Filtros/UI
   const [searchTerm, setSearchTerm] = useState("");
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<
     string | null
   >(null);
-
-  // Estados de UI
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [paginaActual, setPaginaActual] = useState<number>(1);
   const productosPorPagina = 100;
 
-  // NUEVOS ESTADOS PARA EL MODAL DE DETALLES
+  // Detalle
   const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const { getToken } = useAuth();
   const { toast } = useToast();
 
-  // Cargar categorías al montar
+  // -------------------- HIDRATAR DESDE LOCALSTORAGE --------------------
+  // Carrito
   useEffect(() => {
-    fetchCategorias();
-  }, []);
-
-  const fetchCategorias = async () => {
     try {
-      const token = await getToken();
-      if (token) {
-        const categoriasData = await catalogService.getCategorias(token);
-        setCategorias(categoriasData);
-      }
-    } catch (error) {
-      console.error("Error al cargar categorías:", error);
+      const rawCart = localStorage.getItem(LS_CART_KEY);
+      setCarrito(rawCart ? JSON.parse(rawCart) : []);
+    } catch {
+      setCarrito([]);
+    } finally {
+      setCartHydrated(true);
     }
-  };
+  }, [LS_CART_KEY]);
+
+  // Observaciones (por producto + general)
+  useEffect(() => {
+    try {
+      const rawObsProd = localStorage.getItem(LS_OBS_PROD_KEY);
+      const rawObsGeneral = localStorage.getItem(LS_OBS_GENERAL_KEY);
+      setObservacionesPorProducto(rawObsProd ? JSON.parse(rawObsProd) : {});
+      setObservacionGeneral(rawObsGeneral ? JSON.parse(rawObsGeneral) : "");
+    } catch (e) {
+      setObservacionesPorProducto({});
+      setObservacionGeneral("");
+      console.warn("No se pudo leer observaciones de localStorage", e);
+    } finally {
+      setObsHydrated(true);
+    }
+  }, [LS_OBS_PROD_KEY, LS_OBS_GENERAL_KEY]);
+
+  // -------------------- GUARDAR EN LOCALSTORAGE --------------------
+  // Guardar carrito SOLO cuando ya hidrató carrito
+  useEffect(() => {
+    if (!cartHydrated) return;
+    try {
+      localStorage.setItem(LS_CART_KEY, JSON.stringify(carrito));
+    } catch {}
+  }, [cartHydrated, LS_CART_KEY, carrito]);
+
+  // Guardar obs por producto SOLO cuando ya hidrató observaciones
+  useEffect(() => {
+    if (!obsHydrated) return;
+    try {
+      const limpio: Record<string, string> = {};
+      for (const [k, v] of Object.entries(observacionesPorProducto)) {
+        const t = (v ?? "").trim();
+        if (t) limpio[k] = t;
+      }
+      localStorage.setItem(LS_OBS_PROD_KEY, JSON.stringify(limpio));
+    } catch {}
+  }, [obsHydrated, LS_OBS_PROD_KEY, observacionesPorProducto]);
+
+  // Guardar obs general SOLO cuando ya hidrató observaciones
+  useEffect(() => {
+    if (!obsHydrated) return;
+    try {
+      localStorage.setItem(
+        LS_OBS_GENERAL_KEY,
+        JSON.stringify(observacionGeneral)
+      );
+    } catch {}
+  }, [obsHydrated, LS_OBS_GENERAL_KEY, observacionGeneral]);
+
+  // -------------------- CATEGORÍAS --------------------
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getToken();
+        if (token) {
+          const categoriasData = await catalogService.getCategorias(token);
+          setCategorias(categoriasData);
+        }
+      } catch (error) {
+        console.error("Error al cargar categorías:", error);
+      }
+    })();
+  }, [getToken]);
+
+  // -------------------- SETTERS OBS --------------------
   const setObservacionProducto = (productoId: string, texto: string) => {
-    setObservacionesPorProducto((prev) => ({ ...prev, [productoId]: texto }));
+    setObservacionesPorProducto((prev) => {
+      const next = { ...prev };
+      const t = (texto ?? "").trim();
+      if (t) next[productoId] = t;
+      else delete next[productoId];
+      return next;
+    });
   };
 
   const getObservacionProducto = (productoId: string) => {
     return observacionesPorProducto[productoId] || "";
   };
 
-  // Construye el texto que se mostrará en el checkout (editable)
+  // -------------------- CHECKOUT (texto observaciones) --------------------
   const buildTextoObservacionesCheckout = () => {
     const lineas = Object.entries(observacionesPorProducto)
       .filter(([, obs]) => obs?.trim())
@@ -114,11 +225,10 @@ export function CatalogClient({
     return `${bloqueProductos}${bloqueGeneral}`.trim();
   };
 
-  // Filtrar productos basado en búsqueda y categoría
+  // -------------------- FILTROS / PAGINACIÓN --------------------
   const productosFiltrados = useMemo(() => {
     let filtered = productos;
 
-    // Filtrar por término de búsqueda
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -128,7 +238,6 @@ export function CatalogClient({
       );
     }
 
-    // Filtrar por categoría
     if (categoriaSeleccionada) {
       const categoriaNombre = categorias.find(
         (c) => c.idCategoria === categoriaSeleccionada
@@ -144,7 +253,6 @@ export function CatalogClient({
     return filtered;
   }, [productos, searchTerm, categoriaSeleccionada, categorias]);
 
-  ////codigo nuevo de paginacion
   const totalPaginas = Math.ceil(
     productosFiltrados.length / productosPorPagina
   );
@@ -155,7 +263,6 @@ export function CatalogClient({
     return productosFiltrados.slice(inicio, fin);
   }, [productosFiltrados, paginaActual]);
 
-  // Calcular cantidad de productos por categoría
   const cantidadPorCategoria = useMemo(() => {
     const counts: Record<string, number> = {};
 
@@ -169,36 +276,34 @@ export function CatalogClient({
 
     return counts;
   }, [productos, categorias]);
+
   useEffect(() => {
     setPaginaActual(1);
   }, [searchTerm, categoriaSeleccionada]);
-  ////////////////////// hasta aca codigo nuevo de paginacion
-  // NUEVA FUNCIÓN: Abrir modal de detalles
+
+  // -------------------- DETALLE PRODUCTO --------------------
   const handleVerDetalles = (producto: Producto) => {
     setSelectedProduct(producto);
     setIsDetailModalOpen(true);
   };
 
-  // NUEVA FUNCIÓN: Cerrar modal de detalles
   const handleCloseDetailModal = () => {
     setIsDetailModalOpen(false);
     setSelectedProduct(null);
   };
 
-  // Funciones del carrito
+  // -------------------- CARRITO --------------------
   const agregarAlCarrito = (producto: Producto, cantidad: number = 1) => {
     setCarrito((prevCarrito) => {
       const existente = prevCarrito.find((item) => item.id === producto.id);
 
       if (existente) {
-        // Si ya existe, incrementar cantidad
         return prevCarrito.map((item) =>
           item.id === producto.id
             ? { ...item, cantidad: item.cantidad + cantidad }
             : item
         );
       } else {
-        // Si no existe, agregar nuevo
         return [...prevCarrito, { ...producto, cantidad }];
       }
     });
@@ -240,6 +345,13 @@ export function CatalogClient({
 
   const limpiarCarrito = () => {
     setCarrito([]);
+    localStorage.removeItem(LS_CART_KEY);
+    // Si también quieres limpiar observaciones:
+    // setObservacionesPorProducto({});
+    // localStorage.removeItem(LS_OBS_PROD_KEY);
+    // setObservacionGeneral("");
+    // localStorage.removeItem(LS_OBS_GENERAL_KEY);
+
     toast({
       title: "Carrito limpiado",
       description: "Se eliminaron todos los productos del carrito",
@@ -247,28 +359,20 @@ export function CatalogClient({
     });
   };
 
-  // Funciones de filtros
-  const handleSearch = (term: string) => {
-    setSearchTerm(term);
-  };
+  const handleSearch = (term: string) => setSearchTerm(term);
 
-  const handleCategoriaChange = (categoriaId: string | null) => {
+  const handleCategoriaChange = (categoriaId: string | null) =>
     setCategoriaSeleccionada(categoriaId);
-  };
 
-  // Verificar si un producto está en el carrito
-  const getProductoEnCarrito = (productoId: string) => {
-    return carrito.find((item) => item.id === productoId);
-  };
+  const getProductoEnCarrito = (productoId: string) =>
+    carrito.find((item) => item.id === productoId);
 
-  // Función para proceder al checkout
   const handleCheckout = () => {
-    const textoInicial = buildTextoObservacionesCheckout();
+    // const textoInicial = buildTextoObservacionesCheckout(); // si lo necesitas
     setIsCartOpen(false);
     setIsCheckoutOpen(true);
   };
 
-  // Función para finalizar pedido exitosamente
   const handlePedidoCreado = () => {
     limpiarCarrito();
     setIsCheckoutOpen(false);
@@ -278,18 +382,16 @@ export function CatalogClient({
       duration: 500,
     });
   };
+
   const handleDescargarImagen = async (producto: Producto) => {
     setSelectedProduct(producto);
     try {
       const { default: html2canvas } = await import("html2canvas");
-
-      // Contenedor temporal fuera de pantalla
       const temp = document.createElement("div");
       Object.assign(temp.style, {
         position: "fixed",
         left: "-10000px",
         top: "0",
-        // Lienzo grande para mejor nitidez del PNG final
         width: "1200px",
         padding: "24px",
         background: "#ffffff",
@@ -299,41 +401,17 @@ export function CatalogClient({
         zIndex: "2147483647",
       });
 
-      // Layout: imagen grande a la izquierda, info a la derecha
-      // NOTA: Solo mostramos descripción, categoría, precio de venta y stock
       temp.innerHTML = `
-      <div style="
-        display:flex;
-        gap:32px;
-        align-items:flex-start;
-      ">
-        <!-- Imagen grande (max sin deformar) -->
+      <div style="display:flex; gap:32px; align-items:flex-start;">
         <div style="
           flex:0 0 55%;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          background:#f8fafc;
-          border:1px solid #e5e7eb;
-          border-radius:16px;
-          padding:16px;
-          min-height:600px;
-        ">
-          <img
-            src="${producto.imagenUrl || "/placeholder-product.png"}"
-            alt="${producto.nombre}"
-            crossOrigin="anonymous"
-            style="
-              max-width:100%;
-              max-height:100%;
-              object-fit:contain;
-              image-rendering:auto; /* evita pixel-art */
-              border-radius:12px;
-            "
-          />
+          display:flex; align-items:center; justify-content:center;
+          background:#f8fafc; border:1px solid #e5e7eb;
+          border-radius:16px; padding:16px; min-height:600px;">
+          <img src="${producto.imagenUrl || "/placeholder-product.png"}"
+               alt="${producto.nombre}" crossOrigin="anonymous"
+               style="max-width:100%; max-height:100%; object-fit:contain; border-radius:12px;" />
         </div>
-
-        <!-- Información a la derecha -->
         <div style="flex:1; display:flex; flex-direction:column; gap:24px;">
           <div>
             <div style="font-size:16px; color:#374151; margin-bottom:8px;">Descripción</div>
@@ -341,29 +419,20 @@ export function CatalogClient({
               ${producto.nombre || "Sin descripción"}
             </div>
           </div>
-
           <div>
             <div style="font-size:16px; color:#374151; margin-bottom:8px;">Categoría</div>
             <div style="
-              display:inline-block;
-              padding:8px 12px;
-              background:#eef2ff;
-              color:#3730a3;
-              font-weight:600;
-              border-radius:999px;
-              font-size:16px;
-            ">
+              display:inline-block; padding:8px 12px; background:#eef2ff;
+              color:#3730a3; font-weight:600; border-radius:999px; font-size:16px;">
               ${producto.categoria}
             </div>
           </div>
-
           <div>
             <div style="font-size:16px; color:#374151; margin-bottom:8px;">Precio de venta</div>
             <div style="font-size:32px; font-weight:800; color:#065f46;">
               ${formatValue(producto.precio)}
             </div>
           </div>
-
           <div>
             <div style="font-size:16px; color:#374151; margin-bottom:8px;">Stock disponible</div>
             <div style="font-size:28px; font-weight:800; color:${
@@ -377,18 +446,14 @@ export function CatalogClient({
             </div>
           </div>
         </div>
-      </div>
-    `;
+      </div>`;
 
       document.body.appendChild(temp);
-
-      // Esperar a que el DOM pinte
       await new Promise((r) => requestAnimationFrame(() => r(null)));
 
       const canvas = await html2canvas(temp, {
         backgroundColor: "#ffffff",
         useCORS: true,
-        // Escala alta para nitidez; si es muy pesado, bájalo a 2
         scale: Math.min(3, (window.devicePixelRatio || 1) * 2),
       });
 
@@ -403,13 +468,12 @@ export function CatalogClient({
       temp.remove();
     } catch (err) {
       console.error("Error generando imagen:", err);
-      // Aquí puedes mostrar tu toast de error si quieres
     }
   };
-
+  // -------------------- RENDER --------------------
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
-      {/* Bienvenida sutil para usuarios */}
+      {/* Bienvenida */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4 text-sm text-blue-700">
@@ -426,7 +490,6 @@ export function CatalogClient({
             </span>
           </div>
 
-          {/* Estadísticas para usuarios no admin */}
           {userType !== "admin" && (
             <div className="hidden sm:flex items-center gap-6">
               <div className="text-center">
@@ -445,9 +508,9 @@ export function CatalogClient({
           )}
         </div>
       </div>
+
       {/* Controles superiores */}
       <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-        {/* Búsqueda */}
         <div className="flex-1 max-w-md">
           <SearchBar
             onSearch={handleSearch}
@@ -456,7 +519,7 @@ export function CatalogClient({
           />
         </div>
 
-        {/* Botón carrito (visible en móvil) */}
+        {/* Carrito (móvil) */}
         <div className="lg:hidden">
           <CartSidebar
             carrito={carrito}
@@ -482,7 +545,7 @@ export function CatalogClient({
 
       {/* Layout principal */}
       <div className="flex gap-6">
-        {/* Grid de productos */}
+        {/* Grid */}
         <div className="flex-1">
           <Pagination
             paginaActual={paginaActual}
@@ -491,7 +554,6 @@ export function CatalogClient({
           />
 
           {productosFiltrados.length === 0 ? (
-            /* No hay productos */
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
@@ -528,7 +590,6 @@ export function CatalogClient({
               </CardContent>
             </Card>
           ) : (
-            /* Grid de productos - MEJORADO CON NUEVA FUNCIONALIDAD */
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 auto-rows-fr">
               {productosPaginados.map((producto) => {
                 const enCarrito = getProductoEnCarrito(producto.id);
@@ -537,7 +598,7 @@ export function CatalogClient({
                     key={producto.id}
                     producto={producto}
                     onAgregarAlCarrito={agregarAlCarrito}
-                    onDescargarImagen={handleDescargarImagen} // NUEVA PROP
+                    onDescargarImagen={handleDescargarImagen}
                     onVerDetalles={handleVerDetalles}
                     isInCart={!!enCarrito}
                     cantidadEnCarrito={enCarrito?.cantidad || 0}
@@ -568,7 +629,7 @@ export function CatalogClient({
           </button>
         </div>
 
-        {/* Carrito lateral fijo (solo desktop) */}
+        {/* Carrito lateral (desktop) */}
         <div className="hidden lg:block w-80">
           <div className="sticky top-6">
             <Card className="border-blue-200 shadow-lg shadow-blue-500/10">
@@ -593,7 +654,6 @@ export function CatalogClient({
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {/* Lista simplificada para desktop */}
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                       {carrito.map((item) => (
                         <div
@@ -651,15 +711,10 @@ export function CatalogClient({
         carrito={carrito}
         onPedidoCreado={handlePedidoCreado}
         initialNotes={buildTextoObservacionesCheckout()}
-        onNotesChange={(nuevoTexto) => {
-          // Opcional: si quieres dividir otra vez en general vs por producto puedes hacerlo,
-          // pero normalmente guardamos todo en una sola cadena final para el pedido.
-          // Aquí solo guardo en observacionGeneral lo que no sea por-producto si lo deseas.
-          setObservacionGeneral(nuevoTexto);
-        }}
+        onNotesChange={(nuevoTexto) => setObservacionGeneral(nuevoTexto)}
       />
 
-      {/* NUEVO: Modal de detalles del producto */}
+      {/* Modal de detalles */}
       <ProductDetailModal
         producto={selectedProduct}
         isOpen={isDetailModalOpen}
