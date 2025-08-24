@@ -38,9 +38,9 @@ const REPORTES_DATA: ReporteCardData[] = [
       },
       {
         id: "rango",
-        label: "Por Rango de Letras",
+        label: "Por palabra de producto",
         description:
-          "Productos filtrados por inicial del nombre (A-C, D-F, etc.)",
+          "Productos filtrados por palabra (tramontina-cortina, cuchara, etc.)",
       },
       {
         id: "productos",

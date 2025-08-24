@@ -41,13 +41,13 @@ const formatoBaseSchema = z.object({
   fin: z.string().optional(),
   ciudad: z.string().optional(),
   vendedorId: z.string().optional(),
+  palabraClave: z.string().optional(),
 });
 
 const inventarioGeneralSchema = formatoBaseSchema;
 
 const inventarioRangoSchema = formatoBaseSchema.extend({
-  inicio: z.string().min(1, "Letra inicial requerida").max(1),
-  fin: z.string().min(1, "Letra final requerida").max(1),
+  palabraClave: z.string().min(4, "palabra clave requerida").max(10),
 });
 
 const clientesTodosSchema = formatoBaseSchema;
@@ -221,6 +221,7 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       fin: "",
       ciudad: "",
       vendedorId: "",
+      palabraClave: "",
     },
   });
 
@@ -241,13 +242,10 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
         method = "GET";
         body = {};
       } else if (opcion === "rango") {
-        endpoint = `/reportes/inventario/rango/${data.formato}`;
-
-        method = "POST";
-        body = {
-          inicio: data.inicio.toUpperCase(),
-          fin: data.fin.toUpperCase(),
-        };
+        const q = encodeURIComponent(data.palabraClave);
+        endpoint = `/reportes/buscar/palabraClave/${data.formato}?palabraClave=${q}`;
+        method = "GET";
+        body = {};
       } else if (opcion === "productos") {
         endpoint = `/reportes/inventario/productos/${data.formato}`;
         method = "GET";
@@ -367,7 +365,23 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `reporte-${tipo}-${opcion}.xlsx`;
+    // base por tipo/opción
+    const base = `reporte-${tipo}-${opcion}`;
+
+    // si viene palabraClave, la agregamos
+    const extra = data?.palabraClave ? `-${data.palabraClave}` : "";
+
+    // extensión según formato
+    const ext = data?.formato === "excel" ? "xlsx" : "pdf";
+
+    // (opcional) sanitizar para nombre de archivo
+    const safe = (s: string) =>
+      s
+        .replace(/[\\/:*?"<>|]+/g, "_") // caracteres inválidos en nombres de archivo
+        .replace(/\s+/g, "_") // espacios por guion bajo
+        .slice(0, 120); // evitar nombres larguísimos
+
+    link.download = safe(`${base}${extra}.${ext}`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -415,36 +429,15 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="inicio"
+            name="palabraClave"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Letra Inicial</FormLabel>
+                <FormLabel>Palabra Clave</FormLabel>
                 <FormControl>
                   <Input
                     {...field}
-                    placeholder="A"
-                    maxLength={1}
-                    className="uppercase"
-                    onChange={(e) =>
-                      field.onChange(e.target.value.toUpperCase())
-                    }
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="fin"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Letra Final</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder="Z"
-                    maxLength={1}
+                    placeholder="TRAMONTINA"
+                    maxLength={10}
                     className="uppercase"
                     onChange={(e) =>
                       field.onChange(e.target.value.toUpperCase())

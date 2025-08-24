@@ -8,6 +8,7 @@ import { CreateCompraDto } from './dto/create-compra.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { UpdateCompraDto } from './dto/update-compra.dto';
 import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
+import { ResumenCompraDto } from './dto/resumen-compra.dto';
 
 @Injectable()
 export class ComprasService {
@@ -710,5 +711,66 @@ export class ComprasService {
       await this.pdfUploaderService.generarCatalogoPDF(productosFormateados);
 
     return buffer;
+  }
+
+  // compras.service.ts
+  async generarPDFCompraSencilla(
+    idCompra: string,
+    usuario: UsuarioPayload
+  ): Promise<Buffer> {
+    if (!usuario) throw new BadRequestException('No permitido');
+    const { empresaId, rol } = usuario;
+    if (rol !== 'admin')
+      throw new UnauthorizedException('Usuario no autorizado');
+
+    const compra = await this.prisma.compras.findUnique({
+      where: { idCompra, idEmpresa: empresaId },
+      include: {
+        empresa: true,
+        proveedor: true,
+        detalleCompra: { include: { producto: true } },
+      },
+    });
+
+    if (!compra || !compra.detalleCompra.length) {
+      throw new BadRequestException('La compra no existe o no tiene productos');
+    }
+
+    const items = compra.detalleCompra.map((dc) => {
+      const cantidad = Number(dc.cantidad ?? 0);
+      const costoUnitario = Number(dc.producto?.precioCompra ?? 0);
+      const idShort = dc.producto?.id
+        ? dc.producto.id.replace(/-/g, '').slice(0, 5).toUpperCase()
+        : null;
+
+      return {
+        nombre: dc.producto?.nombre ?? 'Producto',
+        codigo: idShort, // 👈 ahora el template usa it.codigo
+        cantidad,
+        costoUnitario,
+        subtotal: cantidad * costoUnitario,
+      };
+    });
+    const total = items.reduce((a, b) => a + b.subtotal, 0);
+
+    const resumen: ResumenCompraDto = {
+      logoUrl: compra.empresa?.logoUrl ?? '',
+      nombreEmpresa:
+        compra.empresa?.nombreComercial || compra.empresa?.razonSocial || '',
+      direccionEmpresa: compra.empresa?.direccion ?? '',
+      telefonoEmpresa: compra.empresa?.telefono ?? '',
+      idCompra: compra.idCompra,
+      fechaCompra: compra.FechaCompra,
+      proveedorNombre: compra.proveedor?.razonsocial ?? '',
+      proveedorIdentificacion: compra.proveedor?.identificacion ?? '',
+      proveedorTelefono: compra.proveedor?.telefono ?? '',
+      proveedorDireccion: compra.proveedor?.direccion ?? '',
+      items,
+      total,
+    };
+
+    const { buffer } = await this.pdfUploaderService.generarCompraPDF(resumen);
+
+    return buffer; // ← listo
   }
 }

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Resumen de la Compra</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        margin: 25px;
+        color: #333;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 6px;
+      }
+
+      .empresa-info {
+        display: flex;
+        gap: 15px;
+      }
+
+      .empresa-info img {
+        height: 50px;
+        object-fit: contain;
+      }
+
+      .empresa-datos h2 {
+        margin: 0;
+        color: #007bff;
+        font-size: 16px; /* Discreto */
+      }
+
+      .empresa-datos p {
+        margin: 1px 0;
+        font-size: 11px;
+      }
+
+      .datos-compra p {
+        margin: 2px 0;
+        font-size: 10px;
+      }
+
+      .section {
+        margin-top: 16px;
+      }
+
+      .section h3 {
+        color: #007bff;
+        border-bottom: 1px solid #007bff;
+        padding-bottom: 3px;
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+
+      /* ===== Solo compactamos datos de proveedor/empresa ===== */
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 4px 16px;             /* Menos espacio */
+        margin-top: 10px;          /* Más compacto */
+      }
+      .info-grid p {
+        margin: 1px 0;             /* Casi sin margen */
+        font-size: 9.5px;          /* Más pequeño SOLO aquí */
+        line-height: 1.2;          /* Línea compacta */
+      }
+      .info-grid strong {
+        font-weight: 600;
+      }
+
+      /* ===== Tabla de ítems de compra ===== */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;           /* Legible */
+      }
+      th {
+        background-color: #007bff;
+        color: white;
+        padding: 8px;              /* Un poco más de aire */
+        text-align: left;
+      }
+      td {
+        padding: 6px;              /* Un poco más de aire */
+        border-bottom: 1px solid #ddd;
+      }
+
+      .observaciones {
+        margin-top: 12px;
+        font-size: 10px;
+        background-color: #f9f9f9;
+        border: 1px solid #ddd;
+        padding: 6px;
+        border-radius: 4px;
+      }
+      .observaciones strong {
+        color: #007bff;
+      }
+
+      .resumen {
+        margin-top: 14px;
+        text-align: right;
+        font-size: 12px;
+        font-weight: bold;
+      }
+
+      .footer {
+        margin-top: 20px;
+        font-size: 11px;
+        text-align: center;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="empresa-info">
+        <img src="<%= logoUrl %>" alt="Logo Empresa" />
+        <div class="empresa-datos">
+          <h2><%= nombreEmpresa %></h2>
+          <p><%= direccionEmpresa %></p>
+          <p>Tel: <%= telefonoEmpresa %></p>
+        </div>
+      </div>
+      <div class="datos-compra">
+        <p><strong>Compra:</strong> #<%= idCompra.slice(0, 5).toUpperCase() %></p>
+        <p><strong>Fecha:</strong> <%= new Date(fechaCompra).toLocaleDateString("es-CO") %></p>
+      </div>
+    </div>
+
+    <div class="section info-grid">
+      <div>
+        <p><strong>Proveedor:</strong> <%= proveedorNombre %></p>
+        <p><strong>NIT / C.C.:</strong> <%= proveedorIdentificacion %></p>
+        <p><strong>Dirección:</strong> <%= proveedorDireccion %></p>
+      </div>
+      <div>
+        <p><strong>Teléfono:</strong> <%= proveedorTelefono %></p>
+        <% if (typeof proveedorEmail !== 'undefined' && proveedorEmail) { %>
+          <p><strong>Email:</strong> <%= proveedorEmail %></p>
+        <% } %>
+        <% if (typeof elaboradoPor !== 'undefined' && elaboradoPor) { %>
+          <p><strong>Elaborado por:</strong> <%= elaboradoPor %></p>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Detalle de la Compra</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Ítem</th>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Costo Unitario</th>
+            <th>Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% items.forEach((it, index) => { %>
+            <tr>
+              <td><%= index + 1 %></td>
+              <td>
+                <% if (typeof it.codigo !== 'undefined' && it.codigo !== null) { %>
+                  <small style="opacity:.7">[<%= it.codigo %>]</small>
+                <% } %>
+                <%= it.nombre %>
+              </td>
+              <td><%= it.cantidad %></td>
+              <td>$<%= Number(it.costoUnitario || 0).toLocaleString("es-CO") %></td>
+              <td>$<%= Number(it.subtotal || (it.cantidad * (it.costoUnitario || 0))).toLocaleString("es-CO") %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <div class="resumen">
+      Total Compra: $<%= Number(total).toLocaleString("es-CO") %>
+    </div>
+
+    <div class="footer">
+      <p><strong>Este documento ha sido generado automáticamente.</strong></p>
+  
+    </div>
+  </body>
+</html>

@@ -12,6 +12,7 @@ import * as os from 'os';
 
 import { ResumenPedidoDto } from './dto/resumen-pedido.dto';
 import { ResumenReciboDto } from './dto/resumen-recibo.dto';
+import { ResumenCompraDto } from 'src/compras/dto/resumen-compra.dto';
 
 type CatalogoProducto = {
   nombre: string;
@@ -24,6 +25,7 @@ type CatalogoProducto = {
 type TemplateData =
   | ResumenPedidoDto
   | ResumenReciboDto
+  | ResumenCompraDto
   | { productos: CatalogoProducto[] };
 
 @Injectable()
@@ -32,18 +34,20 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   private browser: Browser | null = null;
 
   private templates: Record<
-    'pedido' | 'recibo' | 'catalogo',
+    'pedido' | 'recibo' | 'catalogo' | 'compra',
     TemplateFunction | null
   > = {
     pedido: null,
     recibo: null,
     catalogo: null,
+    compra: null, // ⬅️ nuevo
   };
 
   private readonly templatePaths = {
     pedido: join(process.cwd(), 'src', 'templates', 'pedido.ejs'),
     recibo: join(process.cwd(), 'src', 'templates', 'recibo.ejs'),
     catalogo: join(process.cwd(), 'src', 'templates', 'catalogo.ejs'),
+    compra: join(process.cwd(), 'src', 'templates', 'compra.ejs'), // ⬅️ nuevo
   };
 
   async onModuleInit(): Promise<void> {
@@ -64,15 +68,18 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
         Object.values(this.templatePaths).map((path) => fs.access(path))
       );
 
-      const [pedidoHtml, reciboHtml, catalogoHtml] = await Promise.all([
-        fs.readFile(this.templatePaths.pedido, 'utf8'),
-        fs.readFile(this.templatePaths.recibo, 'utf8'),
-        fs.readFile(this.templatePaths.catalogo, 'utf8'),
-      ]);
+      const [pedidoHtml, reciboHtml, catalogoHtml, compraHtml] =
+        await Promise.all([
+          fs.readFile(this.templatePaths.pedido, 'utf8'),
+          fs.readFile(this.templatePaths.recibo, 'utf8'),
+          fs.readFile(this.templatePaths.catalogo, 'utf8'),
+          fs.readFile(this.templatePaths.compra, 'utf8'), // ⬅️ nuevo
+        ]);
 
       this.templates.pedido = compile(pedidoHtml);
       this.templates.recibo = compile(reciboHtml);
       this.templates.catalogo = compile(catalogoHtml);
+      this.templates.compra = compile(compraHtml); // ⬅️ nuevo
 
       this.logger.log('✅ Templates compiled successfully');
     } catch (error) {
@@ -118,7 +125,7 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   }: {
     data: TemplateData;
     fileName: string;
-    tipo: 'pedido' | 'recibo' | 'catalogo';
+    tipo: 'pedido' | 'recibo' | 'catalogo' | 'compra';
   }): Promise<{ buffer: Buffer; path: string }> {
     try {
       const html = this.renderTemplate(tipo, data);
@@ -168,7 +175,7 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   }
 
   private renderTemplate(
-    tipo: 'pedido' | 'recibo' | 'catalogo',
+    tipo: 'pedido' | 'recibo' | 'catalogo' | 'compra',
     data: TemplateData
   ): string {
     const template = this.templates[tipo];
@@ -216,7 +223,9 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   private async generatePdfBuffer(page: Page): Promise<Buffer> {
     try {
       await page.waitForNetworkIdle({ idleTime: 1200, timeout: 90_000 });
-    } catch {}
+    } catch {
+      /* empty */
+    }
     const buffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -239,7 +248,8 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
         this.browser.isConnected() &&
         this.templates.pedido &&
         this.templates.recibo &&
-        this.templates.catalogo
+        this.templates.catalogo &&
+        this.templates.compra
     );
   }
 
@@ -274,6 +284,15 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     } finally {
       await page.close();
     }
+  }
+  async generarCompraPDF(
+    data: ResumenCompraDto
+  ): Promise<{ buffer: Buffer; path: string }> {
+    return this.generarPDF({
+      data,
+      fileName: `compra_${data.idCompra}.pdf`,
+      tipo: 'compra',
+    });
   }
 
   // pdf-uploader.service.ts

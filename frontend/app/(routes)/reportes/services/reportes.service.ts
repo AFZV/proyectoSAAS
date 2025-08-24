@@ -88,27 +88,23 @@ export class ReportesService {
    */
   static async generarInventarioRango(data: {
     formato: "excel" | "pdf";
-    fechaInicio: string;
-    fechaFin: string;
-    inicio: string;
-    fin: string;
+    palabraClave: string;
   }) {
     const headers = await this.getHeaders();
     const response = await fetch(
-      `${BACKEND_URL}/reportes/inventario/rango/${data.formato}`,
+      `${BACKEND_URL}/reportes/buscar/palabraClave/${data.formato}`,
       {
         method: "POST",
         headers,
         body: JSON.stringify({
-          inicio: data.inicio.toUpperCase(),
-          fin: data.fin.toUpperCase(),
+          palabraClave: data.palabraClave,
         }),
       }
     );
 
     await this.handleDownload(
       response,
-      `inventario_${data.inicio}-${data.fin}.${
+      `inventario_${data.palabraClave}.${
         data.formato === "excel" ? "xlsx" : "pdf"
       }`
     );

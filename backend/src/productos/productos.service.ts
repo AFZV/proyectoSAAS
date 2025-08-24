@@ -55,60 +55,6 @@ export class ProductosService {
       throw new InternalServerErrorException('Error al crear el producto');
     }
   }
-  // productos.service.ts
-  // productos.service.ts
-  // productos.service.ts
-  // async generarCatalogoParte(
-  //   usuario: UsuarioPayload,
-  //   opts: { part: number; parts?: number; perPart?: number }
-  // ): Promise<{ path: string; name: string }> {
-  //   if (!usuario) throw new BadRequestException('no permitido');
-  //   if (usuario.rol !== 'admin')
-  //     throw new UnauthorizedException('usuario no autorizado');
-
-  //   const productos = await this.prisma.producto.findMany({
-  //     where: {
-  //       empresaId: usuario.empresaId,
-  //       estado: 'activo',
-  //       inventario: { some: { stockActual: { gt: 0 } } },
-  //     },
-  //     orderBy: { nombre: 'asc' },
-  //     include: {
-  //       inventario: {
-  //         where: { idEmpresa: usuario.empresaId },
-  //         select: { stockActual: true },
-  //       },
-  //       categoria: { select: { nombre: true } },
-  //     },
-  //   });
-  //   if (!productos?.length) throw new BadRequestException('no hay productos');
-
-  //   const all = productos.map((p) => ({
-  //     nombre: p.nombre,
-  //     imagenUrl: p.imagenUrl ?? '',
-  //     precioVenta: p.precioVenta ?? 0,
-  //     categoria: p.categoria ?? undefined,
-  //     stockDisponible: p.inventario.reduce(
-  //       (a, inv) => a + (inv.stockActual || 0),
-  //       0
-  //     ),
-  //   }));
-
-  //   const total = all.length;
-  //   const parts = Math.max(1, opts.parts ?? 3);
-  //   const perPart = Math.max(1, opts.perPart ?? Math.ceil(total / parts));
-  //   const partIndex = Math.max(1, Math.min(parts, opts.part));
-
-  //   const start = (partIndex - 1) * perPart;
-  //   const end = start + perPart;
-  //   const slice = all.slice(start, end);
-
-  //   const { path } = await this.pdfUploaderService.generarCatalogoPDFaDisco(
-  //     all,
-  //     'catalogo_productos.pdf'
-  //   );
-  //   return { path };
-  // }
 
   async findAllforEmpresa(usuario: UsuarioPayload) {
     try {
@@ -172,6 +118,95 @@ export class ProductosService {
       throw new InternalServerErrorException('Error al obtener los productos');
     }
   }
+  slugify(input: string) {
+    return input
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // quita tildes
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-') // separa por guiones
+      .replace(/^-+|-+$/g, '');
+  }
+
+  async generarCatalogoLinkPorCategoria(
+    usuario: UsuarioPayload,
+    categoriaId: string
+  ): Promise<{ url: string; key: string }> {
+    if (!usuario) throw new BadRequestException('no permitido');
+    if (usuario.rol !== 'admin')
+      throw new UnauthorizedException('usuario no autorizado');
+
+    // 1) Verifica que la categoría exista en la empresa
+    const categoria = await this.prisma.categoriasProducto.findFirst({
+      where: { idCategoria: categoriaId, empresaId: usuario.empresaId },
+      select: { idCategoria: true, nombre: true },
+    });
+    if (!categoria) {
+      throw new BadRequestException(
+        'categoría no encontrada para esta empresa'
+      );
+    }
+
+    // 2) Trae productos activos de esa categoría con stock > 0
+    const productos = await this.prisma.producto.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+        estado: 'activo',
+        categoriaId,
+        inventario: { some: { stockActual: { gt: 0 } } },
+      },
+      orderBy: { nombre: 'asc' },
+      include: {
+        inventario: {
+          where: { idEmpresa: usuario.empresaId },
+          select: { stockActual: true },
+        },
+        categoria: { select: { nombre: true } },
+      },
+    });
+
+    if (!productos?.length) {
+      throw new BadRequestException('no hay productos para esta categoría');
+    }
+
+    const productosFormateados = productos.map((p) => ({
+      nombre: p.nombre,
+      imagenUrl: p.imagenUrl ?? '',
+      precioVenta: p.precioVenta ?? 0,
+      categoria: p.categoria ?? undefined,
+      stockDisponible: p.inventario.reduce(
+        (acc, inv) => acc + (inv.stockActual || 0),
+        0
+      ),
+    }));
+
+    // 3) Genera PDF a disco
+    const nombreCategoria = this.slugify(categoria.nombre);
+    const fileName = `catalogo_${nombreCategoria}.pdf`;
+
+    const { path } = await this.pdfUploaderService.generarCatalogoPDFaDisco(
+      productosFormateados,
+      fileName
+    );
+
+    // 4) Sube al bucket (público) y devuelve link
+    const folder = `catalogos/${usuario.empresaId}/${nombreCategoria}/${randomUUID()}`;
+
+    const { url, key } = await this.hetznerService.uploadPublicFromPath(
+      path,
+      fileName,
+      folder
+      // Asegúrate que tu upload use ContentDisposition: 'inline'
+    );
+
+    // 5) Limpia archivo local
+    try {
+      await fs.unlink(path);
+    } catch {
+      /* empty */
+    }
+
+    return { url, key };
+  }
 
   /////productos para pdf de catalogo
   async generarCatalogoLink(
@@ -211,24 +246,20 @@ export class ProductosService {
       ),
     }));
 
-    // 2) Genera el PDF a disco (no Buffer en RAM)
+    // 2) Generar PDF a disco (sin buffer en RAM)
     const { path } = await this.pdfUploaderService.generarCatalogoPDFaDisco(
       productosFormateados,
       'catalogo_productos.pdf'
     );
 
-    // 3a) Subir PÚBLICO (misma lógica que tus imágenes)
-    // const folder = `tmp/catalogos/${usuario.empresaId}/${randomUUID()}`;
-    // const fileName = 'catalogo_productos.pdf';
-    // const url = await this.hetznerStorageService.uploadPublicFromPath(path, fileName, folder);
-    // const key = `${folder}/${fileName}`;
+    // 3) Subir a Hetzner (PÚBLICO) y devolver URL
+    const folder = `catalogos/${empresaId}/${randomUUID()}`;
+    const fileName = `catalogo-${new Date().toISOString().slice(0, 10)}.pdf`;
 
-    // 3b) O subir PRIVADO y devolver URL firmada 24h:
-    const key = `tmp/catalogos/${usuario.empresaId}/${randomUUID()}/catalogo_productos.pdf`;
-    const { url } = await this.hetznerService.uploadPublicFromPath(
+    const { url, key } = await this.hetznerService.uploadPublicFromPath(
       path,
-      'catalogo.pdf',
-      `tmp/catalogos/${empresaId}`
+      fileName,
+      folder
     );
 
     // 4) Limpia el archivo local
@@ -260,8 +291,7 @@ export class ProductosService {
       });
     } catch (error: any) {
       console.error('Error al Actualizar el estado  del producto:', error);
-      // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+
       if (error.getStatus && typeof error.getStatus === 'function') {
         throw error;
       }

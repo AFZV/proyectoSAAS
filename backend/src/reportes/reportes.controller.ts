@@ -9,6 +9,7 @@ import {
   HttpStatus,
   UseGuards,
   Get,
+  Query,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ReportesService } from './reportes.service';
@@ -19,7 +20,6 @@ import { CrearReporteInvDto } from './dto/crear-reporte-inventario.dto';
 import { CrearReporteClienteCiudadDto } from './dto/crear-reporte-clientciudad-dto';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { CrearReporteRangoProductoDto } from './dto/crear-reporte-rango-producto.dto';
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('reportes')
@@ -106,17 +106,20 @@ export class ReportesController {
     }
   }
   //Reporte de productos por rango de letras Iniciales
+
   @Roles('admin')
-  @Post('inventario/rango/:format')
-  async createInventarioRangoReport(
+  @Get('buscar/palabraClave/:format')
+  async buscar(
+    @Query('palabraClave') palabraClave: string,
     @Req() req: UsuarioRequest,
-    @Body() data: CrearReporteRangoProductoDto,
     @Param('format') format: 'excel' | 'pdf',
     @Res() res: Response
   ) {
     const usuario = req.usuario;
-    const rows = await this.reportesService.inventarioPorRango(usuario, data);
-
+    const rows = await this.reportesService.buscarProductosPorNombre(
+      palabraClave,
+      usuario
+    );
     const columns: ColumnDef<(typeof rows)[0]>[] = [
       { header: 'Nombre', key: 'nombre', width: 40 },
       { header: 'Cantidad', key: 'cantidades', width: 12, numFmt: '#,##0' },
@@ -133,17 +136,16 @@ export class ReportesController {
         numFmt: '[$$-en-US]#,##0.00',
       },
     ];
-
     if (format === 'excel') {
       const wb = buildExcel(
-        `Inventario ${data.inicio}-${data.fin}`,
+        `Inventario_producto_${palabraClave}`,
         columns,
         rows
       );
       res.status(HttpStatus.OK).set({
         'Content-Type':
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="Reporte_inventario_productos_de_${data.inicio}_hasta_${data.fin}.xlsx"`,
+        'Content-Disposition': `attachment; filename="Reporte_inventario_productos_de_${palabraClave}.xlsx"`,
       });
       await wb.xlsx.write(res);
       return res.end();

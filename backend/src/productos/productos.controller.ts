@@ -8,10 +8,7 @@ import {
   Put,
   UseGuards,
   Req,
-  Res,
 } from '@nestjs/common';
-
-import { Response } from 'express';
 
 import { ProductosService } from './productos.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
@@ -141,16 +138,30 @@ export class ProductosController {
     );
     return { url }; // { url: 'https://...' }
   }
+  // productos.controller.ts
+  @Roles('admin')
+  @Get('catalogo/link/categoria/:categoriaId')
+  async catalogoLinkPorCategoria(
+    @Req() req: UsuarioRequest,
+    @Param('categoriaId') categoriaId: string
+  ) {
+    const { url, key } =
+      await this.productosService.generarCatalogoLinkPorCategoria(
+        req.usuario,
+        categoriaId
+      );
+    return { url, key };
+  }
 
   // 2) Redirección 302 al enlace (descarga directa desde el bucket)
-  @Roles('admin')
-  @Get('catalogo/link-redirect')
-  async catalogoLinkRedirect(@Res() res: Response, @Req() req: UsuarioRequest) {
-    const { url } = await this.productosService.generarCatalogoLink(
-      req.usuario
-    );
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-    res.setHeader('Cache-Control', 'no-store');
-    return res.redirect(url);
-  }
+  // @Roles('admin')
+  // @Get('catalogo/link-redirect')
+  // async catalogoLinkRedirect(@Res() res: Response, @Req() req: UsuarioRequest) {
+  //   const { url } = await this.productosService.generarCatalogoLink(
+  //     req.usuario
+  //   );
+
+  //   res.setHeader('Cache-Control', 'no-store');
+  //   return res.redirect(url);
+  // }
 }

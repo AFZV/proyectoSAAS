@@ -3,7 +3,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CrearReporteInvDto } from './dto/crear-reporte-inventario.dto';
 import { CrearReporteClienteCiudadDto } from './dto/crear-reporte-clientciudad-dto';
-import { CrearReporteRangoProductoDto } from './dto/crear-reporte-rango-producto.dto';
 
 @Injectable()
 export class ReportesService {
@@ -65,35 +64,31 @@ export class ReportesService {
   }
 
   /** ✅ Inventario por rango de letras */
-  async inventarioPorRango(
-    usuario: UsuarioPayload,
-    data: CrearReporteRangoProductoDto
+
+  // productos por palabra clave
+  async buscarProductosPorNombre(
+    palabraClave: string,
+    usuario: UsuarioPayload
   ) {
-    const { inicio, fin } = data;
-    const start = inicio.toUpperCase().charCodeAt(0);
-    const end = fin.toUpperCase().charCodeAt(0);
-    const letras: string[] = [];
-    for (let code = start; code <= end; code++) {
-      letras.push(String.fromCharCode(code));
-    }
-
+    const { empresaId } = usuario;
     const productosRaw = await this.prisma.producto.findMany({
-      where: { empresaId: usuario.empresaId },
+      where: {
+        empresaId, // 👈 si quieres filtrar solo dentro de la empresa
+        nombre: {
+          contains: palabraClave,
+          mode: 'insensitive', // 👈 para que no importe mayúscula/minúscula
+        },
+      },
       include: { inventario: { select: { stockActual: true } } },
+      orderBy: {
+        nombre: 'asc', // opcional: orden alfabético
+      },
     });
-
-    const productosFiltrados = productosRaw
-      .map((p) => ({
-        nombre: p.nombre.trimStart(),
-        precioCompra: p.precioCompra,
-        stock: p.inventario?.[0]?.stockActual ?? 0,
-      }))
-      .filter((p) =>
-        letras.some((letter) => p.nombre.toUpperCase().startsWith(letter))
-      )
-      .sort((a, b) =>
-        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
-      );
+    const productosFiltrados = productosRaw.map((p) => ({
+      nombre: p.nombre.trimStart(),
+      precioCompra: p.precioCompra,
+      stock: p.inventario?.[0]?.stockActual ?? 0,
+    }));
 
     return productosFiltrados.map((p) => ({
       nombre: p.nombre,

@@ -9,6 +9,7 @@ import {
   Get,
   BadRequestException,
   Res,
+  HttpStatus,
 } from '@nestjs/common';
 import { ComprasService } from './compras.service';
 import { CreateCompraDto } from './dto/create-compra.dto';
@@ -101,5 +102,30 @@ export class ComprasController {
     });
 
     res.end(buffer);
+  }
+
+  @Roles('admin')
+  @Get('pdf/:id')
+  async compraPdf(
+    @Param('id') id: string,
+    @Req() req: UsuarioRequest,
+    @Res() res: Response
+  ) {
+    const buffer = await this.comprasService.generarPDFCompraSencilla(
+      id,
+      req.usuario
+    );
+
+    // nombre del archivo
+
+    res
+      .status(HttpStatus.OK)
+      .set({
+        'Content-Type': 'application/pdf',
+        'Content-Length': buffer.length.toString(),
+        'Content-Disposition': `attachment; filename=compra_${id.slice(0, 6)}.pdf`,
+        'Cache-Control': 'no-store', // opcional
+      })
+      .send(buffer);
   }
 }

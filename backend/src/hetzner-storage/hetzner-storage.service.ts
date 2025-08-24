@@ -33,7 +33,6 @@ export class HetznerStorageService {
   ): Promise<string> {
     const fileKey = `${folder}/${fileName}`;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     const lookupResult = mimeLookup(fileName); // lookupResult: string | false
     const contentType: string =
       typeof lookupResult === 'string'
@@ -67,12 +66,13 @@ export class HetznerStorageService {
         Body: createReadStream(filePath),
         ACL: 'public-read',
         ContentType: 'application/pdf',
-        ContentDisposition: `attachment; filename="${fileName}"`,
+        // ❗ Antes: 'attachment' -> forzaba descarga
+        ContentDisposition: `inline; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
         CacheControl: 'public, max-age=31536000, immutable',
       })
     );
 
-    return { key: fileKey, url: `${this.baseUrl}/${fileKey}` }; // 👈 ajustar aquí
+    return { key: fileKey, url: `${this.baseUrl}/${fileKey}` };
   }
 
   async deleteByKey(key: string): Promise<void> {

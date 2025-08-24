@@ -434,6 +434,47 @@ export function CompraDetalleModal({
       setLoading(false); // ✅ Ocultar loader
     }
   };
+  const descargarPdfCompra = async () => {
+    if (!compra?.idCompra) return;
+
+    const token = await getToken();
+    if (!token) return console.error("❌ No tiene acceso");
+
+    setLoading(true);
+    try {
+      // 👇 Ajusta el path según tu controller. Si está bajo ReportesController('reportes'):
+      const url = `${process.env.NEXT_PUBLIC_API_URL?.trim()}/compras/pdf/${
+        compra.idCompra
+      }`;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || `Error ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+
+      // Como esto viene de un Blob, el header Content-Disposition del server no aplica.
+      // Ponemos el nombre manualmente para la descarga:
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `compra_${compra.idCompra.slice(0, 6)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (e) {
+      console.error("❌ Error al descargar PDF de compra", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const generarPdfCompras = async () => {
     const token = await getToken();
@@ -556,6 +597,18 @@ export function CompraDetalleModal({
                 >
                   <DownloadIcon className="w-4 h-4" />
                   PDF Compras
+                </Button>
+                <Button
+                  onClick={descargarPdfCompra}
+                  className="
+    flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 
+    hover:from-indigo-600 hover:to-indigo-700 text-white shadow-lg 
+    w-full sm:w-auto
+  "
+                  title="Descargar PDF de la compra"
+                >
+                  <DownloadIcon className="w-4 h-4" />
+                  Descargar PDF Compra
                 </Button>
               </div>
 
