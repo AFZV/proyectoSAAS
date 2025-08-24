@@ -719,51 +719,107 @@ export class RecibosService {
     return { mensaje: 'Recibo eliminado correctamente', id };
   }
 
-  //obtener estadisticas para el header de recibos
+  // obtener estadísticas para el header de recibos (con AJUSTE_MANUAL)
   async getResumen(usuario: UsuarioPayload) {
     const { empresaId, id: userId, rol } = usuario;
 
+    // Alcance por rol
+    const scopePedido =
+      rol === 'admin' ? { empresaId } : { empresaId, usuarioId: userId };
+
+    const scopeRecibo =
+      rol === 'admin' ? { empresaId } : { empresaId, usuarioId: userId };
+
+    const scopeAjusteMovimiento =
+      rol === 'admin' ? { empresaId } : { empresaId, idUsuario: userId };
+
+    // 1) Totales base
     const totalRecibos = await this.prisma.recibo.count({
-      where: rol === 'admin' ? { empresaId } : { empresaId, usuarioId: userId },
+      where: scopeRecibo,
     });
 
-    const totalRecaudado = await this.prisma.detalleRecibo.aggregate({
+    const totalRecaudadoAggr = await this.prisma.detalleRecibo.aggregate({
       where: {
-        recibo: {
-          empresaId,
-          ...(rol !== 'admin' && { usuarioId: userId }),
-        },
+        recibo: scopeRecibo, // Recibo.empresaId y (opcional) Recibo.usuarioId
       },
       _sum: { valorTotal: true },
     });
+    const totalRecaudado = Number(totalRecaudadoAggr._sum.valorTotal || 0);
 
-    // 🚩 Solo pedidos FACTURADOS y con total > 0
+    // 2) Pedidos FACTURADOS con total > 0
     const pedidos = await this.prisma.pedido.findMany({
       where: {
-        empresaId,
-        ...(rol !== 'admin' && { usuarioId: userId }),
+        ...scopePedido,
         total: { gt: 0 },
         estados: { some: { estado: 'FACTURADO' } },
       },
       select: {
+        id: true,
         total: true,
-        detalleRecibo: { select: { valorTotal: true } },
+        detalleRecibo: { select: { valorTotal: true } }, // abonos efectivos
       },
       orderBy: { fechaPedido: 'asc' },
     });
 
-    const totalPorRecaudar = pedidos.reduce((acc, p) => {
+    // 3) AJUSTES_MANUALES POR PEDIDO (DetalleAjusteCartera.idPedido != null)
+    //    Se agrupan por pedido SOLO si el movimiento origen es AJUSTE_MANUAL
+    const ajustesPorPedido = await this.prisma.detalleAjusteCartera.groupBy({
+      by: ['idPedido'],
+      where: {
+        idPedido: { not: null },
+        movimiento: {
+          ...scopeAjusteMovimiento, // empresaId (+ idUsuario si no es admin)
+          tipoMovimientoOrigen: 'AJUSTE_MANUAL', // enum OrigenMovimientoEnum
+        },
+      },
+      _sum: { valor: true },
+    });
+
+    // Mapa: cada ajuste es NEGATIVO (siempre reduce cartera)
+    const mapaAjustePorPedido = new Map<string, number>();
+    for (const row of ajustesPorPedido) {
+      if (!row.idPedido) continue;
+      const firmado = -Math.abs(Number(row._sum.valor || 0));
+      mapaAjustePorPedido.set(row.idPedido, firmado);
+    }
+
+    // 4) Saldo por pedido = total - abonos + ajustes(negativos)  (clamp por pedido >= 0)
+    const totalPorRecaudarBruto = pedidos.reduce((acc, p) => {
       const abonado = p.detalleRecibo.reduce(
         (s, d) => s + Number(d.valorTotal || 0),
         0
       );
-      const saldo = Math.max(0, Number(p.total || 0) - abonado); // clamp >= 0
+      const ajusteNeg = mapaAjustePorPedido.get(p.id) ?? 0; // ya es <= 0
+      const saldo = Math.max(0, Number(p.total || 0) - abonado + ajusteNeg);
       return acc + saldo;
     }, 0);
 
+    // 5) AJUSTES_MANUALES GLOBALES (DetalleAjusteCartera.idPedido == null)
+    const ajustesGlobalesAggr =
+      await this.prisma.detalleAjusteCartera.aggregate({
+        where: {
+          idPedido: null,
+          movimiento: {
+            ...scopeAjusteMovimiento, // empresaId (+ idUsuario si no es admin)
+            tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+          },
+        },
+        _sum: { valor: true },
+      });
+    // También NEGATIVO (reduce cartera)
+    const netoAjustesGlobales = -Math.abs(
+      Number(ajustesGlobalesAggr._sum.valor || 0)
+    );
+
+    // 6) Total final por recaudar (clamp global >= 0)
+    const totalPorRecaudar = Math.max(
+      0,
+      totalPorRecaudarBruto + netoAjustesGlobales
+    );
+
     return {
       totalRecibos,
-      totalRecaudado: totalRecaudado._sum.valorTotal || 0,
+      totalRecaudado,
       totalPorRecaudar,
     };
   }
