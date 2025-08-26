@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -29,6 +29,7 @@ interface PedidoConSaldoPendiente {
   id: string;
   saldoPendiente: number;
 }
+
 export function ModalAjusteManual({
   open,
   onClose,
@@ -45,6 +46,7 @@ export function ModalAjusteManual({
   const [pedidos, setPedidos] = useState<PedidoConSaldoPendiente[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+
   const form = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -76,7 +78,6 @@ export function ModalAjusteManual({
 
         const pedidosResponse = await response.json();
 
-        // Validar que sea un array
         if (Array.isArray(pedidosResponse)) {
           setPedidos(pedidosResponse);
         } else {
@@ -101,11 +102,6 @@ export function ModalAjusteManual({
 
   const onSubmit = async (values: any) => {
     setIsSubmitting(true);
-    const total = values.pedidos.reduce(
-      (acumulador: number, pedido: { valorAplicado: number }) =>
-        acumulador + pedido.valorAplicado,
-      0
-    );
 
     const body = {
       clienteId: cliente.id,
@@ -126,69 +122,186 @@ export function ModalAjusteManual({
     onSuccess?.();
     onClose();
   };
-  if (isSubmitting)
-    return (
-      <Loading
-        title="Crean
-  ndo ajuste"
-      />
+
+  // 🔹 Total reactivo basado en el valor seleccionado (watch)
+  const watchedPedidos = form.watch("pedidos");
+  const totalSeleccionado = useMemo(() => {
+    return (watchedPedidos || []).reduce(
+      (acc: number, p: { valorAplicado?: number }) =>
+        acc + (Number(p?.valorAplicado ?? 0) || 0),
+      0
     );
+  }, [watchedPedidos]);
+
+  if (isSubmitting) return <Loading title="Creando ajuste" />;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Ajuste manual - {cliente.nombre}</DialogTitle>
+          <DialogTitle className="text-xl text-blue-800">
+            Ajuste manual
+            <span className="block text-sm font-normal text-blue-700/80">
+              Cliente:{" "}
+              <span className="text-blue-900 font-medium">
+                {cliente.nombre}
+              </span>
+            </span>
+          </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <Input
-            {...form.register("observacion")}
-            placeholder="Concepto del ajuste"
-          />
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* Observación */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-blue-800">
+              Observación
+            </label>
+            <Input
+              {...form.register("observacion")}
+              placeholder="Concepto del ajuste"
+              className="h-10 border-blue-200 focus-visible:ring-blue-500"
+            />
+            <p className="text-xs text-blue-700/70">
+              Describe brevemente el motivo del ajuste (mínimo 3 caracteres).
+            </p>
+          </div>
 
-          {pedidos.map((p: any) => (
-            <div key={p.id} className="flex justify-between items-center">
-              <div>
-                <p className="text-sm">Pedido #{p.id}</p>
-                <p className="text-xs text-muted-foreground">
-                  Saldo: ${p.saldoPendiente.toLocaleString()}
-                </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Pedidos con saldo */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50/40">
+              <div className="px-4 py-3 border-b border-blue-200 bg-blue-50">
+                <h3 className="text-sm font-semibold text-blue-900">
+                  Pedidos con saldo
+                </h3>
               </div>
-              <Button type="button" size="sm" onClick={() => agregarPedido(p)}>
-                Agregar
-              </Button>
+
+              <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
+                {loading ? (
+                  <div className="text-sm text-blue-700/80">
+                    Cargando pedidos...
+                  </div>
+                ) : pedidos.length === 0 ? (
+                  <div className="text-sm text-blue-700/80">
+                    No hay pedidos con saldo pendiente.
+                  </div>
+                ) : (
+                  pedidos.map((p: any) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between rounded-md border border-blue-200 bg-white px-3 py-2 hover:bg-blue-50 transition-colors"
+                    >
+                      <div className="text-sm">
+                        <p className="font-medium text-blue-900">
+                          Pedido #{p.id.toString().slice(0, 5)}
+                        </p>
+                        <p className="text-xs text-blue-700/70">
+                          Saldo: ${p.saldoPendiente.toLocaleString()}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => agregarPedido(p)}
+                        className="shrink-0 bg-blue-600 hover:bg-blue-700"
+                      >
+                        Seleccionar
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          ))}
 
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Cargando pedidos...</p>
-          ) : (
-            fields.map((field, index) => (
-              <div key={field.id} className="flex gap-2 items-end">
-                <Input
-                  {...form.register(`pedidos.${index}.pedidoId`)}
-                  disabled
-                />
-                <Input
-                  type="number"
-                  {...form.register(`pedidos.${index}.valorAplicado`, {
-                    valueAsNumber: true,
-                  })}
-                />
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => remove(index)}
-                >
-                  Quitar
-                </Button>
+            {/* Ajustes seleccionados */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50/40">
+              <div className="px-4 py-3 border-b border-blue-200 bg-blue-50 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-blue-900">
+                  Ajustes seleccionados
+                </h3>
+                <div className="text-sm">
+                  <span className="text-blue-700/80 mr-1">Total:</span>
+                  <span className="font-semibold text-blue-900">
+                    ${totalSeleccionado.toLocaleString()}
+                  </span>
+                </div>
               </div>
-            ))
-          )}
 
-          <DialogFooter>
-            <Button type="submit">Guardar ajuste</Button>
+              <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
+                {fields.length === 0 ? (
+                  <div className="text-sm text-blue-700/80">
+                    No has seleccionado pedidos aún.
+                  </div>
+                ) : (
+                  fields.map((field, index) => (
+                    <div
+                      key={field.id}
+                      className="rounded-md border border-blue-200 bg-white p-3"
+                    >
+                      <div className="grid grid-cols-12 gap-2 items-end">
+                        <div className="col-span-7">
+                          <label className="text-xs text-blue-700/80">
+                            ID del pedido
+                          </label>
+
+                          {/* 👇 Mostrar solo slice(0,5) sin afectar el valor real */}
+                          <Input
+                            value={`#${
+                              (field as any).pedidoId?.toString().slice(0, 5) ??
+                              ""
+                            }`}
+                            disabled
+                            className="h-9 border-blue-200 text-blue-900"
+                          />
+                          {/* Valor real para el form (oculto) */}
+                          <input
+                            type="hidden"
+                            {...form.register(`pedidos.${index}.pedidoId`)}
+                          />
+                        </div>
+
+                        <div className="col-span-5 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={() => remove(index)}
+                            className="h-9"
+                          >
+                            Quitar
+                          </Button>
+                        </div>
+                        <div className="col-span-5">
+                          <label className="text-xs text-blue-700/80">
+                            Valor aplicado
+                          </label>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step="0.01"
+                            {...form.register(
+                              `pedidos.${index}.valorAplicado`,
+                              {
+                                valueAsNumber: true,
+                              }
+                            )}
+                            className="h-9 border-blue-200 focus-visible:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+              Guardar ajuste
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

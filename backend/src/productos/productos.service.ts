@@ -13,7 +13,6 @@ import { CreateCategoriaProductoDto } from './dto/create-categoria-producto.dto'
 import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import { formatearTexto } from 'src/lib/formatearTexto';
 import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
-import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 @Injectable()
 export class ProductosService {
@@ -189,7 +188,7 @@ export class ProductosService {
     );
 
     // 4) Sube al bucket (público) y devuelve link
-    const folder = `catalogos/${usuario.empresaId}/${nombreCategoria}/${randomUUID()}`;
+    const folder = `catalogos/${usuario.empresaId}/${nombreCategoria}`;
 
     const { url, key } = await this.hetznerService.uploadPublicFromPath(
       path,
@@ -253,8 +252,8 @@ export class ProductosService {
     );
 
     // 3) Subir a Hetzner (PÚBLICO) y devolver URL
-    const folder = `catalogos/${empresaId}/${randomUUID()}`;
-    const fileName = `catalogo-${new Date().toISOString().slice(0, 10)}.pdf`;
+    const folder = `catalogos/${empresaId}`;
+    const fileName = `catalogo.pdf`;
 
     const { url, key } = await this.hetznerService.uploadPublicFromPath(
       path,

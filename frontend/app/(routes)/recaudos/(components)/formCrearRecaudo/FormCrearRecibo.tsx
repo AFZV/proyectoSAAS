@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Mail, MapPin, Phone } from "lucide-react";
 type Cliente = {
   id: string;
   nit?: string;
@@ -438,11 +439,25 @@ export function FormCrearRecibo({
         />
 
         {clienteInfo && (
-          <div className="border p-4 rounded-md bg-muted">
-            <p className="text-sm font-semibold">{clienteInfo.nombre}</p>
-            <p className="text-sm">📧 {clienteInfo.email}</p>
-            <p className="text-sm">📍 {clienteInfo.ciudad}</p>
-            <p className="text-sm">📞 {clienteInfo.telefono}</p>
+          <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+            <h3 className="text-base font-semibold text-blue-900">
+              {clienteInfo.nombre}
+            </h3>
+
+            <div className="text-sm text-blue-800 space-y-2">
+              <p className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-blue-600" />
+                {clienteInfo.email}
+              </p>
+              <p className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-blue-600" />
+                {clienteInfo.ciudad}
+              </p>
+              <p className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-blue-600" />
+                {clienteInfo.telefono}
+              </p>
+            </div>
           </div>
         )}
 
@@ -479,38 +494,60 @@ export function FormCrearRecibo({
 
         {pedidosDisponibles.length > 0 && (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Pedidos con saldo pendiente:
-            </p>
-            {pedidosDisponibles.map((p) => (
-              <div
-                key={p.id}
-                className="flex justify-between items-center border p-2 rounded"
-              >
-                <div>
-                  <p className="text-sm font-medium">
-                    Pedido #{p.id.slice(0, 6).toUpperCase()}
-                  </p>
-                  <p className="text-sm font-medium">
-                    Fecha: {new Date(p.fecha).toLocaleDateString("es-CO")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Valor Original: {p.valorOriginal.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Saldo: {p.saldoPendiente.toLocaleString()}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  onClick={() => handleAgregarPedido(p)}
-                  variant="secondary"
-                  size="sm"
-                >
-                  Usar
-                </Button>
+            <div className="rounded-lg border border-blue-200 bg-blue-50/40">
+              {/* Header */}
+              <div className="px-4 py-3 border-b border-blue-200 bg-blue-50">
+                <h3 className="text-sm font-semibold text-blue-900">
+                  Pedidos con saldo pendiente
+                </h3>
+                <p className="text-xs text-blue-700/80 mt-1">
+                  Selecciona un pedido para aplicar el ajuste.
+                </p>
               </div>
-            ))}
+
+              {/* Listado */}
+              <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
+                {pedidosDisponibles.length === 0 ? (
+                  <div className="text-sm text-blue-700/80">
+                    No hay pedidos con saldo pendiente.
+                  </div>
+                ) : (
+                  pedidosDisponibles.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between rounded-md border border-blue-200 bg-white px-3 py-2 hover:bg-blue-50 transition-colors"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-blue-900">
+                          Pedido #{p.id.slice(0, 6).toUpperCase()}
+                        </p>
+                        <p className="text-xs text-blue-700/80">
+                          Fecha: {new Date(p.fecha).toLocaleDateString("es-CO")}
+                        </p>
+
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-900">
+                            Valor: {p.valorOriginal.toLocaleString()}
+                          </span>
+                          <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800">
+                            Saldo: {p.saldoPendiente.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        onClick={() => handleAgregarPedido(p)}
+                        size="sm"
+                        className="shrink-0 bg-blue-600 hover:bg-blue-700"
+                      >
+                        Seleccionar
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -518,7 +555,10 @@ export function FormCrearRecibo({
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">Pedidos a abonar:</p>
             {fields.map((field, index) => (
-              <div key={field.id} className="grid grid-cols-3 gap-4">
+              <div
+                key={field.id.slice(0, 5)}
+                className="grid grid-cols-3 gap-4"
+              >
                 <FormField
                   control={form.control}
                   name={`pedidos.${index}.pedidoId`}

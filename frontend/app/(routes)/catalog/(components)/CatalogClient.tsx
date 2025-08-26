@@ -189,11 +189,11 @@ export function CatalogClient({
   }, [getToken]);
 
   // -------------------- SETTERS OBS --------------------
+  // ✅ sin trim ni replace
   const setObservacionProducto = (productoId: string, texto: string) => {
     setObservacionesPorProducto((prev) => {
       const next = { ...prev };
-      const t = (texto ?? "").trim();
-      if (t) next[productoId] = t;
+      if (texto !== undefined && texto !== null) next[productoId] = texto;
       else delete next[productoId];
       return next;
     });
@@ -336,6 +336,16 @@ export function CatalogClient({
       prevCarrito.filter((item) => item.id !== productoId)
     );
 
+    // 👇 borrar observación de ese producto también
+    setObservacionesPorProducto((prev) => {
+      const next = { ...prev };
+      delete next[productoId];
+      try {
+        localStorage.setItem(LS_OBS_PROD_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
     toast({
       title: "Producto eliminado",
       description: "El producto fue eliminado del carrito",
@@ -346,6 +356,7 @@ export function CatalogClient({
   const limpiarCarrito = () => {
     setCarrito([]);
     localStorage.removeItem(LS_CART_KEY);
+    clearObservaciones();
     // Si también quieres limpiar observaciones:
     // setObservacionesPorProducto({});
     // localStorage.removeItem(LS_OBS_PROD_KEY);
@@ -373,8 +384,19 @@ export function CatalogClient({
     setIsCheckoutOpen(true);
   };
 
+  // --- limpiar TODAS las observaciones (estado + localStorage)
+  const clearObservaciones = () => {
+    setObservacionesPorProducto({});
+    setObservacionGeneral("");
+    try {
+      localStorage.removeItem(LS_OBS_PROD_KEY);
+      localStorage.removeItem(LS_OBS_GENERAL_KEY);
+    } catch {}
+  };
+
   const handlePedidoCreado = () => {
     limpiarCarrito();
+    clearObservaciones();
     setIsCheckoutOpen(false);
     toast({
       title: "Pedido creado exitosamente",
