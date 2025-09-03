@@ -11,6 +11,7 @@ async function bootstrap() {
   app.enableCors({
   origin: [
     'http://g844cwsocsw44ck8s88oocgg.69.62.65.126.sslip.io',
+    'http://g844cwsocsw44ck8s88oocgg.69.62.65.126.sslip.io:3000',
     'https://g844cwsocsw44ck8s88oocgg.69.62.65.126.sslip.io',
     'http://localhost:3000',
     'https://bgacloudsaas.com',
