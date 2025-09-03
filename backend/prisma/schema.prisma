@@ -273,6 +273,8 @@ model Pedido {
   guiaTransporte String?         @db.Text                        
   empresaId String
   pdfUrl     String?   @db.Text // ← NUEVO CAMPO OPCIONAL
+  comisionVendedor Float? @default(5) @db.DoublePrecision
+  credito Float? @default(30) @db.DoublePrecision
   detalleAjusteCartera DetalleAjusteCartera[]
 
 
@@ -394,7 +396,6 @@ model DetalleAjusteCartera {
   @@index([idMovimiento])
   @@index([idPedido])
 }
-
 
 
 

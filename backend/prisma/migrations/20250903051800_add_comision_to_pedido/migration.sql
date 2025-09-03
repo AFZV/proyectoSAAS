@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Pedido" ADD COLUMN     "comisionVendedor" DOUBLE PRECISION DEFAULT 5,
+ADD COLUMN     "credito" DOUBLE PRECISION DEFAULT 30;
