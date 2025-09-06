@@ -27,6 +27,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { RespaldosModule } from './respaldos/respaldos.module';
 import { ImportarModule } from './importar/importar.module';
 import { HetznerStorageModule } from './hetzner-storage/hetzner-storage.module';
+import { FacturasProveedorModule } from './facturas-proveedor/facturas-proveedor.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { HetznerStorageModule } from './hetzner-storage/hetzner-storage.module';
 
     ImportarModule,
     HetznerStorageModule,
+    FacturasProveedorModule,
   ],
   controllers: [PrismaController],
 })

@@ -274,17 +274,36 @@ export function ModalAjusteManual({
                             Valor aplicado
                           </label>
                           <Input
-                            type="number"
-                            inputMode="decimal"
-                            min={0}
-                            step="0.01"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="$ 0"
+                            className="h-9 border-blue-200 focus-visible:ring-blue-500"
                             {...form.register(
                               `pedidos.${index}.valorAplicado`,
                               {
-                                valueAsNumber: true,
+                                setValueAs: (v) => {
+                                  // limpia cualquier cosa que no sea dígito
+                                  const raw = String(v).replace(/\D/g, "");
+                                  return raw ? parseInt(raw, 10) : 0;
+                                },
                               }
                             )}
-                            className="h-9 border-blue-200 focus-visible:ring-blue-500"
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/\D/g, "");
+                              const n = raw ? parseInt(raw, 10) : 0;
+
+                              // actualizar form con el valor crudo
+                              form.setValue(
+                                `pedidos.${index}.valorAplicado`,
+                                n,
+                                { shouldValidate: true }
+                              );
+
+                              // mostrar formateado en el input
+                              e.target.value = n
+                                ? `$ ${n.toLocaleString("es-CO")}`
+                                : "";
+                            }}
                           />
                         </div>
                       </div>

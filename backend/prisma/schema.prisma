@@ -42,6 +42,10 @@ model Empresa {
   categorias CategoriasProducto[]
   proveedoresEmpresa ProveedorEmpresa[]
 
+
+  PagoProveedor PagoProveedor[]
+
+  FacturaProveedor FacturaProveedor[]
 }
 
 model Usuario {
@@ -65,6 +69,7 @@ model Usuario {
   //clientes Cliente[]
 
   @@index([empresaId])
+  PagoProveedor PagoProveedor[]
 }
 
 model Cliente {
@@ -121,7 +126,10 @@ model Producto {
   estado String @db.Text
   manifiestoUrl     String?   @db.Text // ← NUEVO CAMPO OPCIONAL
   descripcion String? @default("")
-
+  //observaciones String? @default("")//este campo es para que el usuario pueda agregar observaciones internas del producto
+//se usara para colocar cuando se edite un producto
+  //por ejemplo si se cambia el precio de venta, se coloca la razon del cambio
+  //o si se cambia la categoria, etc
   empresaId   String
   empresa     Empresa  @relation(fields: [empresaId], references: [id])
  categoria CategoriasProducto? @relation(fields: [categoriaId],references: [idCategoria])
@@ -168,6 +176,7 @@ model DetalleCompra {
     idCompra String
     idProducto String
     cantidad Float    @db.DoublePrecision
+    //precioUnitario Float?    @db.DoublePrecision//campo para colocar el precio de compra unitario
 
     producto Producto @relation(fields: [idProducto],references: [id])
     compra Compras @relation(fields: [idCompra],references: [idCompra])
@@ -184,6 +193,7 @@ model Compras {
   idProveedor String
   FechaCompra DateTime @default(now())
   idEmpresa String
+  //recibido Boolean? @default(false)//campo para saber si ya se recibio la compra
 
  empresa Empresa @relation(fields: [idEmpresa],references: [id])
   proveedor Proveedores @relation(fields: [idProveedor],references: [idProveedor])
@@ -193,6 +203,7 @@ model Compras {
 
 @@index([idProveedor])
 
+  FacturaCompra FacturaCompra[]
 }
 
 model Proveedores {
@@ -204,6 +215,10 @@ model Proveedores {
 
   compras Compras[]
   proveedorEmpresa ProveedorEmpresa[]
+
+  PagoProveedor PagoProveedor[]
+
+  FacturaProveedor FacturaProveedor[]
 }
 
 model ProveedorEmpresa {
@@ -396,6 +411,115 @@ model DetalleAjusteCartera {
   @@index([idMovimiento])
   @@index([idPedido])
 }
+
+
+///nuevos modelos 
+
+enum EstadoFacturaProvEnum {
+ABIERTA // registrada con saldo = total
+PARCIAL // tiene abonos
+PAGADA // saldo = 0
+ANULADA
+
+}
+
+model FacturaProveedor {
+idFacturaProveedor String @id @default(uuid())
+empresaId String
+proveedorId String
+numero String @db.Text // número/nit del documento del proveedor
+fechaEmision DateTime @default(now())
+fechaVencimiento DateTime?
+moneda String @default("COP") // ISO 4217 ("COP", "USD"...)
+tasaCambio Float? @db.DoublePrecision // si moneda != COP
+
+total Float @default(0) @db.DoublePrecision
+saldo Float @default(0) @db.DoublePrecision// mantener por servicio
+
+
+estado EstadoFacturaProvEnum @default(ABIERTA)
+notas String? @db.Text
+soporteUrl String? @db.Text // PDF/imagen de la factura
+
+
+empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+proveedor Proveedores @relation(fields: [proveedorId], references: [idProveedor], onDelete: Restrict, onUpdate: Cascade)
+
+
+pagos DetallePagoProveedor[]
+compras FacturaCompra[] // enlace opcional a Compras
+
+
+@@unique([empresaId, numero])
+@@index([proveedorId])
+}
+
+model FacturaCompra {
+idFacturaCompra String @id @default(uuid())
+facturaId String
+compraId String
+
+
+factura FacturaProveedor @relation(fields: [facturaId], references: [idFacturaProveedor], onDelete: Cascade, onUpdate: Cascade)
+compra Compras @relation(fields: [compraId], references: [idCompra], onDelete: Restrict, onUpdate: Cascade)
+
+
+@@unique([facturaId, compraId])
+@@index([compraId])
+}
+
+model DetallePagoProveedor {
+idDetallePagoProveedor String @id @default(uuid())
+pagoId String
+facturaId String
+valor Float @db.DoublePrecision
+// retenciones/descuentos que afectan el neto pagado de la factura específica:
+descuento Float? @db.DoublePrecision
+
+
+pago PagoProveedor @relation(fields: [pagoId], references: [idPagoProveedor], onDelete: Cascade, onUpdate: Cascade)
+factura FacturaProveedor @relation(fields: [facturaId], references: [idFacturaProveedor], onDelete: Cascade, onUpdate: Cascade)
+
+
+@@index([pagoId])
+@@index([facturaId])
+}
+
+model PagoProveedor {
+idPagoProveedor String @id @default(uuid())
+empresaId String
+proveedorId String
+fecha DateTime @default(now())
+moneda String @default("COP")
+tasaCambio Float? @db.DoublePrecision
+metodoPago MetodoPagoProvEnum
+totalPagado Float? @db.DoublePrecision
+descripcion String? @db.Text
+comprobanteUrl String? @db.Text
+usuarioId String?
+
+
+empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+proveedor Proveedores @relation(fields: [proveedorId], references: [idProveedor], onDelete: Restrict, onUpdate: Cascade)
+usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+
+detalles DetallePagoProveedor[]
+
+
+@@index([empresaId])
+@@index([proveedorId])
+}
+
+enum MetodoPagoProvEnum {
+EFECTIVO
+TRANSFERENCIA
+TARJETA
+CHEQUE
+OTRO
+}
+
+
 
 
 

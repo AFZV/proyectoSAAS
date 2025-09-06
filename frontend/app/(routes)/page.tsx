@@ -19,6 +19,8 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 export default async function Home() {
   const token = await getToken();
 
+  console.log("Token en fronted:", token);
+
   const res = await fetch(`${BACKEND_URL}/dashboard/summary`, {
     headers: {
       Authorization: `Bearer ${token}`,
