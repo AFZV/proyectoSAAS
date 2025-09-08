@@ -24,10 +24,10 @@ export class ReportesService {
     const productos = await this.prisma.producto.findMany({
       where: {
         empresaId: usuario.empresaId,
-        estado: 'activo',
+        // estado: 'activo',
         inventario: { some: { stockActual: { gt: 0 } } },
       },
-      orderBy: { fechaCreado: 'asc' },
+      orderBy: { nombre: 'asc' },
       include: { inventario: { select: { stockActual: true } } },
     });
 
@@ -47,7 +47,7 @@ export class ReportesService {
   async inventarioCompleto(usuario: UsuarioPayload) {
     const productos = await this.prisma.producto.findMany({
       where: { empresaId: usuario.empresaId },
-      orderBy: { fechaCreado: 'asc' },
+      orderBy: { nombre: 'asc' },
       include: { inventario: { select: { stockActual: true } } },
     });
 
@@ -239,9 +239,12 @@ export class ReportesService {
       nombre: p.cliente.nombre,
       apellidos: p.cliente.apellidos,
       rasonZocial: p.cliente.rasonZocial,
-      fecha: p.fechaPedido,
+      fecha: p.fechaActualizado || p.fechaPedido,
       total: p.total,
       vendedor: p.usuario.nombre,
+      flete: p.flete || 0,
+      comision: p.comisionVendedor || 0,
+      //proximamente descuento: p.descuento || 0, // <-- cuando agregues el campo descuento en pedidos
     }));
   }
 
@@ -290,6 +293,9 @@ export class ReportesService {
       fechaPedido: p.fechaPedido,
       fechaFacturacion: p.estados[0]?.fechaEstado ?? null,
       total: p.total,
+      flete: p.flete || 0,
+      comision: p.comisionVendedor || 0,
+      //proximamente descuento: p.descuento || 0, // <-- cuando agregues el campo descuento en pedidos
     }));
   }
 

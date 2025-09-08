@@ -85,21 +85,22 @@ export function FormUpdateRecibo({
     try {
       const token = await getToken();
       const res = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/recibos/getById${values.idRecibo}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/recibos/getById/${values.idRecibo}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = res.data;
 
       const reciboEditable: ReciboEditable = {
         clienteId: data.clienteId,
-        tipo: data.tipo,
+        tipo: String(data.tipo).toLowerCase() as ReciboEditable["tipo"],
         concepto: data.concepto,
         pedidos: data.detalleRecibo.map((d: any) => ({
           pedidoId: d.idPedido,
-          valorAplicado: d.valorTotal,
+          valorAplicado: Number(d.valorTotal),
         })),
       };
 
+      editForm.reset(reciboEditable);
       setReciboActual(reciboEditable);
       editForm.reset(reciboEditable);
       setStep("edit");
@@ -123,6 +124,7 @@ export function FormUpdateRecibo({
     setIsUpdating(true);
     try {
       const token = await getToken();
+      console.log("valores a enviar", values);
       await axios.patch(
         `${process.env.NEXT_PUBLIC_API_URL}/recibos/${searchForm.getValues(
           "idRecibo"
@@ -210,7 +212,22 @@ export function FormUpdateRecibo({
                 <FormItem>
                   <FormLabel>Tipo de Pago</FormLabel>
                   <FormControl>
-                    <select {...field} className="w-full border p-2 rounded-md">
+                    <select
+                      className="w-full border p-2 rounded-md"
+                      name={field.name}
+                      ref={field.ref}
+                      value={field.value ?? ""} // asegura que siempre haya value
+                      onBlur={field.onBlur}
+                      onChange={(e) => {
+                        const v = e.target.value as ReciboEditable["tipo"];
+                        // fuerza a RHF a registrar el cambio
+                        editForm.setValue("tipo", v, {
+                          shouldDirty: true,
+                          shouldTouch: true,
+                          shouldValidate: true,
+                        });
+                      }}
+                    >
                       <option value="efectivo">Efectivo</option>
                       <option value="consignacion">Consignación</option>
                     </select>
@@ -219,6 +236,7 @@ export function FormUpdateRecibo({
                 </FormItem>
               )}
             />
+
             <FormField
               control={editForm.control}
               name="concepto"

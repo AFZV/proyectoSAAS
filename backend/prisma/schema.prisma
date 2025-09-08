@@ -126,22 +126,19 @@ model Producto {
   estado String @db.Text
   manifiestoUrl     String?   @db.Text // ← NUEVO CAMPO OPCIONAL
   descripcion String? @default("")
-  //observaciones String? @default("")//este campo es para que el usuario pueda agregar observaciones internas del producto
-//se usara para colocar cuando se edite un producto
-  //por ejemplo si se cambia el precio de venta, se coloca la razon del cambio
-  //o si se cambia la categoria, etc
   empresaId   String
   empresa     Empresa  @relation(fields: [empresaId], references: [id])
- categoria CategoriasProducto? @relation(fields: [categoriaId],references: [idCategoria])
-
+  categoria CategoriasProducto? @relation(fields: [categoriaId],references: [idCategoria])
+observaciones String? @db.Text // campo para observaciones internas del producto
   detallePedido DetallePedido[]
   inventario  Inventario[]
   detalleCompra DetalleCompra[]
   movimientoInventario MovimientoInventario[]
+  
 
   @@index([empresaId])
   @@unique([codigo, empresaId])
-
+  
   ///agregar una descripcion opcinal del producto
 
 }
@@ -176,7 +173,7 @@ model DetalleCompra {
     idCompra String
     idProducto String
     cantidad Float    @db.DoublePrecision
-    //precioUnitario Float?    @db.DoublePrecision//campo para colocar el precio de compra unitario
+    precioUnitario Float?    @db.DoublePrecision//campo para colocar el precio de compra unitario
 
     producto Producto @relation(fields: [idProducto],references: [id])
     compra Compras @relation(fields: [idCompra],references: [idCompra])
@@ -193,7 +190,7 @@ model Compras {
   idProveedor String
   FechaCompra DateTime @default(now())
   idEmpresa String
-  //recibido Boolean? @default(false)//campo para saber si ya se recibio la compra
+  recibido Boolean? @default(false)//campo para saber si ya se recibio la compra
 
  empresa Empresa @relation(fields: [idEmpresa],references: [id])
   proveedor Proveedores @relation(fields: [idProveedor],references: [idProveedor])
@@ -291,6 +288,7 @@ model Pedido {
   comisionVendedor Float? @default(5) @db.DoublePrecision
   credito Float? @default(30) @db.DoublePrecision
   detalleAjusteCartera DetalleAjusteCartera[]
+  //agregar campo de descuento opcional de tipo float @db.DoublePrecision
 
 
 empresa Empresa @relation(fields: [empresaId],references: [id])

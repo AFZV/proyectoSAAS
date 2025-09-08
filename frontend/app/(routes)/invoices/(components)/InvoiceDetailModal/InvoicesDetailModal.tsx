@@ -70,6 +70,28 @@ export function InvoiceDetailModal({
   // ✅ NUEVO: Estado visual para bodegueros
   const [productosSeparados, setProductosSeparados] = useState<string[]>([]);
 
+  const comisionActual =
+    (pedido as any)?.comision ?? (pedido as any)?.comisionVendedor ?? null;
+  // estados nuevos
+  const [comision, setComision] = useState("");
+  const [savingComision, setSavingComision] = useState(false);
+
+  const comisionAsignada = comisionActual != null;
+
+  // ¿cambió el valor del input?
+  const comisionChanged =
+    (comision.trim() === "" ? null : Number(comision)) !==
+    (comisionActual ?? null);
+
+  // cuando se abre el modal o cambia el pedido: precarga comisión
+  useEffect(() => {
+    if (isOpen && pedido) {
+      const actual =
+        (pedido as any).comision ?? (pedido as any).comisionVendedor ?? null;
+      setComision(actual != null ? String(actual) : "");
+    }
+  }, [isOpen, pedido]);
+
   useEffect(() => {
     if (isOpen && pedido) {
       setGuiaTransporte(pedido.guiaTransporte ?? "");
@@ -111,6 +133,9 @@ export function InvoiceDetailModal({
 
   const estadoActual = getEstadoActual(pedido);
   const estadosSiguientes = getEstadosSiguientes(estadoActual as any) || [];
+
+  const mostrarComision =
+    estadosSiguientes.includes("FACTURADO") || estadoActual === "FACTURADO";
 
   const handleCambiarEstado = async () => {
     if (nuevoEstado !== "GENERADO" && pedido) {
@@ -258,6 +283,54 @@ export function InvoiceDetailModal({
       });
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleGuardarComision = async () => {
+    const valor = comision.trim() === "" ? null : Number(comision);
+    if (valor == null || Number.isNaN(valor) || valor < 0) {
+      toast({
+        title: "Dato inválido",
+        description: "Ingresa un valor numérico mayor o igual a 0.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSavingComision(true);
+      const token = await getToken();
+      if (!token) {
+        toast({
+          title: "Error de autenticación",
+          description: "No se pudo obtener el token",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // ⬇️ Llama a tu endpoint para guardar la comisión del pedido
+      const actualizarComision = fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/pedidos/comision/${pedido.id}/${comision}`,
+        { headers: { Authorization: `Bearer ${token}` }, method: "PATCH" }
+      );
+
+      // actualiza el pedido localmente para reflejar el cambio inmediato
+      onUpdate({ ...pedido, comision: valor });
+
+      toast({
+        title: "✅ Comisión guardada",
+        description: `Se asignó la comisión correctamente.`,
+      });
+    } catch (err: any) {
+      console.error("❌ Error al guardar comisión:", err);
+      toast({
+        title: "Error",
+        description: err?.message || "No se pudo guardar la comisión",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingComision(false);
     }
   };
 
@@ -619,6 +692,7 @@ export function InvoiceDetailModal({
                   <p className="text-xs text-gray-500 uppercase tracking-wide">
                     TOTAL
                   </p>
+
                   <p
                     className={`text-lg font-semibold ${
                       estadoActual === "CANCELADO"
@@ -642,6 +716,39 @@ export function InvoiceDetailModal({
                   </p>
                 </div>
               </div>
+              {mostrarComision && (
+                <div className="mt-2 grid grid-cols-2 gap-4 items-end">
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">
+                      COMISIÓN
+                    </p>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="0"
+                      value={comision}
+                      onChange={(e) => setComision(e.target.value)}
+                    />
+                    {comisionAsignada && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Comisión registrada:{" "}
+                        {formatValue(Number(comisionActual))}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleGuardarComision}
+                      // ✅ desactiva si ya existe o no cambió
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      {savingComision ? "Guardando..." : "Guardar comisión"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {pedido.observaciones && (
                 <div className="mt-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">

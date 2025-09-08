@@ -289,6 +289,18 @@ export class ReportesController {
         width: 20,
         numFmt: '[$$-en-US]#,##0.00',
       },
+      {
+        header: 'Flete',
+        key: 'flete',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
+      {
+        header: 'Comision',
+        key: 'comision',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
     ];
 
     if (format === 'excel') {
@@ -329,6 +341,18 @@ export class ReportesController {
       {
         header: 'Total',
         key: 'total',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
+      {
+        header: 'Flete',
+        key: 'flete',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
+      {
+        header: 'Comision',
+        key: 'comision',
         width: 20,
         numFmt: '[$$-en-US]#,##0.00',
       },

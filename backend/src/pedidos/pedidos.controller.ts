@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -88,5 +89,24 @@ export class PedidosController {
       message: 'Información de envío actualizada',
       pedido,
     };
+  }
+
+  @Roles('admin')
+  @Patch('comision/:pedidoId/:comisionVendedor')
+  async asignarComisionVendedor(
+    @Param('pedidoId') pedidoId: string,
+    @Param('comisionVendedor') comisionParam: string,
+    @Req() req: UsuarioRequest
+  ) {
+    const comisionVendedor = parseFloat(comisionParam);
+    if (Number.isNaN(comisionVendedor) || comisionVendedor < 0) {
+      throw new BadRequestException('Comisión inválida');
+    }
+
+    return this.pedidosService.asignarComisionVendedor(
+      pedidoId,
+      comisionVendedor,
+      req.usuario
+    );
   }
 }

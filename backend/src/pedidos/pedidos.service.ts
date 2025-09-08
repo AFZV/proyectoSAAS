@@ -405,7 +405,7 @@ export class PedidosService {
             // });
             await this.prisma.pedido.update({
               where: { id: pedido.id },
-              data: { pdfUrl: url },
+              data: { pdfUrl: url, fechaActualizado: new Date() },
             });
 
             if (!pedido.cliente?.email)
@@ -988,5 +988,29 @@ export class PedidosService {
     });
 
     return pedidos;
+  }
+
+  async asignarComisionVendedor(
+    pedidoId: string,
+    comision: number,
+    usuario: UsuarioPayload
+  ) {
+    if (!usuario) throw new BadRequestException('El usuario es requerido');
+    const { empresaId, rol } = usuario; // Desestructurar rol del usuario
+
+    // Solo admin puede asignar comisiones
+    if (rol !== 'admin') {
+      throw new UnauthorizedException('No está autorizado');
+    }
+
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id: pedidoId, empresaId },
+    });
+    if (!pedido) throw new NotFoundException('Pedido no encontrado');
+    const pedidoActualizado = await this.prisma.pedido.update({
+      where: { id: pedidoId },
+      data: { comisionVendedor: comision },
+    });
+    return pedidoActualizado;
   }
 }

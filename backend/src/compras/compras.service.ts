@@ -117,20 +117,13 @@ export class ComprasService {
 
         // 2. Crear el detalle para cada producto
         for (const item of data.ProductosCompras) {
-          // a) Actualizar el precio de compra del producto
-          await tx.producto.update({
-            where: { id: item.idProducto },
-            data: {
-              precioCompra: item.precio, // 🔁 Actualiza el precio base del producto
-            },
-          });
-
           // b) Crear el detalle de compra
           await tx.detalleCompra.create({
             data: {
               idCompra: nuevaCompra.idCompra,
               idProducto: item.idProducto,
               cantidad: item.cantidad,
+              precioUnitario: item.precio, // 👈 si tienes este campo en detalleCompra
             },
           });
         }
@@ -194,6 +187,17 @@ export class ComprasService {
       // 3. Procesar cada producto
       for (const detalle of detallesCompra) {
         // a) Actualizar o crear inventario
+
+        // a) Actualizar el precio de compra del producto
+        await tx.producto.update({
+          where: { id: detalle.idProducto },
+          data: {
+            ...(detalle.precioUnitario != null
+              ? { precioCompra: Number(detalle.precioUnitario) } // Float
+              : {}), // si es null/undefined, no enviar el campo
+          },
+        });
+
         const inv = await tx.inventario.findFirst({
           where: {
             idProducto: detalle.idProducto,
@@ -233,6 +237,11 @@ export class ComprasService {
             idCompra: idCompra,
             observacion: `Compra recibida por ${usuario.nombre}.`,
           },
+        });
+
+        await tx.compras.update({
+          where: { idCompra },
+          data: { recibido: true }, // marcar como recibida
         });
       }
 
@@ -339,6 +348,12 @@ export class ComprasService {
                 idEmpresa: usuario.empresaId,
               },
             });
+            if (typeof item.precio === 'number') {
+              await tx.producto.update({
+                where: { id: item.idProducto },
+                data: { precioCompra: item.precio }, // Float
+              });
+            }
 
             if (inv) {
               await tx.inventario.update({
@@ -465,6 +480,7 @@ export class ComprasService {
       idCompra: string;
       proveedor: string;
       FechaCompra: Date;
+
       productos: Array<{
         id: string;
         nombre: string;
@@ -482,6 +498,7 @@ export class ComprasService {
           idCompra: key,
           proveedor: dc.compra.proveedor.razonsocial,
           FechaCompra: dc.compra.FechaCompra,
+
           productos: [],
         };
       }
