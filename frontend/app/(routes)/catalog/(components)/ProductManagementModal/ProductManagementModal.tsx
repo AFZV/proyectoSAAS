@@ -79,6 +79,12 @@ export function ProductManagementModal({
   const [tempImagePreview, setTempImagePreview] = useState<string | null>(null);
   // estados nuevos
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
+  ///estados para pdfurl
+  const [tempPdfFile, setTempPdfFile] = useState<File | null>(null);
+  const [originalManifiestoUrl, setOriginalManifiestoUrl] = useState<
+    string | null
+  >(null);
+  const [manifiestoRemoved, setManifiestoRemoved] = useState(false); // usuario marcó quitar PDF
 
   // al iniciar edición
   const startEditing = (producto: ProductoBackend) => {
@@ -89,11 +95,15 @@ export function ProductManagementModal({
       precioVenta: producto.precioVenta,
       categoriaId: producto.categoriaId,
       imagenUrl: producto.imagenUrl || "", // mantiene UI
+      manifiestoUrl: producto.manifiestoUrl ?? "", // 👈
     });
     setOriginalImageUrl(producto.imagenUrl || null); // <-- guarda original
+    setOriginalManifiestoUrl(producto.manifiestoUrl ?? null); // 👈
     setEditErrors({});
     setTempImageFile(null);
     setTempImagePreview(null);
+    setTempPdfFile(null); // 👈
+    setManifiestoRemoved(false);
   };
 
   // Estados de paginación
@@ -232,6 +242,52 @@ export function ProductManagementModal({
     const data = await response.json(); // { url: string }
     return data.url;
   };
+  // Sube el manifiesto (PDF) de un producto
+  const uploadManifiestoPdf = async (
+    file: File,
+    productoId: string
+  ): Promise<{ url: string; key: string }> => {
+    if (!file) throw new Error("No se ha seleccionado ningún archivo");
+    if (file.type !== "application/pdf") {
+      throw new Error("Solo se permiten archivos PDF");
+    }
+
+    const token = await getToken();
+    if (!token) throw new Error("No hay token de autorización");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/productos/${productoId}/manifiesto`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // ¡No seteamos Content-Type manualmente!
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      // intenta parsear JSON de error, si no, usa texto
+      let detail = "";
+      try {
+        const err = await response.json();
+        detail = err?.message || JSON.stringify(err);
+      } catch {
+        detail = await response.text();
+      }
+      throw new Error(
+        `Error al subir manifiesto: ${response.status} - ${detail}`
+      );
+    }
+
+    // El backend retorna { url, key }
+    const data = await response.json();
+    return { url: data.url as string, key: data.key as string };
+  };
 
   // Manejar selección de archivo de imagen (IGUAL QUE EN CREAR PRODUCTO)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,6 +331,48 @@ export function ProductManagementModal({
     });
   };
 
+  // Selección de PDF
+  const handlePdfSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      toast({
+        title: "Error",
+        description: "Solo se permiten archivos PDF",
+        variant: "destructive",
+      });
+      return;
+    }
+    // 10MB máx (ajusta si quieres)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "Error",
+        description: "El PDF debe ser menor a 10MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setTempPdfFile(file);
+    setManifiestoRemoved(false); // si estaba marcado quitar, lo desmarcamos
+    toast({ title: "PDF seleccionado", description: file.name });
+  };
+
+  // Quitar PDF (marcar para remover)
+  const removePdf = () => {
+    setTempPdfFile(null);
+    setManifiestoRemoved(true);
+    if (editingProduct) {
+      setEditingProduct({ ...editingProduct, manifiestoUrl: "" });
+    }
+    toast({
+      title: "Manifiesto removido",
+      description: "Se eliminará el PDF al guardar",
+      variant: "destructive",
+    });
+  };
+
   // Remover imagen (ACTUALIZADO para DTO requerido)
   const removeImage = () => {
     setTempImageFile(null);
@@ -315,6 +413,7 @@ export function ProductManagementModal({
         uploadedUrl = await uploadImageToCloudinary(tempImageFile);
         setIsUploadingImage(false);
       }
+      let manifiestoUploadedUrl: string | undefined;
 
       // 3.2 Decidir si enviar imagenUrl
       // - Nueva imagen: usar uploadedUrl
@@ -322,6 +421,19 @@ export function ProductManagementModal({
       // - Si el usuario borró la imagen (imagenUrl === "" y había original): usar placeholder
       // - En cualquier otro caso: NO enviar imagenUrl (para conservar la existente)
       let imagenUrlToSend: string | undefined;
+      if (tempPdfFile) {
+        const { url } = await uploadManifiestoPdf(
+          tempPdfFile,
+          editingProduct.id
+        );
+        manifiestoUploadedUrl = url;
+      }
+      let manifiestoUrlToSend: string | null | undefined = undefined;
+      if (manifiestoUploadedUrl) {
+        manifiestoUrlToSend = manifiestoUploadedUrl; // string
+      } else if (manifiestoRemoved) {
+        manifiestoUrlToSend = null; // limpiar en BDD
+      }
 
       if (uploadedUrl) {
         imagenUrlToSend = encodeURI(uploadedUrl);
@@ -373,10 +485,10 @@ export function ProductManagementModal({
       setProductos((prev) =>
         prev.map((p) => {
           if (p.id !== editingProduct.id) return p;
-          const next = { ...p, ...baseData } as ProductoBackend;
-          if (imagenUrlToSend !== undefined) {
-            next.imagenUrl = imagenUrlToSend;
-          } // si no enviamos imagenUrl, dejamos la que ya tenía p.imagenUrl
+          const next: ProductoBackend = { ...p, ...baseData } as any;
+          if (imagenUrlToSend !== undefined) next.imagenUrl = imagenUrlToSend;
+          if (manifiestoUrlToSend !== undefined)
+            next.manifiestoUrl = manifiestoUrlToSend as any;
           return next;
         })
       );
@@ -386,6 +498,9 @@ export function ProductManagementModal({
       setTempImageFile(null);
       setTempImagePreview(null);
       setOriginalImageUrl(null);
+      setTempPdfFile(null);
+      setOriginalManifiestoUrl(null);
+      setManifiestoRemoved(false);
       onProductUpdated?.();
     } catch (error) {
       console.error("❌ Error completo:", error);
@@ -519,6 +634,32 @@ export function ProductManagementModal({
       }
 
       return rangeWithDots;
+    };
+    const uploadManifiestoPdf = async (
+      productoId: string,
+      file: File
+    ): Promise<{ url: string; key: string }> => {
+      const token = await getToken();
+      if (!token) throw new Error("No hay token de autorización");
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/productos/${productoId}/manifiesto`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Error al subir manifiesto: ${res.status} - ${err}`);
+      }
+      // backend retorna { url, key }
+      return res.json();
     };
 
     return (
@@ -844,6 +985,93 @@ export function ProductManagementModal({
                                         📤 Subiendo imagen...
                                       </p>
                                     )}
+                                    {/* --- Bloque PDF Manifiesto --- */}
+                                    <div className="space-y-2">
+                                      <Label className="text-xs">
+                                        Manifiesto (PDF)
+                                      </Label>
+
+                                      <div className="flex items-start gap-3">
+                                        {/* Vista actual: link o estado */}
+                                        <div className="min-w-[180px] text-sm">
+                                          {tempPdfFile ? (
+                                            <div className="text-blue-700">
+                                              📄 Nuevo PDF:{" "}
+                                              <span className="font-medium">
+                                                {tempPdfFile.name}
+                                              </span>
+                                            </div>
+                                          ) : originalManifiestoUrl &&
+                                            !manifiestoRemoved ? (
+                                            <a
+                                              href={originalManifiestoUrl}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="text-blue-600 underline"
+                                            >
+                                              Ver PDF actual
+                                            </a>
+                                          ) : (
+                                            <span className="text-muted-foreground">
+                                              Sin PDF
+                                            </span>
+                                          )}
+                                          {manifiestoRemoved && (
+                                            <div className="text-xs text-orange-600 mt-1">
+                                              Se eliminará al guardar
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Controles */}
+                                        <div className="flex flex-col gap-2">
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              document
+                                                .getElementById(
+                                                  `pdf-input-${editingProduct.id}`
+                                                )
+                                                ?.click()
+                                            }
+                                            disabled={isUploadingImage}
+                                            className="text-blue-600 hover:text-blue-700"
+                                          >
+                                            {tempPdfFile
+                                              ? "Cambiar PDF"
+                                              : "Seleccionar PDF"}
+                                          </Button>
+
+                                          {/* Botón quitar (si hay PDF nuevo o existente) */}
+                                          {(tempPdfFile ||
+                                            (originalManifiestoUrl &&
+                                              !manifiestoRemoved)) && (
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={removePdf}
+                                              className="text-red-600 hover:text-red-700"
+                                            >
+                                              <Trash2 className="w-4 h-4 mr-1" />
+                                              Quitar PDF
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Input oculto para seleccionar PDF */}
+                                      <input
+                                        id={`pdf-input-${editingProduct.id}`}
+                                        type="file"
+                                        accept="application/pdf"
+                                        onChange={handlePdfSelect}
+                                        className="hidden"
+                                        disabled={isUploadingImage}
+                                      />
+                                    </div>
                                   </div>
                                 </div>
                               ) : (

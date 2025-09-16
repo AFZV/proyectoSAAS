@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateFacturasProveedorDto } from './dto/create-facturas-proveedor.dto';
-//import { UpdateFacturasProveedorDto } from './dto/update-facturas-proveedor.dto';
+import { UpdateFacturasProveedorDto } from './dto/update-facturas-proveedor.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-//import { UsuarioPayload } from 'src/types/usuario-payload';
+
+import { UsuarioPayload } from 'src/types/usuario-payload';
 
 @Injectable()
 export class FacturasProveedorService {
@@ -61,19 +62,81 @@ export class FacturasProveedorService {
     return newFactura;
   }
 
-  findAll() {
-    return `This action returns all facturasProveedor`;
+  async findAll(usuario: UsuarioPayload) {
+    if (!usuario) {
+      throw new BadRequestException('Usuario no autenticado');
+    }
+    const { empresaId } = usuario;
+
+    const facturas = await this.prisma.facturaProveedor.findMany({
+      where: { empresaId: empresaId },
+      include: { compras: true, proveedor: true, pagos: true },
+    });
+    if (!facturas) {
+      throw new BadRequestException('No hay facturas para esta empresa');
+    }
+    return facturas;
+  }
+  findOne(id: string, usuario: UsuarioPayload) {
+    if (!usuario) {
+      throw new BadRequestException('Usuario no autenticado');
+    }
+    const { empresaId } = usuario;
+
+    return this.prisma.facturaProveedor.findFirst({
+      where: { idFacturaProveedor: id, empresaId: empresaId },
+      include: { compras: true, proveedor: true, pagos: true },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} facturasProveedor`;
+  async findByProveedor(proveedorId: string, usuario: UsuarioPayload) {
+    if (!usuario) {
+      throw new BadRequestException('Usuario no autenticado');
+    }
+    const { empresaId } = usuario;
+
+    const facturas = await this.prisma.facturaProveedor.findMany({
+      where: { empresaId: empresaId, proveedorId: proveedorId },
+      include: { compras: true, proveedor: true, pagos: true },
+    });
+
+    if (!facturas) {
+      throw new BadRequestException('No hay facturas para este proveedor');
+    }
+    return facturas;
   }
 
-  // update(id: number, updateFacturasProveedorDto: UpdateFacturasProveedorDto) {
-  //   return `This action updates a #${id} facturasProveedor`;
-  // }
+  async update(
+    id: string,
+    updateFacturasProveedorDto: UpdateFacturasProveedorDto,
+    usuario: UsuarioPayload
+  ) {
+    if (!usuario) {
+      throw new BadRequestException('Usuario no autenticado');
+    }
+    const { empresaId } = usuario;
+    const factura = await this.prisma.facturaProveedor.findUnique({
+      where: { idFacturaProveedor: id, empresaId: empresaId },
+      include: { pagos: true, compras: true, proveedor: true },
+    });
+    if (!factura) {
+      throw new BadRequestException('Factura no encontrada');
+    }
+    const updateFacturaproveedor = await this.prisma.facturaProveedor.update({
+      where: { idFacturaProveedor: id },
+      data: { ...updateFacturasProveedorDto },
+    });
+    return updateFacturaproveedor;
+  }
 
-  remove(id: number) {
-    return `This action removes a #${id} facturasProveedor`;
+  remove(id: string, usuario: UsuarioPayload) {
+    if (!usuario) {
+      throw new BadRequestException('Usuario no autenticado');
+    }
+    const { empresaId } = usuario;
+
+    return this.prisma.facturaProveedor.deleteMany({
+      where: { idFacturaProveedor: id, empresaId: empresaId },
+    });
   }
 }

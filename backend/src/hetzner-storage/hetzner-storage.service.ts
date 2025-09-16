@@ -11,7 +11,7 @@ import { createReadStream } from 'fs';
 export class HetznerStorageService {
   private s3: S3Client;
   private bucket: string;
-  private baseUrl: string;
+  public baseUrl: string;
 
   constructor() {
     this.bucket = process.env.HETZNER_S3_BUCKET!;

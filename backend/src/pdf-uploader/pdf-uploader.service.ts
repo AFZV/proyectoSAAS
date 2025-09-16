@@ -9,6 +9,8 @@ import { join } from 'path';
 import { compile, TemplateFunction } from 'ejs';
 import { launch, Browser, Page } from 'puppeteer';
 import * as os from 'os';
+import { PDFDocument } from 'pdf-lib';
+import axios, { AxiosResponse } from 'axios';
 
 import { ResumenPedidoDto } from './dto/resumen-pedido.dto';
 import { ResumenReciboDto } from './dto/resumen-recibo.dto';
@@ -293,6 +295,142 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
       fileName: `compra_${data.idCompra}.pdf`,
       tipo: 'compra',
     });
+  }
+
+  /**
+   * Descarga y combina múltiples PDFs (urls absolutas) y devuelve { buffer, path, count, fallidos }.
+   * - NO sube a bucket. Solo descarga directa (como tus otros métodos).
+   * - Es la versión genérica: ideal para "separar responsabilidades".
+   */
+  /**
+   * Fusiona múltiples PDFs desde URLs usando Puppeteer
+   * Reutiliza la instancia de browser existente para mejor performance
+   */
+  /**
+   * Fusiona múltiples PDFs descargándolos y combinándolos a nivel de páginas (sin headless/Chromium).
+   * Devuelve { buffer, path, count, fallidos }.
+   */
+  async fusionarPdfsDesdeUrls(
+    urls: string[],
+    fileName = 'manifiestos_fusionados.pdf'
+  ): Promise<{
+    buffer: Buffer;
+    path: string;
+    count: number;
+    fallidos: string[];
+  }> {
+    if (!Array.isArray(urls) || urls.length === 0) {
+      throw new Error('No se recibieron URLs para fusionar');
+    }
+
+    const fallidos: string[] = [];
+    const buffersValidos: Buffer[] = [];
+
+    // 1) Descarga todos los PDFs como Buffer (con manejo de errores por URL)
+    for (const url of urls) {
+      try {
+        const buf = await this.descargarPdfComoBuffer(url);
+        buffersValidos.push(buf);
+        this.logger.log(`📥 PDF descargado ok (${buf.length} bytes): ${url}`);
+      } catch (err) {
+        this.logger.warn(
+          `⚠️ No se pudo descargar PDF: ${url} :: ${String((err as Error)?.message ?? err)}`
+        );
+        fallidos.push(url);
+      }
+    }
+
+    if (buffersValidos.length === 0) {
+      throw new Error('No se pudo descargar ningún PDF válido');
+    }
+
+    // 2) Crea el documento de salida
+    const outDoc = await PDFDocument.create();
+
+    // 3) Importa páginas de cada PDF fuente
+    for (let i = 0; i < buffersValidos.length; i += 1) {
+      const srcBuf = buffersValidos[i];
+      try {
+        const srcDoc = await PDFDocument.load(srcBuf, {
+          ignoreEncryption: true,
+        });
+        const pageIndices = srcDoc.getPageIndices(); // number[]
+        if (pageIndices.length === 0) {
+          this.logger.warn(`⚠️ PDF sin páginas (#${i + 1}), se omite.`);
+          continue;
+        }
+        const pages = await outDoc.copyPages(srcDoc, pageIndices);
+        for (const p of pages) outDoc.addPage(p);
+      } catch (err) {
+        this.logger.warn(
+          `⚠️ No se pudo procesar un PDF (#${i + 1}). Se omite. Motivo: ${String((err as Error)?.message ?? err)}`
+        );
+      }
+    }
+
+    // 4) Serializa, guarda a disco y retorna
+    const outBytes: Uint8Array = await outDoc.save(); // Uint8Array
+    if (!outBytes || outBytes.length === 0) {
+      throw new Error('Fallo al generar el PDF fusionado (salida vacía)');
+    }
+    const buffer = Buffer.from(outBytes);
+    const fileSafe = fileName?.trim()?.length
+      ? fileName.trim()
+      : 'manifiestos_fusionados.pdf';
+    const filePath = join(os.tmpdir(), fileSafe);
+
+    await fs.writeFile(filePath, buffer);
+
+    this.logger.log(
+      `📄 PDF fusionado (pdf-lib): ${filePath} (${buffersValidos.length} documentos, ${fallidos.length} fallidos)`
+    );
+
+    return {
+      buffer,
+      path: filePath,
+      count: buffersValidos.length,
+      fallidos,
+    };
+  }
+
+  private async descargarPdfComoBuffer(url: string): Promise<Buffer> {
+    // Validación básica de URL en tiempo de ejecución (útil en modo estricto)
+    try {
+      // Lanzará si la URL no es válida
+
+      new URL(url);
+    } catch {
+      throw new Error(`URL inválida: ${url}`);
+    }
+
+    let res: AxiosResponse<ArrayBuffer>;
+    try {
+      res = await axios.get<ArrayBuffer>(url, {
+        responseType: 'arraybuffer',
+        timeout: 120_000,
+        validateStatus: (status) => status >= 200 && status < 400,
+      });
+    } catch (e) {
+      throw new Error(
+        `Error descargando PDF desde ${url}: ${(e as Error).message}`
+      );
+    }
+
+    const buf = Buffer.from(res.data);
+    if (buf.length === 0) {
+      throw new Error(`Archivo vacío: ${url}`);
+    }
+
+    // Content-Type con comprobación segura
+    const ctHeader = res.headers?.['content-type'];
+    if (
+      typeof ctHeader === 'string' &&
+      !ctHeader.toLowerCase().includes('application/pdf')
+    ) {
+      this.logger.warn(`⚠️ Content-Type no es PDF (${ctHeader}) para: ${url}`);
+    }
+
+    return buf;
   }
 
   // pdf-uploader.service.ts

@@ -14,6 +14,7 @@ import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import { formatearTexto } from 'src/lib/formatearTexto';
 import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
 import { promises as fs } from 'fs';
+
 @Injectable()
 export class ProductosService {
   constructor(
@@ -399,6 +400,111 @@ export class ProductosService {
       throw new InternalServerErrorException(
         'Error al obtener los productos por categoría'
       );
+    }
+  }
+
+  /**
+   * Sube y asocia un manifiesto (PDF/imagen) a un producto de la empresa del usuario.
+   * Recibe el archivo desde el frontend (multipart/form-data, campo "file").
+   */
+  async subirManifiestoProducto(
+    usuario: UsuarioPayload,
+    productoId: string,
+    file: Express.Multer.File
+  ): Promise<{ url: string; key: string }> {
+    if (!usuario) throw new BadRequestException('no permitido');
+    if (usuario.rol !== 'admin') {
+      throw new UnauthorizedException('usuario no autorizado');
+    }
+
+    // 1) Traer producto + URL previa del manifiesto (si existe)
+    const producto = await this.prisma.producto.findFirst({
+      where: { id: productoId, empresaId: usuario.empresaId },
+      select: { id: true, nombre: true, manifiestoUrl: true }, // 👈 usamos solo la URL
+    });
+    if (!producto) throw new BadRequestException('producto no encontrado');
+
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('archivo inválido');
+    }
+
+    // 2) Si hay un manifiesto previo, derivamos el "key" desde la URL y lo borramos
+    if (producto.manifiestoUrl) {
+      try {
+        const prevKey = this.getKeyFromPublicUrl(
+          producto.manifiestoUrl,
+          this.hetznerService.baseUrl
+        );
+        if (prevKey) {
+          await this.hetznerService.deleteByKey(prevKey);
+        }
+      } catch (err: any) {
+        // No bloquear el flujo por falla al borrar
+        console.warn(
+          '⚠️ No se pudo eliminar el manifiesto previo:',
+          err?.message || err
+        );
+      }
+    }
+
+    // 3) Preparar nombre/carpeta para el NUEVO PDF
+    const slug = this.slugify(producto.nombre || 'producto');
+    const ext = file.originalname.includes('.')
+      ? file.originalname.substring(file.originalname.lastIndexOf('.'))
+      : '.pdf';
+    const fileName = `manifiesto_${slug}_${Date.now()}${ext}`;
+    const folder = `empresas/${usuario.empresaId}/productos/manifiestos/${producto.id}`;
+    const key = `${folder}/${fileName}`;
+
+    // 4) Subir (tu uploadFile devuelve SOLO la URL pública)
+    const url = await this.hetznerService.uploadFile(
+      file.buffer,
+      fileName,
+      folder
+    );
+
+    // 5) Guardar nueva URL (no guardamos key porque no existe en el modelo)
+    await this.prisma.producto.update({
+      where: { id: producto.id },
+      data: { manifiestoUrl: url },
+    });
+
+    return { url, key };
+  }
+
+  /**
+   * Deriva el "key" (ruta dentro del bucket) a partir de una URL pública.
+   * Ej: baseUrl = https://files.mi-bucket.com
+   *     url     = https://files.mi-bucket.com/empresas/123/productos/456/manifiestos/arch.pdf
+   *     -> key  = empresas/123/productos/456/manifiestos/arch.pdf
+   */
+  private getKeyFromPublicUrl(
+    publicUrl: string,
+    baseUrl: string
+  ): string | null {
+    try {
+      // Normaliza: sin slash final en baseUrl
+      const base = baseUrl.replace(/\/+$/, '');
+      const u = new URL(publicUrl);
+      // Caso 1: misma base (dominio/host) -> usamos pathname
+      if (u.origin === base) {
+        return u.pathname.replace(/^\/+/, ''); // quita el leading slash
+      }
+      // Caso 2: publicUrl comienza con baseUrl como string (por si hay CDN/path)
+      if (publicUrl.startsWith(base + '/')) {
+        return publicUrl.slice((base + '/').length);
+      }
+      // Fallback: intenta tomar lo que venga después del host
+      return u.pathname.replace(/^\/+/, '') || null;
+    } catch {
+      // Si no es URL válida, intenta heurística simple
+      const idx = publicUrl.indexOf(baseUrl);
+      if (idx >= 0) {
+        return (
+          publicUrl.slice(idx + baseUrl.length).replace(/^\/+/, '') || null
+        );
+      }
+      return null;
     }
   }
 }

@@ -8,6 +8,12 @@ import {
   Put,
   UseGuards,
   Req,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
+  BadRequestException,
 } from '@nestjs/common';
 
 import { ProductosService } from './productos.service';
@@ -18,6 +24,8 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { CreateCategoriaProductoDto } from './dto/create-categoria-producto.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import * as multer from 'multer';
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('productos')
@@ -151,6 +159,47 @@ export class ProductosController {
         categoriaId
       );
     return { url, key };
+  }
+
+  /**
+   * Sube el manifiesto de un producto (PDF o imagen).
+   * Espera un multipart/form-data con campo "file".
+   */
+  @Roles('admin')
+  @Post(':productoId/manifiesto')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(), // <-- ¡importante para tener file.buffer!
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10 MB
+      },
+    })
+  )
+  async subirManifiestoProducto(
+    @Req() req: UsuarioRequest,
+    @Param('productoId') productoId: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 10 * 1024 * 1024 }),
+          new FileTypeValidator({
+            // Acepta PDF e imágenes comunes
+            fileType: /^(application\/pdf|image\/(png|jpeg|jpg|webp))$/,
+          }),
+        ],
+      })
+    )
+    file: Express.Multer.File
+  ) {
+    const usuario = req.usuario; // tu guard debe inyectar UsuarioPayload aquí
+    if (!usuario) throw new BadRequestException('no permitido');
+
+    // Llama al service (versión que adapta a tu uploadFile(buffer, fileName, folder))
+    return this.productosService.subirManifiestoProducto(
+      usuario,
+      productoId,
+      file
+    );
   }
 
   // 2) Redirección 302 al enlace (descarga directa desde el bucket)

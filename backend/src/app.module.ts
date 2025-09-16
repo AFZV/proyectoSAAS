@@ -28,6 +28,7 @@ import { RespaldosModule } from './respaldos/respaldos.module';
 import { ImportarModule } from './importar/importar.module';
 import { HetznerStorageModule } from './hetzner-storage/hetzner-storage.module';
 import { FacturasProveedorModule } from './facturas-proveedor/facturas-proveedor.module';
+import { PagosProveedorModule } from './pagos-proveedor/pagos-proveedor.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { FacturasProveedorModule } from './facturas-proveedor/facturas-proveedor
     ImportarModule,
     HetznerStorageModule,
     FacturasProveedorModule,
+    PagosProveedorModule,
   ],
   controllers: [PrismaController],
 })

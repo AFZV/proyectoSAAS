@@ -45,6 +45,7 @@
     "mime-types": "^3.0.1",
     "multer": "^2.0.1",
     "multer-storage-cloudinary": "^4.0.0",
+    "pdf-lib": "^1.17.1",
     "pdfkit": "^0.17.1",
     "pg": "^8.16.3",
     "puppeteer": "^18.2.1",

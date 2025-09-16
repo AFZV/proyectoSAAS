@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { PedidosService } from './pedidos.service';
@@ -19,6 +20,7 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
 import { FilterPedidoDto } from './dto/filter-pedido.dto';
 import { UpdateEnvioDto } from './dto/update-envio-pedido.dto';
+import { Response } from 'express';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('pedidos')
 export class PedidosController {
@@ -108,5 +110,32 @@ export class PedidosController {
       comisionVendedor,
       req.usuario
     );
+  }
+  @Roles('admin')
+  @Get('manifiestos/fusionar/:pedidoId')
+  async fusionarManifiestos(
+    @Param('pedidoId') pedidoId: string,
+    @Res() res: Response
+  ) {
+    try {
+      const resultado =
+        await this.pedidosService.fusionarManifiestosPedido(pedidoId);
+
+      // Configurar headers para descarga
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="manifiestos_pedido_${pedidoId}.pdf"`
+      );
+      res.setHeader('Content-Length', resultado.buffer.length.toString());
+
+      // Enviar el buffer
+      res.send(resultado.buffer);
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        // error: error?.message ?? 'Error desconocido',
+      });
+    }
   }
 }

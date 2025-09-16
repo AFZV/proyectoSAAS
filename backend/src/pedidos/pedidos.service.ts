@@ -1013,4 +1013,182 @@ export class PedidosService {
     });
     return pedidoActualizado;
   }
+
+  // ================================
+  // VERSIÓN OPTIMIZADA (más eficiente)
+  // ================================
+
+  async fusionarManifiestosPedido(pedidoId: string) {
+    try {
+      // 1) Obtener pedido con productos
+      const pedido = await this.prisma.pedido.findUnique({
+        where: { id: pedidoId },
+        include: { productos: true },
+      });
+
+      if (!pedido) {
+        throw new Error(`Pedido ${pedidoId} no encontrado`);
+      }
+
+      // 2) Buscar manifiestos
+      const promises = pedido.productos.map(async (pp) => {
+        const producto = await this.prisma.producto.findUnique({
+          where: { id: pp.productoId },
+          select: { manifiestoUrl: true, nombre: true },
+        });
+        return {
+          nombre: producto?.nombre || pp.productoId,
+          url: producto?.manifiestoUrl,
+        };
+      });
+
+      const productos = await Promise.all(promises);
+
+      // 3) Filtrar solo los que tienen URL válida
+      const productosConManifiesto = productos.filter(
+        (p) =>
+          p.url &&
+          typeof p.url === 'string' &&
+          p.url.trim().length > 0 &&
+          p.url.startsWith('http')
+      );
+
+      if (productosConManifiesto.length === 0) {
+        const productosSin = productos
+          .filter((p) => !p.url)
+          .map((p) => p.nombre);
+        throw new Error(
+          `No se encontraron manifiestos válidos. Productos sin manifiesto: ${productosSin.join(', ')}`
+        );
+      }
+
+      // 4) Extraer solo las URLs (ya sabemos que son strings válidas)
+      const urls = productosConManifiesto.map((p) => p.url as string);
+
+      console.log(
+        `📋 Productos con manifiesto: ${productosConManifiesto.length}/${productos.length}`
+      );
+      productosConManifiesto.forEach((p) =>
+        console.log(`✅ ${p.nombre}: ${p.url}`)
+      );
+
+      // 5) Fusionar
+      const resultado = await this.pdfUploaderService.fusionarPdfsDesdeUrls(
+        urls,
+        `manifiestos_pedido_${pedidoId}.pdf`
+      );
+
+      return {
+        success: true,
+        filePath: resultado.path,
+        buffer: resultado.buffer,
+        totalDocumentos: resultado.count,
+        productosConManifiesto: productosConManifiesto.length,
+        productosTotal: productos.length,
+        fallidos: resultado.fallidos,
+      };
+    } catch (error) {
+      console.error(
+        `❌ Error fusionando manifiestos del pedido ${pedidoId}:`,
+        error
+      );
+      throw error;
+    }
+  }
+
+  // ================================
+  // VERSIÓN CON TYPE GUARDS (más robusta)
+  // ================================
+
+  // Función helper para validar URLs
+  private esUrlValida(url: any): url is string {
+    return (
+      typeof url === 'string' &&
+      url.trim().length > 0 &&
+      (url.startsWith('http://') || url.startsWith('https://'))
+    );
+  }
+
+  async fusionarManifiestosPedidoSeguro(pedidoId: string) {
+    try {
+      // Consulta optimizada
+      const pedido = await this.prisma.pedido.findUnique({
+        where: { id: pedidoId },
+        include: {
+          productos: {
+            include: {
+              producto: {
+                select: {
+                  id: true,
+                  nombre: true,
+                  manifiestoUrl: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!pedido) {
+        throw new Error(`Pedido ${pedidoId} no encontrado`);
+      }
+
+      // Extraer y validar URLs
+      const manifiestos = pedido.productos
+        .map((pp) => ({
+          producto: pp.producto.nombre,
+          productoId: pp.producto.id,
+          url: pp.producto.manifiestoUrl,
+        }))
+        .filter((m) => this.esUrlValida(m.url)) // Type guard garantiza que url es string
+        .map((m) => ({
+          producto: m.producto,
+          productoId: m.productoId,
+          url: m.url as string, // Ya sabemos que es string válida
+        }));
+
+      if (!manifiestos.length) {
+        const totalProductos = pedido.productos.length;
+        const sinManifiesto = pedido.productos
+          .filter((pp) => !this.esUrlValida(pp.producto.manifiestoUrl))
+          .map((pp) => pp.producto.nombre);
+
+        throw new Error(
+          `Sin manifiestos válidos. ${totalProductos} productos, ${sinManifiesto.length} sin manifiesto: ${sinManifiesto.join(', ')}`
+        );
+      }
+
+      const urls = manifiestos.map((m) => m.url);
+
+      console.log(
+        `📋 Manifiestos válidos encontrados: ${manifiestos.length}/${pedido.productos.length}`
+      );
+
+      // Fusionar
+      const resultado = await this.pdfUploaderService.fusionarPdfsDesdeUrls(
+        urls,
+        `manifiestos_pedido_${pedidoId}.pdf`
+      );
+
+      return {
+        success: true,
+        filePath: resultado.path,
+        buffer: resultado.buffer,
+        totalDocumentos: resultado.count,
+        productosConManifiesto: manifiestos.length,
+        productosTotal: pedido.productos.length,
+        fallidos: resultado.fallidos,
+        detalleProductos: manifiestos.map((m) => ({
+          producto: m.producto,
+          url: m.url.substring(0, 50) + '...',
+        })),
+      };
+    } catch (error) {
+      console.error(
+        `❌ Error fusionando manifiestos del pedido ${pedidoId}:`,
+        error
+      );
+      throw error;
+    }
+  }
 }

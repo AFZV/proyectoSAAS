@@ -3,16 +3,16 @@ import {
   Get,
   Post,
   Body,
-  //  Patch,
   Param,
   Delete,
   UnauthorizedException,
   Req,
   UseGuards,
+  Patch,
 } from '@nestjs/common';
 import { FacturasProveedorService } from './facturas-proveedor.service';
 import { CreateFacturasProveedorDto } from './dto/create-facturas-proveedor.dto';
-//import { UpdateFacturasProveedorDto } from './dto/update-facturas-proveedor.dto';
+import { UpdateFacturasProveedorDto } from './dto/update-facturas-proveedor.dto';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
@@ -41,28 +41,54 @@ export class FacturasProveedorController {
   }
 
   @Get()
-  findAll() {
-    return this.facturasProveedorService.findAll();
+  findAll(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return this.facturasProveedorService.findAll(usuario);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.facturasProveedorService.findOne(+id);
+  @Get(':proveedorId')
+  fingByProveedor(
+    @Param('proveedorId') proveedorId: string,
+    @Req() req: UsuarioRequest
+  ) {
+    const usuario = req.usuario;
+    if (!usuario) {
+      throw new UnauthorizedException('Usuario no autenticado');
+    }
+    return this.facturasProveedorService.findByProveedor(proveedorId, usuario);
+  }
+  @Get('findOne/:id')
+  findOne(@Param('id') id: string, @Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    if (!usuario) {
+      throw new UnauthorizedException('Usuario no autenticado');
+    }
+    return this.facturasProveedorService.findOne(id, usuario);
   }
 
-  // @Patch(':id')
-  // update(
-  //   @Param('id') id: string,
-  //   @Body() updateFacturasProveedorDto: UpdateFacturasProveedorDto
-  // ) {
-  //   return this.facturasProveedorService.update(
-  //     +id,
-  //     updateFacturasProveedorDto
-  //   );
-  // }
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @Body() updateFacturasProveedorDto: UpdateFacturasProveedorDto,
+    @Req() req: UsuarioRequest
+  ) {
+    const usuario = req.usuario;
+    if (!usuario) {
+      throw new UnauthorizedException('Usuario no autenticado');
+    }
+    return this.facturasProveedorService.update(
+      id,
+      updateFacturasProveedorDto,
+      usuario
+    );
+  }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.facturasProveedorService.remove(+id);
+  remove(@Param('id') id: string, @Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    if (!usuario) {
+      throw new UnauthorizedException('Usuario no autenticado');
+    }
+    return this.facturasProveedorService.remove(id, usuario);
   }
 }
