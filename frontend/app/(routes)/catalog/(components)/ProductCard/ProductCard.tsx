@@ -168,10 +168,13 @@ function AddToCartModal({
 }
 
 // Componente principal ProductCard actualizado
+import Image from "next/image";
+// ...resto imports
+
 export function ProductCard({
   producto,
   onAgregarAlCarrito,
-  onVerDetalles, // NUEVA PROP para abrir el modal de detalles
+  onVerDetalles,
   onDescargarImagen,
   isInCart = false,
   cantidadEnCarrito = 0,
@@ -181,7 +184,7 @@ export function ProductCard({
   onDescargarImagen?: (producto: any) => void;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showObs, setShowObs] = useState(false); // <- toggle inline opcional
+  const [showObs, setShowObs] = useState(false);
 
   const handleModalAdd = (cantidad: number) => {
     onAgregarAlCarrito(producto, cantidad);
@@ -189,18 +192,15 @@ export function ProductCard({
 
   const isOutOfStock = producto.stock === 0;
 
-  // Handler para hacer clic en la imagen
   const handleImageClick = () => {
-    if (onVerDetalles) {
-      onVerDetalles(producto);
-    }
+    if (onVerDetalles) onVerDetalles(producto);
   };
 
   const handleDescargarImagen = () => {
-    if (onDescargarImagen) {
-      onDescargarImagen(producto);
-    }
+    if (onDescargarImagen) onDescargarImagen(producto);
   };
+
+  const src = producto.imagenUrl || "/placeholder-product.png";
 
   return (
     <>
@@ -216,15 +216,18 @@ export function ProductCard({
       `}
       >
         <CardContent className="p-0 flex flex-col h-full">
-          {/* Imagen del producto - ACTUALIZADA CON CLICK */}
+          {/* Imagen del producto con next/image */}
           <div
-            className="relative aspect-square overflow-hidden bg-muted flex-shrink-0 cursor-pointer"
+            className="relative aspect-square overflow-hidden bg-white flex-shrink-0 cursor-pointer"
             onClick={handleImageClick}
           >
-            <img
-              src={producto.imagenUrl || "/placeholder-product.png"}
+            <Image
+              src={src}
               alt={producto.nombre}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              className="object-contain"
+              priority={false}
             />
 
             {/* Overlay hover para indicar que es clickeable */}
@@ -267,23 +270,17 @@ export function ProductCard({
 
           {/* Información del producto */}
           <div className="p-3 space-y-2 flex-1 flex flex-col">
-            {/* Nombre */}
             <h3
               className="
-    font-semibold 
-    text-sm 
-    sm:text-sm 
-    md:text-base 
-    lg:text-xs
-    leading-tight line-clamp-2 min-h-[2.5rem] 
-    cursor-pointer hover:text-blue-600 transition-colors
-  "
+                font-semibold text-sm sm:text-sm md:text-base lg:text-xs
+                leading-tight line-clamp-2 min-h-[2.5rem]
+                cursor-pointer hover:text-blue-600 transition-colors
+              "
               onClick={handleImageClick}
             >
               {producto.nombre}
             </h3>
 
-            {/* Stock info */}
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Package className="w-3 h-3" />
@@ -291,21 +288,18 @@ export function ProductCard({
               </div>
             </div>
 
-            {/* Precio */}
             <div className="flex items-center justify-between mb-2">
               <span className="text-lg font-bold text-green-600">
                 {formatValue(producto.precio)}
               </span>
             </div>
 
-            {/* Botones de acción */}
             <div className="flex flex-col gap-1.5 mt-auto">
               {!isOutOfStock ? (
                 <>
-                  {/* Botón para ver detalles */}
                   <div className="flex justify-end">
                     <button
-                      onClick={() => handleDescargarImagen()}
+                      onClick={handleDescargarImagen}
                       className="p-1 hover:bg-blue-50 rounded-full"
                       title="Descargar imagen del producto"
                     >
@@ -313,7 +307,6 @@ export function ProductCard({
                     </button>
                   </div>
 
-                  {/* Botón para agregar al carrito */}
                   <Button
                     size="sm"
                     onClick={() => setIsModalOpen(true)}
@@ -339,13 +332,12 @@ export function ProductCard({
         </CardContent>
       </Card>
 
-      {/* Modal para seleccionar cantidad */}
       <AddToCartModal
         producto={producto}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onConfirm={handleModalAdd}
-        observacion={observacion} // <- pasa la observación
+        observacion={observacion}
         onChangeObservacion={onChangeObservacion}
       />
     </>

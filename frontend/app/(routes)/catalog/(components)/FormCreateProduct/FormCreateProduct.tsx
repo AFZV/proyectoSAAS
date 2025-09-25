@@ -39,10 +39,7 @@ import { Plus, Package } from "lucide-react";
 import type { Categoria } from "../../types/catalog.types";
 
 const formSchema = z.object({
-  nombre: z
-    .string()
-    .min(2, "El nombre debe tener al menos 2 caracteres")
-    .max(50),
+  nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
   precioCompra: z.number().min(0, "El precio de compra debe ser mayor a 0"),
   precioVenta: z.number().min(0, "El precio de venta debe ser mayor a 0"),
   imagenUrl: z.string().url("URL de imagen inválida"),
@@ -53,7 +50,7 @@ const categoriaSchema = z.object({
   nombre: z
     .string()
     .min(2, "El nombre debe tener al menos 2 caracteres")
-    .max(30, "El nombre no puede exceder 30 caracteres"),
+    .max(50, "El nombre no puede exceder 30 caracteres"),
 });
 
 interface FormCreateProductProps {
