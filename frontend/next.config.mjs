@@ -7,6 +7,7 @@ const nextConfig = {
       "xqtnsjfw0c.ufs.sh",
       "example.com",
       "mi-cdn.com",
+      "files.bgacloudsaas.com",
     ],
   },
 };

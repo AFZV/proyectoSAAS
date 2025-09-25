@@ -33,6 +33,7 @@ export class EstadisticasService {
           i."idEmpresa" = ${empresaId}
           AND i."stockReferenciaOinicial" > 0
           AND i."stockActual" <= i."stockReferenciaOinicial" * 0.3
+          AND p."estado"='activo'
           ${stockFilterForSeller}  -- 👈 si es vendedor, exige stock > 0
         ORDER BY p."nombre" ASC, i."stockActual" ASC
       `

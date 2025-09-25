@@ -21,9 +21,10 @@ import { Input } from "@/components/ui/input";
 
 import { Loading } from "@/components/Loading";
 import { Plus, Upload } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 // ====== Tipos auxiliares ======
-type MonedaISO = "COP" | "USD" | "EUR";
+type MonedaISO = "COP" | "USD" | "CNY";
 
 // Ajusta si tu enum real difiere:
 type EstadoFacturaProvEnum = "ABIERTA" | "PARCIAL" | "PAGADA" | "ANULADA";
@@ -34,23 +35,7 @@ interface ProveedorItem {
   identificacion?: string;
 }
 
-// direccion
-// :
-// "xxxxxxxxxxxxxxx"
-// idProveedor
-// :
-// "088732e0-106c-4d6d-95d9-62d1bd39815f"
-// identificacion
-// :
-// "64666654"
-// razonsocial
-// :
-// "xxxxxxxxxxxxxx"
-// telefono
-// :
-// "3216674328"
-
-const monedas: MonedaISO[] = ["COP", "USD", "EUR"];
+const monedas: MonedaISO[] = ["COP", "USD", "CNY"];
 const estados: EstadoFacturaProvEnum[] = [
   "ABIERTA",
   "PARCIAL",
@@ -86,13 +71,11 @@ const formSchema = z
       .number({ invalid_type_error: "Debe ser un número" })
       .min(0, "El total no puede ser negativo"),
     notas: z.string().max(500).optional(),
-    soporteUrl: z.string().url("URL inválida").optional(),
     estado: z
       .enum(estados as [EstadoFacturaProvEnum, ...EstadoFacturaProvEnum[]])
       .default("ABIERTA"),
     compraId: z.string().optional(),
     // Campo auxiliar del front para archivo:
-    soporteFile: z.instanceof(File).optional(),
   })
   .refine(
     (vals) =>
@@ -130,10 +113,9 @@ export function FormCreateFacturaProveedor({
       tasaCambio: undefined,
       total: 0,
       notas: "",
-      soporteUrl: "",
+
       estado: "ABIERTA",
       compraId: "",
-      soporteFile: undefined,
     },
   });
 
@@ -155,22 +137,6 @@ export function FormCreateFacturaProveedor({
         let normalized: ProveedorItem[] = [];
         if (Array.isArray(data)) normalized = data;
         else if (data && typeof data === "object") normalized = [data];
-        // direccion
-        // :
-        // "xxxxxxxxxxxxxxx"
-        // idProveedor
-        // :
-        // "088732e0-106c-4d6d-95d9-62d1bd39815f"
-        // identificacion
-        // :
-        // "64666654"
-        // razonsocial
-        // :
-        // "xxxxxxxxxxxxxx"
-        // telefono
-        // :
-        // "3216674328"
-        // Ajusta el mapeo si tu backend retorna llaves distintas
         setProveedores(
           normalized.map((p: any) => ({
             idProveedor: p.idProveedor ?? p.id ?? p.proveedorId,
@@ -192,34 +158,6 @@ export function FormCreateFacturaProveedor({
       if (!token)
         throw new Error("No se pudo obtener el token de autenticación");
 
-      // Subir soporte si hay archivo (opcional)
-      let soporteFinalUrl = values.soporteUrl?.trim();
-      if (!soporteFinalUrl && values.soporteFile) {
-        try {
-          const fd = new FormData();
-          fd.append("file", values.soporteFile);
-          const upRes = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/hetzner-storage/upload`,
-            {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}` },
-              body: fd,
-            }
-          );
-          if (!upRes.ok) {
-            const t = await upRes.text();
-            console.warn("Fallo subiendo soporte, continúo sin URL:", t);
-          } else {
-            const upJson = await upRes.json();
-            // Ajusta según tu respuesta real
-            soporteFinalUrl =
-              upJson.url ?? upJson.location ?? upJson.secure_url;
-          }
-        } catch (e) {
-          console.warn("Excepción subiendo soporte, continúo sin URL:", e);
-        }
-      }
-
       // Construir payload conforme al DTO
       const payload = {
         proveedorId: values.proveedorId,
@@ -235,13 +173,12 @@ export function FormCreateFacturaProveedor({
             : undefined,
         total: Number(values.total),
         notas: values.notas?.trim() || undefined,
-        soporteUrl: soporteFinalUrl || undefined,
         estado: values.estado,
         compraId: values.compraId?.trim() || undefined,
       };
 
       const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/facturas-proveedor`,
+        `${process.env.NEXT_PUBLIC_API_URL}/facturas-proveedor/create`,
         {
           method: "POST",
           headers: {
@@ -266,7 +203,7 @@ export function FormCreateFacturaProveedor({
 
       toast({
         title: "¡Factura creada!",
-        description: `Factura #${payload.numero} registrada correctamente`,
+        description: `Factura #${factura.numero} registrada correctamente`,
       });
 
       form.reset();
@@ -324,11 +261,11 @@ export function FormCreateFacturaProveedor({
               name="numero"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Número/NIT del documento *</FormLabel>
+                  <FormLabel>Número de factura *</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
-                      placeholder="Ej: FAC-000123, 900123456-7"
+                      placeholder="Ej: FAC-000123"
                       className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </FormControl>
@@ -503,53 +440,8 @@ export function FormCreateFacturaProveedor({
               )}
             />
 
-            {/* Soporte URL */}
-            <FormField
-              control={form.control}
-              name="soporteUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Soporte (URL) opcional</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="https://... (PDF/imagen)"
-                      className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Soporte archivo (subida opcional) */}
-            <FormField
-              control={form.control}
-              name="soporteFile"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Subir Soporte (opcional)</FormLabel>
-                  <FormControl>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="file"
-                        accept="application/pdf,image/*"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          field.onChange(f ?? undefined);
-                        }}
-                        className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                      <Upload className="w-4 h-4 opacity-70" />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             {/* Notas */}
-            {/* <FormField
+            <FormField
               control={form.control}
               name="notas"
               render={({ field }) => (
@@ -565,7 +457,7 @@ export function FormCreateFacturaProveedor({
                   <FormMessage />
                 </FormItem>
               )}
-            /> */}
+            />
           </div>
 
           {/* Botón de envío */}

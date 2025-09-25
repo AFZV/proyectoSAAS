@@ -7,41 +7,47 @@ import {
   IsUUID,
   IsUrl,
   IsNumber,
+  IsArray,
+  ValidateNested,
+  Min,
+  ArrayMinSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ValidateNested } from 'class-validator';
 import { MetodoPagoProvEnum } from '@prisma/client';
-// // Si NO quieres importar de Prisma, puedes declarar el enum así:
-// export enum MetodoPagoProvEnum { EFECTIVO='EFECTIVO', TRANSFERENCIA='TRANSFERENCIA', TARJETA='TARJETA', CHEQUE='CHEQUE', OTRO='OTRO' }
-class DetallePagoProveedorCreateDto {
+
+// ===== Detalle (sin pagoId) =====
+export class DetallePagoFacturaDto {
   @IsUUID()
-  facturaId!: string;
+  facturaId: string;
 
   @Type(() => Number)
-  @IsNumber(
-    { allowNaN: false, allowInfinity: false },
-    { message: 'montoAplicado debe ser numérico' }
-  )
-  valor!: number;
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(0.01, { message: 'valor debe ser > 0' })
+  valor: number;
 
+  // Opcional: si manejas retención/bono línea a línea
   @IsOptional()
-  nota?: string;
+  @Type(() => Number)
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(0, { message: 'descuento no puede ser negativo' })
+  descuento?: number;
 }
+
+// ===== Pago =====
 export class CreatePagoProveedorDto {
   @IsUUID()
-  proveedorId!: string;
+  proveedorId: string;
 
-  // Opcional, el modelo tiene default(now())
   @IsOptional()
   @IsDateString({}, { message: 'fecha debe ser ISO 8601' })
-  fecha?: string;
+  fecha?: string; // el modelo tiene default(now())
 
   @IsOptional()
   @IsString()
-  moneda?: string; // default 'COP' en la BD
+  moneda?: string; // default 'COP' en BD
 
-  // Obligatoria si moneda != 'COP'
-
+  // Obligatoria si moneda != 'COP' (regla se valida en servicio o con custom validator)
+  @IsOptional()
   @Type(() => Number)
   @IsNumber(
     { allowNaN: false, allowInfinity: false },
@@ -50,10 +56,9 @@ export class CreatePagoProveedorDto {
   tasaCambio?: number;
 
   @IsEnum(MetodoPagoProvEnum, { message: 'metodoPago inválido' })
-  metodoPago!: MetodoPagoProvEnum;
+  metodoPago: MetodoPagoProvEnum;
 
-  // Puedes dejarlo opcional si lo calculas como suma(detalles)
-  // o hacerlo requerido si quieres forzarlo desde el cliente.
+  // Se puede ignorar y calcular en backend como suma(neto por detalle)
   @IsOptional()
   @Type(() => Number)
   @IsNumber(
@@ -70,14 +75,10 @@ export class CreatePagoProveedorDto {
   @IsUrl({}, { message: 'comprobanteUrl debe ser una URL válida' })
   comprobanteUrl?: string;
 
-  // El usuarioId normalmente lo inyectas desde el token en el backend
-  @IsOptional()
-  @IsUUID()
-  usuarioId?: string;
-
-  // Aplicaciones del pago a facturas
-  @IsOptional()
+  // ===== NUEVO: array de facturas a pagar/abonar =====
+  @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => DetallePagoProveedorCreateDto)
-  detalles?: DetallePagoProveedorCreateDto[];
+  @ArrayMinSize(1, { message: 'Debe incluir al menos una factura a abonar' })
+  @Type(() => DetallePagoFacturaDto)
+  detalles: DetallePagoFacturaDto[];
 }
