@@ -45,8 +45,21 @@ export class PagosProveedorController {
   //   return this.pagosProveedorService.update(+id, updatePagosProveedorDto);
   // }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.pagosProveedorService.remove(+id);
+  @Delete('delete/:id')
+  async deletePago(
+    @Param('id') idPagoProveedor: string,
+    @Req() req: UsuarioRequest // ajusta a tu tipo de request si incluyes empresaId por guard
+  ) {
+    const usuario = req.usuario;
+    if (!usuario) {
+      throw new UnauthorizedException('no autenticado');
+    }
+
+    // Obtén empresaId desde tu guard/req.user/headers (ajústalo a tu proyecto)
+    console.log('pago a eliminar:', idPagoProveedor);
+    return this.pagosProveedorService.deletePagoProveedor(
+      idPagoProveedor,
+      usuario
+    );
   }
 }

@@ -94,7 +94,7 @@ export class FacturasProveedorController {
     return this.facturasProveedorService.getSaldosPorProveedor(usuario);
   }
 
-  @Delete(':id')
+  @Delete('delete/:id')
   remove(@Param('id') id: string, @Req() req: UsuarioRequest) {
     const usuario = req.usuario;
     if (!usuario) {

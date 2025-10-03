@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { X } from "lucide-react";
+import { Trash, Trash2, X } from "lucide-react";
 import { ArrowUpDown, Eye, MoreHorizontal } from "lucide-react";
 import { ColumnDef, type Column } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
+import { useRouter } from "next/navigation";
 export type ProveedorConSaldo = {
   idProveedor: string;
   razonsocial: string;
@@ -127,11 +127,83 @@ type Props = {
   movimientos: MovimientoProveedor[]; // pásalo desde tu data real
   onClose?: () => void;
 };
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? ""; // ej: https://api.bgacloudsaas.com
+
+function getDeleteConfig(m: MovimientoProveedor) {
+  switch (m.tipo) {
+    case "Pago":
+      return {
+        url: `${API}/pagos-proveedor/delete/${m.id}`,
+        entity: "pago",
+        confirmText: `¿Eliminar el pago ${m.numero}?`,
+        method: "DELETE" as const,
+      };
+    case "Factura":
+      return {
+        url: `${API}/facturas-proveedor/delete/${m.id}`,
+        entity: "factura",
+        confirmText: `¿Eliminar la factura ${m.numero}?`,
+        method: "DELETE" as const,
+      };
+    // Opcional: mapea otros tipos si tienes endpoints definidos
+
+    default:
+      throw new Error("Tipo de movimiento no soportado");
+  }
+}
 export default function ProveedorVerHistory({
   proveedor,
   movimientos,
   onClose,
 }: Props) {
+  const { toast } = useToast();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { getToken } = useAuth();
+  const router = useRouter();
+  const handleEliminar = async (m: MovimientoProveedor) => {
+    const cfg = getDeleteConfig(m);
+
+    // Confirmación
+    if (!window.confirm(cfg.confirmText)) return;
+
+    try {
+      setDeletingId(m.id);
+      const token = await getToken();
+
+      const res = await fetch(cfg.url, {
+        method: cfg.method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          //"Content-Type": "application/json",
+        },
+      });
+
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || `Error ${res.status}`);
+      }
+
+      // toast.success(`Se eliminó el ${cfg.entity} ${m.numero}`);
+      // TODO: refrescar la lista (puedes levantar un estado o disparar un refetch)
+      // Por ejemplo, si te pasan un onDeleted:
+      // onDeleted?.(m.id);
+      toast({
+        title: `Se eliminó el ${cfg.entity} ${m.numero}`,
+        duration: 2000,
+      });
+      window.location.reload();
+    } catch (e: any) {
+      toast({
+        title: `No se pudo eliminar el ${cfg.entity} ${m.numero}. ${
+          e?.message?.slice(0, 200) ?? ""
+        }`,
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header de info del proveedor */}
@@ -211,26 +283,30 @@ export default function ProveedorVerHistory({
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-blue-50/70 backdrop-blur border-b border-blue-100">
               <TableRow>
-                <TableHead className="text-left text-xs font-medium text-blue-900/80 uppercase">
+                <TableHead className="text-left text-xs font-medium text-blue-600 uppercase">
                   Fecha
                 </TableHead>
-                <TableHead className="text-left text-xs font-medium text-blue-900/80 uppercase">
+                <TableHead className="text-left text-xs font-medium text-blue-600 uppercase">
                   Vencimiento
                 </TableHead>
-                <TableHead className="text-left text-xs font-medium text-blue-900/80 uppercase">
+                <TableHead className="text-left text-xs font-medium text-blue-600 uppercase">
                   Tipo
                 </TableHead>
-                <TableHead className="text-left text-xs font-medium text-blue-900/80 uppercase">
+                <TableHead className="text-left text-xs font-medium text-blue-600 uppercase">
                   Descripción
                 </TableHead>
-                <TableHead className="text-left text-xs font-medium text-blue-900/80 uppercase">
+                <TableHead className="text-left text-xs font-medium text-blue-600 uppercase">
                   Número
                 </TableHead>
-                <TableHead className="text-right text-xs font-medium text-blue-900/80 uppercase">
+                <TableHead className="text-right text-xs font-medium text-blue-600 uppercase">
                   Monto
                 </TableHead>
-                <TableHead className="text-right text-xs font-medium text-blue-900/80 uppercase">
+                <TableHead className="text-right text-xs font-medium text-blue-600 uppercase">
                   Saldo
+                </TableHead>
+
+                <TableHead className="text-right text-xs font-medium text-red-600 uppercase">
+                  Eliminar
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -325,6 +401,28 @@ export default function ProveedorVerHistory({
                           ? (globalThis as any).formatValue(m.saldo)
                           : formatValue(m.saldo)}
                       </TableCell>
+
+                      <TableCell className="p-2 align-middle text-right">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-red-600 hover:text-red-800"
+                                onClick={() => handleEliminar(m)}
+                                title="Eliminar"
+                                disabled={deletingId === m.id}
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p>Eliminar</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
                     </TableRow>
                   );
                 })
@@ -349,6 +447,14 @@ export default function ProveedorVerHistory({
   );
 }
 import { useAuth } from "@clerk/nextjs";
+//import { getToken } from "@/lib/getToken";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
 function ProveedorActions({ proveedor }: { proveedor: ProveedorConSaldo }) {
   const [open, setOpen] = useState(false);
   const [openHistory, setOpenHistory] = useState(false);
@@ -431,7 +537,7 @@ function ProveedorActions({ proveedor }: { proveedor: ProveedorConSaldo }) {
         </DialogContent>
       </Dialog>
       <Dialog open={openHistory} onOpenChange={setOpenHistory}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl w-full">
           <DialogHeader>
             <DialogTitle className="flex items-center">
               <Eye className="w-5 h-5 mr-2" />

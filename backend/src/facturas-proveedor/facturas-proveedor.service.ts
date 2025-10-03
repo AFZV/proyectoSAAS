@@ -248,17 +248,6 @@ export class FacturasProveedorService {
     return updateFacturaproveedor;
   }
 
-  remove(id: string, usuario: UsuarioPayload) {
-    if (!usuario) {
-      throw new BadRequestException('Usuario no autenticado');
-    }
-    const { empresaId } = usuario;
-
-    return this.prisma.facturaProveedor.deleteMany({
-      where: { idFacturaProveedor: id, empresaId: empresaId },
-    });
-  }
-
   // interface FacturaPendienteItem {
   //   idFacturaProveedor: string;
   //   numero: string;
@@ -439,5 +428,37 @@ export class FacturasProveedorService {
     });
 
     return facturas;
+  }
+
+  async remove(idFacturaProveedor: string, usuario: UsuarioPayload) {
+    // 1) verificar existencia
+    console.log('entro al service');
+    if (!usuario) {
+      throw new BadRequestException('usuario noa utenticado aun');
+    }
+    const { empresaId } = usuario;
+    const factura = await this.prisma.facturaProveedor.findUnique({
+      where: { idFacturaProveedor, empresaId },
+      select: { idFacturaProveedor: true },
+    });
+    if (!factura) throw new NotFoundException('Factura no encontrada');
+
+    // 2) verificar que no tenga abonos
+    const tieneAbonos = await this.prisma.detallePagoProveedor.findFirst({
+      where: { facturaId: idFacturaProveedor },
+      select: { idDetallePagoProveedor: true },
+    });
+    if (tieneAbonos) {
+      throw new BadRequestException(
+        'No se puede eliminar: la factura tiene abonos.'
+      );
+    }
+
+    // 3) eliminar: cascada limpiará FacturaCompra (si definiste CASCADE allí)
+    await this.prisma.facturaProveedor.delete({
+      where: { idFacturaProveedor, empresaId },
+    });
+    console.log('saliendo del service');
+    return { ok: true };
   }
 }

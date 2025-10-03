@@ -26,7 +26,6 @@ export async function getProveedoresConSaldo(): Promise<ProveedorConSaldo[]> {
   });
   if (res.ok) {
     const data: ProveedorConSaldo[] = await res.json();
-    console.log("data que llega :", data);
     return data;
   }
   return [];
@@ -34,7 +33,6 @@ export async function getProveedoresConSaldo(): Promise<ProveedorConSaldo[]> {
 
 export async function ListProvidersPage() {
   const data = await getProveedoresConSaldo();
-  console.log("data que llega a list providers :", data);
 
   return (
     <section className=" bg-background text-foreground px-4 py-6">

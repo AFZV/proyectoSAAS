@@ -292,6 +292,36 @@ export function InvoicesClient({
     }, 1000);
   };
 
+  //helpers
+  // Devuelve la fecha (ISO string) del primer/último estado FACTURADO.
+  // Puedes elegir "primero" (el más viejo) o "último" (el más reciente).
+  const getFechaEstado = (
+    pedido: Pedido,
+    estadoBuscado: string,
+    modo: "primero" | "ultimo" = "ultimo"
+  ): string | null => {
+    if (!pedido?.estados?.length) return null;
+    const coincidencias = pedido.estados
+      .filter((e) => e.estado === estadoBuscado && e.fechaEstado)
+      .sort(
+        (a, b) =>
+          new Date(a.fechaEstado).getTime() - new Date(b.fechaEstado).getTime()
+      ); // asc
+
+    if (coincidencias.length === 0) return null;
+    return modo === "primero"
+      ? coincidencias[0].fechaEstado
+      : coincidencias[coincidencias.length - 1].fechaEstado;
+  };
+
+  // Fecha que quieres mostrar bajo el badge de estado:
+  // - Si existe FACTURADO → usa esa fecha
+  // - Si no, cae a fechaPedido
+  const getFechaParaMostrar = (pedido: Pedido): string => {
+    const fFacturado = getFechaEstado(pedido, "FACTURADO", "ultimo");
+    return (fFacturado ?? pedido.fechaPedido) as string;
+  };
+
   // VISTA COMPACTA - Solo información esencial
   const renderCompactView = () => (
     <div className="overflow-hidden">
@@ -377,7 +407,7 @@ export function InvoicesClient({
                       )}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {new Date(pedido.fechaPedido).toLocaleDateString(
+                      {new Date(getFechaParaMostrar(pedido)).toLocaleDateString(
                         "es-CO",
                         {
                           day: "2-digit",
@@ -551,7 +581,9 @@ export function InvoicesClient({
                   <div className="flex items-center space-x-2">
                     <Calendar className="h-4 w-4 text-gray-400" />
                     <span className="text-sm text-gray-600">
-                      {new Date(pedido.fechaPedido).toLocaleDateString("es-CO")}
+                      {new Date(getFechaParaMostrar(pedido)).toLocaleDateString(
+                        "es-CO"
+                      )}
                     </span>
                   </div>
 
@@ -828,7 +860,9 @@ export function InvoicesClient({
                   )}
                   {visibleColumns.fecha && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(pedido.fechaPedido).toLocaleDateString("es-CO")}
+                      {new Date(getFechaParaMostrar(pedido)).toLocaleDateString(
+                        "es-CO"
+                      )}
                     </td>
                   )}
                   {visibleColumns.flete && (
