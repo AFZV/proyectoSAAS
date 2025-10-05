@@ -57,6 +57,7 @@ export interface Pedido {
   actualizado?: string;
   pdfUrl?: string; // ✅ URL del PDF del pedido
   correo?: string;
+  comision?: number; // % de comisión del vendedor
 
   // ✅ Relaciones opcionales
   cliente?: Cliente;

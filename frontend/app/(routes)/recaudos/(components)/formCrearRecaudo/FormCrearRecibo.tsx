@@ -76,6 +76,7 @@ function ClienteSelector({
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputTriggerRef = useRef<HTMLInputElement>(null);
   const [display, setDisplay] = useState(""); // texto visible en el trigger
+  const [displayValue, setDisplayValue] = useState<string>("");
 
   // normaliza para buscar sin tildes
   const normalize = (s: string) =>
@@ -415,6 +416,22 @@ export function FormCrearRecibo({
     }
   };
 
+  const [displayMoney, setDisplayMoney] = useState<Record<number, string>>({});
+  const nf = new Intl.NumberFormat("es-CO"); // para formato COP
+
+  const handleMoneyChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    index: number
+  ) => {
+    const raw = e.target.value.replace(/\D/g, ""); // solo números
+    const n = raw ? parseInt(raw, 10) : 0;
+
+    form.setValue(`pedidos.${index}.valorAplicado`, n, {
+      shouldValidate: true,
+    });
+    setDisplayMoney((p) => ({ ...p, [index]: n ? `$ ${nf.format(n)}` : "" }));
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -580,17 +597,21 @@ export function FormCrearRecibo({
                       <FormLabel>Valor a aplicar</FormLabel>
                       <FormControl>
                         <Input
-                          {...field}
-                          type="number"
-                          onChange={(e) =>
-                            field.onChange(e.target.valueAsNumber || 0)
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="$ 0"
+                          value={
+                            displayMoney[index] ??
+                            (field.value ? `$ ${nf.format(field.value)}` : "")
                           }
+                          onChange={(e) => handleMoneyChange(e, index)}
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
                 <div className="flex items-end">
                   <Button
                     type="button"

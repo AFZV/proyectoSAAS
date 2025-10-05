@@ -74,7 +74,7 @@ export class RecibosController {
 
   //endpoint para retornar un recibo por su id
   @Roles('admin')
-  @Get('getById:id')
+  @Get('getById/:id')
   async getRecibo(@Param('id') id: string, @Req() req: UsuarioRequest) {
     const usuario = req.usuario;
     return this.recibosService.getReciboPorId(id, usuario);

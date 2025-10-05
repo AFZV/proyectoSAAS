@@ -52,6 +52,14 @@ export const dataCuentasPorCobrarSideBar = [
   },
 ];
 
+export const dataCuentasPorPagarSideBar = [
+  {
+    icon: CreditCard,
+    label: "Pagos",
+    href: "/pagos",
+  },
+];
+
 export const dataInventarioSideBar = [
   {
     icon: Package,
@@ -87,7 +95,7 @@ export const dataClienteSideBar = [
   {
     icon: WarehouseIcon,
     label: "Proveedores",
-    href: "proveedores",
+    href: "/proveedores",
   },
 ];
 
@@ -95,12 +103,12 @@ export const dataHerramientasSideBar = [
   {
     icon: DownloadCloud,
     label: "Respaldos",
-    href: "respaldos",
+    href: "/respaldos",
   },
   {
     icon: FileUp,
     label: "Importar",
-    href: "importar",
+    href: "/importar",
   },
 ];
 
@@ -108,6 +116,6 @@ export const dataSupportSideBar = [
   {
     icon: Settings,
     label: "Administración",
-    href: "admin",
+    href: "/admin",
   },
 ];

@@ -33,6 +33,7 @@ export class EstadisticasService {
           i."idEmpresa" = ${empresaId}
           AND i."stockReferenciaOinicial" > 0
           AND i."stockActual" <= i."stockReferenciaOinicial" * 0.3
+          AND p."estado"='activo'
           ${stockFilterForSeller}  -- 👈 si es vendedor, exige stock > 0
         ORDER BY p."nombre" ASC, i."stockActual" ASC
       `
@@ -41,29 +42,29 @@ export class EstadisticasService {
     // 2) Productos sin ventas en 30 días (o nunca)
     const productos = await this.prisma.$queryRaw(
       Prisma.sql`
-        SELECT DISTINCT ON (p.id)
-          p.id,
-          p.nombre,
-          p."imagenUrl",
-          p."precioVenta",
-          COALESCE(i."stockActual", 0) AS "stockActual"
-        FROM "Producto" p
-        LEFT JOIN "Inventario" i 
-          ON i."idProducto" = p.id 
-         AND i."idEmpresa" = ${empresaId}
-        LEFT JOIN "DetallePedido" dp ON dp."productoId" = p.id
-        LEFT JOIN "Pedido" pe ON pe.id = dp."pedidoId"
-        WHERE 
-          i."idEmpresa" = ${empresaId}
-          AND (
-            pe."fechaPedido" IS NULL 
-            OR pe."fechaPedido" < NOW() - INTERVAL '30 days'
-          )
-          ${stockFilterForSeller}  -- 👈 si es vendedor, exige stock > 0
-        ORDER BY p.id, "stockActual" ASC
-      `
+    SELECT 
+      p.id,
+      p.nombre,
+      p."imagenUrl",
+      p."precioVenta",
+      i."stockActual"
+    FROM "Producto" p
+    INNER JOIN "Inventario" i 
+      ON i."idProducto" = p.id 
+      AND i."idEmpresa" = ${empresaId}
+    WHERE 
+      p."estado" = 'activo'
+      AND i."stockActual" > 0  -- Stock mayor a 0
+      AND p.id NOT IN (
+        SELECT DISTINCT dp."productoId"
+        FROM "DetallePedido" dp
+        INNER JOIN "Pedido" pe ON pe.id = dp."pedidoId"
+        WHERE pe."fechaPedido" >= NOW() - INTERVAL '30 days'
+      )
+      ${stockFilterForSeller}
+    ORDER BY p.nombre ASC
+  `
     );
-
     // 3) Clientes con última compra > 90 días (filtrando por usuario si no es admin)
     const condicionUsuario =
       (rol || '').toLowerCase() === 'admin'

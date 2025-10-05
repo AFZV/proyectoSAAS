@@ -289,6 +289,18 @@ export class ReportesController {
         width: 20,
         numFmt: '[$$-en-US]#,##0.00',
       },
+      {
+        header: 'Flete',
+        key: 'flete',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
+      {
+        header: 'Comision',
+        key: 'comision',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
     ];
 
     if (format === 'excel') {
@@ -329,6 +341,18 @@ export class ReportesController {
       {
         header: 'Total',
         key: 'total',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
+      {
+        header: 'Flete',
+        key: 'flete',
+        width: 20,
+        numFmt: '[$$-en-US]#,##0.00',
+      },
+      {
+        header: 'Comision',
+        key: 'comision',
         width: 20,
         numFmt: '[$$-en-US]#,##0.00',
       },
@@ -516,13 +540,27 @@ export class ReportesController {
 
     // 2) Definir columnas
     const columns: ColumnDef<(typeof rows)[0]>[] = [
-      { header: 'ID Recibo', key: 'reciboId', width: 40 },
-      { header: 'Fecha', key: 'fecha', width: 35 },
+      { header: '# Recibo', key: 'reciboId', width: 15 },
+      { header: 'Fecha', key: 'fecha', width: 15 },
       { header: 'Tipo', key: 'tipo', width: 20 },
+      { header: 'Cliente', key: 'cliente', width: 35 },
+      { header: 'Razon Social', key: 'rasonZocial', width: 35 },
       { header: 'Valor', key: 'valor', width: 25, numFmt: '#,##0.00' },
       { header: 'Vendedor', key: 'vendedor', width: 20 },
       { header: 'Concepto', key: 'concepto', width: 45 },
-      { header: 'Estado', key: 'estado', width: 45 },
+      { header: 'Estado', key: 'estado', width: 15 },
+      // {
+      //   header: 'Porcentaje',
+      //   key: 'porcentajeComision',
+      //   width: 10,
+      //   numFmt: '#,##0.00',
+      // },
+      {
+        header: 'Valor Comision',
+        key: 'comisionLiquidada',
+        width: 15,
+        numFmt: '#,##0.00',
+      },
     ];
 
     // 3) Generar y devolver Excel o PDF
@@ -558,12 +596,27 @@ export class ReportesController {
 
     // 2) Definir columnas
     const columns: ColumnDef<(typeof rows)[0]>[] = [
-      { header: 'ID Recibo', key: 'reciboId', width: 40 },
-      { header: 'Fecha', key: 'fecha', width: 35 },
+      { header: '# Recibo', key: 'reciboId', width: 15 },
+      { header: 'Fecha', key: 'fecha', width: 15 },
       { header: 'Tipo', key: 'tipo', width: 20 },
+      { header: 'Cliente', key: 'cliente', width: 35 },
+      { header: 'Razon Social', key: 'rasonZocial', width: 35 },
       { header: 'Valor', key: 'valor', width: 25, numFmt: '#,##0.00' },
+      { header: 'Vendedor', key: 'vendedor', width: 20 },
       { header: 'Concepto', key: 'concepto', width: 45 },
-      { header: 'Estado', key: 'estado', width: 45 },
+      { header: 'Estado', key: 'estado', width: 15 },
+      // {
+      //   header: 'Porcentaje',
+      //   key: 'porcentajeComision',
+      //   width: 10,
+      //   numFmt: '#,##0.00',
+      // },
+      {
+        header: 'Valor Comision',
+        key: 'comisionLiquidada',
+        width: 15,
+        numFmt: '#,##0.00',
+      },
     ];
 
     // 3) Generar y devolver Excel o PDF

@@ -23,6 +23,10 @@ import {
   TipoMovimientos,
   MovimientosCartera,
   DetalleAjusteCartera,
+  PagoProveedor,
+  DetallePagoProveedor,
+  FacturaCompra,
+  FacturaProveedor,
 } from '@prisma/client';
 
 interface BackupData {
@@ -46,6 +50,10 @@ interface BackupData {
   movimientoInventario: MovimientoInventario[];
   movimientosCartera: MovimientosCartera[];
   detalleAjusteCartera: DetalleAjusteCartera[];
+  detallesPagoProveedor?: DetallePagoProveedor[];
+  pagosProveedor?: PagoProveedor[];
+  facturaCompra?: FacturaCompra[];
+  facturaProveedor?: FacturaProveedor[];
 }
 
 @Injectable()
@@ -97,6 +105,10 @@ export class RespaldosService {
       movimientoInventario: [],
       movimientosCartera: [],
       detalleAjusteCartera: [],
+      detallesPagoProveedor: [],
+      pagosProveedor: [],
+      facturaCompra: [],
+      facturaProveedor: [],
     };
 
     try {
@@ -162,6 +174,19 @@ export class RespaldosService {
         await this.prisma.detalleAjusteCartera.findMany({
           where: { movimiento: { empresaId } },
         });
+      backupData.pagosProveedor = await this.prisma.pagoProveedor.findMany({
+        where: { empresaId },
+      });
+      backupData.detallesPagoProveedor =
+        await this.prisma.detallePagoProveedor.findMany({
+          where: { pago: { empresaId } },
+        });
+      backupData.facturaCompra = await this.prisma.facturaCompra.findMany({
+        where: { compra: { idEmpresa: empresaId } },
+      });
+      backupData.facturaProveedor = await this.prisma.facturaProveedor.findMany(
+        { where: { empresaId } }
+      );
 
       // ✅ 2. Guardar archivo JSON
       fs.writeFileSync(jsonPath, JSON.stringify(backupData, null, 2), 'utf-8');
@@ -281,6 +306,38 @@ export class RespaldosService {
         data.detalleAjusteCartera,
         'idDetalleAjuste'
       );
+    // NUEVOS MÓDULOS — ORDEN CORRECTO
+
+    if (data.facturaProveedor?.length) {
+      // PK típica: idFacturaProveedor
+      generarInsert(
+        'FacturaProveedor',
+        data.facturaProveedor,
+        'idFacturaProveedor'
+      );
+    }
+
+    if (data.facturaCompra?.length) {
+      // Si tu modelo tiene PK simple (p. ej. "idFacturaCompra"), usa esa.
+      // Si usas unique compuesto (facturaId + compraId), usa el compuesto:
+      generarInsert('FacturaCompra', data.facturaCompra, 'idFacturaCompra');
+      // generarInsert('FacturaCompra', data.facturaCompra, 'idFacturaCompra'); // <-- alternativa si aplica
+    }
+
+    if (data.pagosProveedor?.length) {
+      // PK: idPagoProveedor (según tu modelo)
+      generarInsert('PagoProveedor', data.pagosProveedor, 'idPagoProveedor');
+    }
+
+    if (data.detallesPagoProveedor?.length) {
+      // Ajusta el nombre de la PK según tu esquema real (idDetallePagoProveedor o "id")
+      generarInsert(
+        'DetallePagoProveedor',
+        data.detallesPagoProveedor,
+        'idDetallePagoProveedor'
+      );
+      // generarInsert('DetallePagoProveedor', data.detallesPagoProveedor, 'id'); // alternativa si tu PK es "id"
+    }
 
     lines.push('COMMIT;');
     return lines.join('\n');

@@ -10,12 +10,18 @@ async function bootstrap() {
   //  Permitir CORS solo desde el frontend en desarrollo
   app.enableCors({
     origin: [
-      'https://bgacloudsaas.com', // dominio principal del frontend
-      'https://www.bgacloudsaas.com', // por si también usas la versión www
+      'http://g844cwsocsw44ck8s88oocgg.69.62.65.126.sslip.io',
+      'http://g844cwsocsw44ck8s88oocgg.69.62.65.126.sslip.io:3000',
+      'https://g844cwsocsw44ck8s88oocgg.69.62.65.126.sslip.io',
       'http://localhost:3000',
+      'https://bgacloudsaas.com',
+      'https://www.bgacloudsaas.com',
     ],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS', // incluye OPTIONS
+    allowedHeaders: '*', // permite todos los headers
     credentials: true,
+    preflightContinue: false, // Nest responde el preflight
+    optionsSuccessStatus: 204,
   });
 
   //  Pipe global para validación con detalles de errores

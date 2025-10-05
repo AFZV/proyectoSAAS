@@ -24,10 +24,10 @@ export class ReportesService {
     const productos = await this.prisma.producto.findMany({
       where: {
         empresaId: usuario.empresaId,
-        estado: 'activo',
+        // estado: 'activo',
         inventario: { some: { stockActual: { gt: 0 } } },
       },
-      orderBy: { fechaCreado: 'asc' },
+      orderBy: { nombre: 'asc' },
       include: { inventario: { select: { stockActual: true } } },
     });
 
@@ -47,7 +47,7 @@ export class ReportesService {
   async inventarioCompleto(usuario: UsuarioPayload) {
     const productos = await this.prisma.producto.findMany({
       where: { empresaId: usuario.empresaId },
-      orderBy: { fechaCreado: 'asc' },
+      orderBy: { nombre: 'asc' },
       include: { inventario: { select: { stockActual: true } } },
     });
 
@@ -239,9 +239,12 @@ export class ReportesService {
       nombre: p.cliente.nombre,
       apellidos: p.cliente.apellidos,
       rasonZocial: p.cliente.rasonZocial,
-      fecha: p.fechaPedido,
+      fecha: p.fechaActualizado || p.fechaPedido,
       total: p.total,
       vendedor: p.usuario.nombre,
+      flete: p.flete || 0,
+      comision: p.comisionVendedor || 0,
+      //proximamente descuento: p.descuento || 0, // <-- cuando agregues el campo descuento en pedidos
     }));
   }
 
@@ -290,6 +293,9 @@ export class ReportesService {
       fechaPedido: p.fechaPedido,
       fechaFacturacion: p.estados[0]?.fechaEstado ?? null,
       total: p.total,
+      flete: p.flete || 0,
+      comision: p.comisionVendedor || 0,
+      //proximamente descuento: p.descuento || 0, // <-- cuando agregues el campo descuento en pedidos
     }));
   }
 
@@ -466,20 +472,56 @@ export class ReportesService {
         Fechacrecion: { gte: inicio, lte: fin },
       },
       include: {
-        detalleRecibo: { select: { valorTotal: true } },
+        detalleRecibo: {
+          select: {
+            valorTotal: true,
+            pedido: { select: { comisionVendedor: true } },
+          },
+        },
         usuario: { select: { nombre: true, apellidos: true } },
+        cliente: {
+          select: { nombre: true, apellidos: true, rasonZocial: true },
+        },
       },
     });
 
-    return recibos.map((r) => ({
-      reciboId: r.id.slice(0, 5),
-      fecha: r.Fechacrecion,
-      tipo: r.tipo,
-      valor: r.detalleRecibo.reduce((s, d) => s + d.valorTotal, 0),
-      vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
-      concepto: r.concepto,
-      estado: r.revisado === true ? 'revisado' : 'pendiente', // 👈 aquí
-    }));
+    return recibos.map((r) => {
+      const totalRecaudo = r.detalleRecibo.reduce(
+        (s, d) => s + d.valorTotal,
+        0
+      );
+
+      // Suma de comisiones por detalle (sobre lo recaudado)
+      const comisionLiquidada = r.detalleRecibo.reduce((s, d) => {
+        const pct = d.pedido?.comisionVendedor ?? 0;
+        return s + (d.valorTotal * pct) / 100;
+      }, 0);
+
+      // Promedio ponderado del % de comisión por valor recaudado
+      // const porcentajeComision =
+      //   totalRecaudo > 0
+      //     ? r.detalleRecibo.reduce((s, d) => {
+      //         const pct = d.pedido?.comisionVendedor ?? 0;
+      //         return s + d.valorTotal * pct;
+      //       }, 0) / totalRecaudo
+      //     : 0;
+
+      return {
+        reciboId: r.id.slice(0, 5),
+        fecha: r.Fechacrecion,
+        tipo: r.tipo,
+        cliente: `${r.cliente.nombre} ${r.cliente.apellidos}`.trim(),
+        rasonZocial: r.cliente.rasonZocial,
+        valor: totalRecaudo,
+        vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
+        concepto: r.concepto,
+        estado: r.revisado ? 'revisado' : 'pendiente',
+
+        // 🔽 Solo campos de comisión (agregados a tu return)
+        //  porcentajeComision, // % equivalente ponderado por recaudo
+        comisionLiquidada, // suma de comisiones liquidadas
+      };
+    });
   }
 
   /** ✅ Reporte de recaudo por vendedor */
@@ -497,19 +539,55 @@ export class ReportesService {
         usuarioId: vendedorId,
       },
       include: {
-        detalleRecibo: { select: { valorTotal: true } },
+        detalleRecibo: {
+          select: {
+            valorTotal: true,
+            pedido: { select: { comisionVendedor: true } },
+          },
+        },
         usuario: { select: { nombre: true, apellidos: true } },
+        cliente: {
+          select: { nombre: true, apellidos: true, rasonZocial: true },
+        },
       },
     });
+    return recibos.map((r) => {
+      const totalRecaudo = r.detalleRecibo.reduce(
+        (s, d) => s + d.valorTotal,
+        0
+      );
 
-    return recibos.map((r) => ({
-      reciboId: r.id.slice(0, 5),
-      fecha: r.Fechacrecion,
-      tipo: r.tipo,
-      valor: r.detalleRecibo.reduce((s, d) => s + d.valorTotal, 0),
-      concepto: r.concepto,
-      estado: r.revisado === true ? 'revisado' : 'pendiente', // 👈 aquí
-    }));
+      // Suma de comisiones por detalle (sobre lo recaudado)
+      const comisionLiquidada = r.detalleRecibo.reduce((s, d) => {
+        const pct = d.pedido?.comisionVendedor ?? 0;
+        return s + (d.valorTotal * pct) / 100;
+      }, 0);
+
+      // Promedio ponderado del % de comisión por valor recaudado
+      // const porcentajeComision =
+      //   totalRecaudo > 0
+      //     ? r.detalleRecibo.reduce((s, d) => {
+      //         const pct = d.pedido?.comisionVendedor ?? 0;
+      //         return s + d.valorTotal * pct;
+      //       }, 0) / totalRecaudo
+      //     : 0;
+
+      return {
+        reciboId: r.id.slice(0, 5),
+        fecha: r.Fechacrecion,
+        tipo: r.tipo,
+        cliente: `${r.cliente.nombre} ${r.cliente.apellidos}`.trim(),
+        rasonZocial: r.cliente.rasonZocial,
+        valor: totalRecaudo,
+        vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
+        concepto: r.concepto,
+        estado: r.revisado ? 'revisado' : 'pendiente',
+
+        // 🔽 Solo campos de comisión (agregados a tu return)
+        //porcentajeComision, // % equivalente ponderado por recaudo
+        comisionLiquidada, // suma de comisiones liquidadas
+      };
+    });
   }
   // Devuelve fletes de pedidos con saldo pendiente (sin filtro de fechas)
   // Devuelve fletes de pedidos con saldo pendiente (sin filtro de fechas)
