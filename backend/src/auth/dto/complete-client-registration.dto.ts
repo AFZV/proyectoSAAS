@@ -1,4 +1,10 @@
-import { IsEmail, IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
 export class CompleteClientRegistrationDto {
   @IsString()
@@ -14,8 +20,8 @@ export class CompleteClientRegistrationDto {
   clienteId: string;
 
   @IsUUID()
-  @IsNotEmpty({ message: 'El ID de la empresa es obligatorio.' })
-  empresaId: string;
+  @IsOptional()
+  empresaId?: string;
 
   @IsString()
   @IsNotEmpty({ message: 'El rol es obligatorio.' })

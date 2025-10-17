@@ -63,6 +63,7 @@ export class AuthService {
   }
 
   // Historia 3: Completar registro de cliente existente
+  // Historia 4: Completar registro de cliente nuevo (sin empresa)
   async completeClientRegistration(dto: CompleteClientRegistrationDto) {
     const { clerkUserId, email, clienteId, empresaId, rol, telefono } = dto;
 
@@ -75,27 +76,30 @@ export class AuthService {
       throw new BadRequestException('Cliente no encontrado');
     }
 
-    // Validar que la empresa existe
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: empresaId },
-    });
+    // Si se proporciona empresaId, validar la empresa y la relación
+    if (empresaId) {
+      // Validar que la empresa existe
+      const empresa = await this.prisma.empresa.findUnique({
+        where: { id: empresaId },
+      });
 
-    if (!empresa) {
-      throw new BadRequestException('Empresa no encontrada');
-    }
+      if (!empresa) {
+        throw new BadRequestException('Empresa no encontrada');
+      }
 
-    // Validar que el cliente está asociado a la empresa
-    const clienteEmpresa = await this.prisma.clienteEmpresa.findFirst({
-      where: {
-        clienteId,
-        empresaId,
-      },
-    });
+      // Validar que el cliente está asociado a la empresa
+      const clienteEmpresa = await this.prisma.clienteEmpresa.findFirst({
+        where: {
+          clienteId,
+          empresaId,
+        },
+      });
 
-    if (!clienteEmpresa) {
-      throw new BadRequestException(
-        'El cliente no está asociado a esta empresa',
-      );
+      if (!clienteEmpresa) {
+        throw new BadRequestException(
+          'El cliente no está asociado a esta empresa',
+        );
+      }
     }
 
     // Verificar que no exista un usuario con el mismo email
@@ -108,6 +112,21 @@ export class AuthService {
     }
 
     // Crear usuario en la base de datos
+    // Si no hay empresaId, necesitamos una empresa por defecto o manejar el caso
+    // Por ahora, si no hay empresaId, no crear el usuario en BD
+    if (!empresaId) {
+      return {
+        message:
+          'Usuario creado en Clerk. Pendiente de asignación de empresa por administrador',
+        usuario: {
+          clerkUserId,
+          email,
+          rol,
+          empresaId: null,
+        },
+      };
+    }
+
     const usuario = await this.prisma.usuario.create({
       data: {
         codigo: clerkUserId,

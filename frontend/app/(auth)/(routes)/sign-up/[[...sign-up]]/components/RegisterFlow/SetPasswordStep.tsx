@@ -21,7 +21,7 @@ import { Loader2, Lock, Mail, User, Building2 } from "lucide-react";
 const passwordSchema = z
   .object({
     email: z.string().email("Email inválido"),
-    empresaId: z.string().min(1, "Debes seleccionar una empresa"),
+    empresaId: z.string().optional(), // Opcional para nuevos clientes sin empresas
     password: z
       .string()
       .min(8, "La contraseña debe tener al menos 8 caracteres")
@@ -72,10 +72,21 @@ export function SetPasswordStep({
   const onSubmit = async (data: PasswordFormData) => {
     if (!signUp) return;
 
+    // Validar que si hay empresas disponibles, se haya seleccionado una
+    const hasEmpresas = clientData.empresas && clientData.empresas.length > 0;
+    if (hasEmpresas && !data.empresaId) {
+      toast({
+        title: "Empresa requerida",
+        description: "Debes seleccionar una empresa para continuar",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // Historia 3: Crear usuario en Clerk
+      // Historia 3 y 4: Crear usuario en Clerk
       const clerkUser = await signUp.create({
         emailAddress: data.email,
         password: data.password,
@@ -85,28 +96,31 @@ export function SetPasswordStep({
           clienteId: clientData.id,
           nit: clientData.nit,
           rol: "CLIENTE",
-          empresaId: data.empresaId,
+          ...(data.empresaId && { empresaId: data.empresaId }),
         },
       });
 
-      // Llamar al backend para completar el registro (Historia 3)
-      const response = await fetch("/api/auth/client/complete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          clerkUserId: clerkUser.createdUserId,
-          email: data.email,
-          clienteId: clientData.id,
-          empresaId: data.empresaId,
-          rol: "CLIENTE",
-        }),
-      });
+      // Solo llamar al backend si hay una empresa seleccionada (Historia 3)
+      // Para clientes nuevos sin empresa (Historia 4), solo crear en Clerk por ahora
+      if (data.empresaId) {
+        const response = await fetch("/api/auth/client/complete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            clerkUserId: clerkUser.createdUserId,
+            email: data.email,
+            clienteId: clientData.id,
+            empresaId: data.empresaId,
+            rol: "CLIENTE",
+          }),
+        });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Error al completar el registro en BD");
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Error al completar el registro en BD");
+        }
       }
 
       // Preparar verificación de email
@@ -116,7 +130,9 @@ export function SetPasswordStep({
 
       toast({
         title: "Cuenta creada",
-        description: "Se ha enviado un código de verificación a tu email",
+        description: data.empresaId 
+          ? "Se ha enviado un código de verificación a tu email"
+          : "Tu cuenta ha sido creada. Un administrador debe asignarte a una empresa.",
       });
 
       onPasswordSet();
@@ -181,45 +197,52 @@ export function SetPasswordStep({
           )}
         </div>
 
-        {/* Historia 3: Selección de empresa */}
-        <div className="space-y-2">
-          <Label
-            htmlFor="empresaId"
-            className="text-sm font-medium text-slate-700"
-          >
-            Empresa
-          </Label>
-          <div className="relative">
-            <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5 z-10 pointer-events-none" />
-            <Select
-              onValueChange={(value) => setValue("empresaId", value)}
-              disabled={isLoading || !clientData.empresas || clientData.empresas.length === 0}
+        {/* Historia 3: Selección de empresa (solo si hay empresas disponibles) */}
+        {clientData.empresas && clientData.empresas.length > 0 && (
+          <div className="space-y-2">
+            <Label
+              htmlFor="empresaId"
+              className="text-sm font-medium text-slate-700"
             >
-              <SelectTrigger className="pl-10 bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500">
-                <SelectValue placeholder="Selecciona tu empresa" />
-              </SelectTrigger>
-              <SelectContent>
-                {clientData.empresas && clientData.empresas.length > 0 ? (
-                  clientData.empresas.map((empresa) => (
+              Empresa *
+            </Label>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5 z-10 pointer-events-none" />
+              <Select
+                onValueChange={(value) => setValue("empresaId", value)}
+                disabled={isLoading}
+              >
+                <SelectTrigger className="pl-10 bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500">
+                  <SelectValue placeholder="Selecciona tu empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clientData.empresas.map((empresa) => (
                     <SelectItem key={empresa.id} value={empresa.id}>
                       {empresa.nombre}
                     </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="no-empresas" disabled>
-                    No hay empresas disponibles
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {errors.empresaId && (
+              <p className="text-sm text-red-600">{errors.empresaId.message}</p>
+            )}
+            <p className="text-xs text-slate-500">
+              Selecciona la empresa a la que perteneces
+            </p>
           </div>
-          {errors.empresaId && (
-            <p className="text-sm text-red-600">{errors.empresaId.message}</p>
-          )}
-          <p className="text-xs text-slate-500">
-            Selecciona la empresa a la que perteneces
-          </p>
-        </div>
+        )}
+
+        {/* Mensaje para clientes nuevos sin empresas */}
+        {(!clientData.empresas || clientData.empresas.length === 0) && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+            <p className="text-sm text-yellow-800">
+              <strong>Nota:</strong> Tu cuenta será creada sin empresa asignada.
+              Un administrador deberá asignarte a una empresa antes de que puedas
+              acceder al sistema completo.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label
