@@ -23,6 +23,7 @@ interface ValidateClientStepProps {
     nombres: string;
     apellidos: string;
     correo?: string;
+    empresas?: Array<{ id: string; nombre: string }>;
   }) => void;
   onClientNotFound: (nit: string) => void;
 }
@@ -46,36 +47,46 @@ export function ValidateClientStep({
     setIsLoading(true);
 
     try {
-      // Llamar a la API para buscar cliente por NIT
-      const response = await fetch(`/api/clientePorNit?nit=${data.nit}`);
+      // Historia 2: Llamar endpoint público para validar NIT (sin autenticación)
+      const response = await fetch(`/api/clientes/exists?nit=${data.nit}`);
 
       if (!response.ok) {
-        if (response.status === 404) {
-          toast({
-            title: "Cliente no encontrado",
-            description:
-              "No existe un cliente con ese NIT. Vamos a crear tu perfil.",
-          });
-          onClientNotFound(data.nit);
-          return;
-        }
-        throw new Error("Error al buscar cliente");
+        throw new Error("Error al validar NIT");
       }
 
-      const cliente = await response.json();
+      const result = await response.json();
 
-      toast({
-        title: "Cliente encontrado",
-        description: `Bienvenido ${cliente.nombres} ${cliente.apellidos}`,
-      });
+      if (result.exists && result.cliente) {
+        const cliente = result.cliente;
 
-      onClientValidated({
-        id: cliente.id,
-        nit: cliente.nit,
-        nombres: cliente.nombres,
-        apellidos: cliente.apellidos,
-        correo: cliente.correo,
-      });
+        // Extraer empresas del cliente
+        const empresas = cliente.empresas?.map((ce: any) => ({
+          id: ce.empresa.id,
+          nombre: ce.empresa.nombreComercial,
+        })) || [];
+
+        toast({
+          title: "Cliente encontrado",
+          description: `Bienvenido ${cliente.nombre} ${cliente.apellidos}`,
+        });
+
+        // Si el NIT existe → Historia 3: Asignar contraseña
+        onClientValidated({
+          id: cliente.id,
+          nit: cliente.nit,
+          nombres: cliente.nombre,
+          apellidos: cliente.apellidos,
+          correo: cliente.email,
+          empresas,
+        });
+      } else {
+        // Si el NIT NO existe → Historia 4: Alta de cliente nuevo
+        toast({
+          title: "Cliente no encontrado",
+          description: "Vamos a crear tu perfil de cliente",
+        });
+        onClientNotFound(data.nit);
+      }
     } catch (error) {
       console.error("Error validando cliente:", error);
       toast({

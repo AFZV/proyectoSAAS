@@ -7,13 +7,21 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useSignUp } from "@clerk/nextjs";
-import { Loader2, Lock, Mail, User } from "lucide-react";
+import { Loader2, Lock, Mail, User, Building2 } from "lucide-react";
 
 const passwordSchema = z
   .object({
     email: z.string().email("Email inválido"),
+    empresaId: z.string().min(1, "Debes seleccionar una empresa"),
     password: z
       .string()
       .min(8, "La contraseña debe tener al menos 8 caracteres")
@@ -36,6 +44,7 @@ interface SetPasswordStepProps {
     nombres: string;
     apellidos: string;
     correo?: string;
+    empresas?: Array<{ id: string; nombre: string }>;
   };
   onPasswordSet: () => void;
 }
@@ -51,6 +60,7 @@ export function SetPasswordStep({
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
@@ -65,8 +75,8 @@ export function SetPasswordStep({
     setIsLoading(true);
 
     try {
-      // Crear usuario en Clerk
-      await signUp.create({
+      // Historia 3: Crear usuario en Clerk
+      const clerkUser = await signUp.create({
         emailAddress: data.email,
         password: data.password,
         firstName: clientData.nombres,
@@ -74,8 +84,30 @@ export function SetPasswordStep({
         unsafeMetadata: {
           clienteId: clientData.id,
           nit: clientData.nit,
+          rol: "CLIENTE",
+          empresaId: data.empresaId,
         },
       });
+
+      // Llamar al backend para completar el registro (Historia 3)
+      const response = await fetch("/api/auth/client/complete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          clerkUserId: clerkUser.createdUserId,
+          email: data.email,
+          clienteId: clientData.id,
+          empresaId: data.empresaId,
+          rol: "CLIENTE",
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Error al completar el registro en BD");
+      }
 
       // Preparar verificación de email
       await signUp.prepareEmailAddressVerification({
@@ -101,7 +133,7 @@ export function SetPasswordStep({
         toast({
           title: "Error",
           description:
-            error.errors?.[0]?.message || "No se pudo crear la cuenta",
+            error.message || error.errors?.[0]?.message || "No se pudo crear la cuenta",
           variant: "destructive",
         });
       }
@@ -147,6 +179,46 @@ export function SetPasswordStep({
           {errors.email && (
             <p className="text-sm text-red-600">{errors.email.message}</p>
           )}
+        </div>
+
+        {/* Historia 3: Selección de empresa */}
+        <div className="space-y-2">
+          <Label
+            htmlFor="empresaId"
+            className="text-sm font-medium text-slate-700"
+          >
+            Empresa
+          </Label>
+          <div className="relative">
+            <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5 z-10 pointer-events-none" />
+            <Select
+              onValueChange={(value) => setValue("empresaId", value)}
+              disabled={isLoading || !clientData.empresas || clientData.empresas.length === 0}
+            >
+              <SelectTrigger className="pl-10 bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500">
+                <SelectValue placeholder="Selecciona tu empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                {clientData.empresas && clientData.empresas.length > 0 ? (
+                  clientData.empresas.map((empresa) => (
+                    <SelectItem key={empresa.id} value={empresa.id}>
+                      {empresa.nombre}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-empresas" disabled>
+                    No hay empresas disponibles
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          {errors.empresaId && (
+            <p className="text-sm text-red-600">{errors.empresaId.message}</p>
+          )}
+          <p className="text-xs text-slate-500">
+            Selecciona la empresa a la que perteneces
+          </p>
         </div>
 
         <div className="space-y-2">

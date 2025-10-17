@@ -22,6 +22,7 @@ interface ClientData {
   nombres: string;
   apellidos: string;
   correo?: string;
+  empresas?: Array<{ id: string; nombre: string }>;
 }
 
 export function RegisterFlow() {

@@ -58,6 +58,7 @@ interface CreateClientStepProps {
     nombres: string;
     apellidos: string;
     correo: string;
+    empresas?: Array<{ id: string; nombre: string }>;
   }) => void;
 }
 
@@ -175,6 +176,7 @@ export function CreateClientStep({
         nombres: cliente.nombre,
         apellidos: cliente.apellidos,
         correo: cliente.email,
+        empresas: [], // Cliente nuevo sin empresas asignadas aún
       });
     } catch (error: any) {
       console.error("Error al crear cliente:", error);
