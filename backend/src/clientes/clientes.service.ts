@@ -14,7 +14,7 @@ import { formatearTexto } from 'src/lib/formatearTexto';
 
 @Injectable()
 export class ClienteService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
   /// crea un cliente y lo asocia a una empresa y un usuario de esa empresa
   async crearCliente(data: CreateClienteDto, usuario: UsuarioPayload) {
     if (!usuario) throw new BadRequestException('EL USUARIO ES REQUERIDO');
@@ -42,6 +42,12 @@ export class ClienteService {
       }
 
       // Si existe el cliente pero no está asociado, creamos la relación
+      if (!data.usuarioId) {
+        throw new BadRequestException(
+          'El ID del vendedor es obligatorio para vincular clientes',
+        );
+      }
+
       const relacion = await this.prisma.clienteEmpresa.create({
         data: {
           clienteId: existente.id,
@@ -58,6 +64,14 @@ export class ClienteService {
     }
 
     // Si no existe el cliente, lo creamos
+    if (!data.usuarioId) {
+      throw new BadRequestException(
+        'El ID del vendedor es obligatorio para crear clientes',
+      );
+    }
+
+    const vendedorId = data.usuarioId; // Asegurar que no es undefined
+
     const dataCleaned = {
       ...data,
       departamento: formatearTexto(data.departamento),
@@ -79,7 +93,7 @@ export class ClienteService {
       data: {
         clienteId: cliente.id,
         empresaId,
-        usuarioId: usuarioId,
+        usuarioId: vendedorId,
       },
     });
 
@@ -251,9 +265,9 @@ export class ClienteService {
         rol === 'admin'
           ? { empresaId }
           : {
-              empresaId,
-              usuarioId,
-            },
+            empresaId,
+            usuarioId,
+          },
       include: {
         cliente: {
           select: {
@@ -299,14 +313,14 @@ export class ClienteService {
       where:
         rol === 'admin'
           ? {
-              empresaId: empresaId,
-              cliente: { estado: false },
-            }
+            empresaId: empresaId,
+            cliente: { estado: false },
+          }
           : {
-              empresaId: empresaId,
-              usuarioId: usuarioId,
-              cliente: { estado: false },
-            },
+            empresaId: empresaId,
+            usuarioId: usuarioId,
+            cliente: { estado: false },
+          },
     });
 
     const activos = await this.prisma.clienteEmpresa.count({
@@ -314,10 +328,10 @@ export class ClienteService {
         rol === 'admin'
           ? { empresaId: empresaId, cliente: { estado: true } }
           : {
-              empresaId: empresaId,
-              usuarioId: usuarioId,
-              cliente: { estado: true },
-            },
+            empresaId: empresaId,
+            usuarioId: usuarioId,
+            cliente: { estado: true },
+          },
     });
     const totalClientes = activos + inactivos;
 
@@ -367,5 +381,69 @@ export class ClienteService {
 
     // Opcional: para otros roles devolver vacío
     return [];
+  }
+
+  // Historia 2: Buscar cliente por NIT (público)
+  async findByNit(nit: string) {
+    return this.prisma.cliente.findFirst({
+      where: { nit },
+      include: {
+        empresas: {
+          include: {
+            empresa: {
+              select: {
+                id: true,
+                nombreComercial: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // Método para crear cliente desde registro público (sin autenticación)
+  async crearClientePublico(data: CreateClienteDto) {
+    // Verificar si ya existe el cliente por NIT
+    const existente = await this.prisma.cliente.findFirst({
+      where: { nit: data.nit },
+    });
+
+    if (existente) {
+      throw new BadRequestException(
+        'Ya existe un cliente registrado con ese NIT'
+      );
+    }
+
+    // Limpiar y formatear datos
+    const dataCleaned = {
+      nit: data.nit,
+      rasonZocial: formatearTexto(data.rasonZocial || ''),
+      nombre: formatearTexto(data.nombre),
+      apellidos: formatearTexto(data.apellidos),
+      direccion: formatearTexto(data.direccion),
+      telefono: data.telefono,
+      email: data.email.toLowerCase(),
+      departamento: formatearTexto(data.departamento),
+      ciudad: formatearTexto(data.ciudad),
+    };
+
+    // Crear cliente sin vendedor ni empresa asignada inicialmente
+    const cliente = await this.prisma.cliente.create({
+      data: {
+        ...dataCleaned,
+        estado: true,
+      },
+    });
+
+    return {
+      message: 'Cliente registrado correctamente',
+      cliente,
+      id: cliente.id,
+      nit: cliente.nit,
+      nombre: cliente.nombre,
+      apellidos: cliente.apellidos,
+      email: cliente.email,
+    };
   }
 }

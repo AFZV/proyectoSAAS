@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UnauthorizedException,
   UseGuards,
@@ -19,7 +21,7 @@ import { UpdateClienteDto } from './dto/update-cliente.dto';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('clientes')
 export class ClienteController {
-  constructor(private readonly clienteService: ClienteService) {}
+  constructor(private readonly clienteService: ClienteService) { }
   @Roles('admin', 'vendedor')
   @Post()
   async crearCliente(
@@ -89,5 +91,39 @@ export class ClienteController {
     if (!req.usuario) throw new UnauthorizedException('Usuario requerido');
     const usuario = req.usuario;
     return await this.clienteService.getVendedoresPorEmpresa(usuario);
+  }
+}
+
+// Controlador separado para endpoints públicos (sin autenticación)
+@Controller('clientes/public')
+export class ClientePublicController {
+  constructor(private readonly clienteService: ClienteService) { }
+
+  // Historia 2: Validación por NIT (público)
+  @Get('exists')
+  async checkNitExists(@Query('nit') nit: string) {
+    if (!nit) {
+      throw new BadRequestException('NIT es requerido');
+    }
+
+    try {
+      const cliente = await this.clienteService.findByNit(nit);
+      return {
+        exists: !!cliente,
+        cliente: cliente || null,
+      };
+    } catch (error) {
+      return {
+        exists: false,
+        cliente: null,
+      };
+    }
+  }
+
+  // Historia 4: Alta de cliente nuevo (público)
+  @Post('register')
+  async registroPublico(@Body() body: CreateClienteDto) {
+    // Crear cliente sin vendedor asignado (se asignará después por admin)
+    return await this.clienteService.crearClientePublico(body);
   }
 }
