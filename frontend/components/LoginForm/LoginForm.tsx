@@ -190,6 +190,19 @@ export function LoginForm() {
             </button>
           </form>
 
+          {/* Registro */}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-slate-600">
+              ¿No tienes una cuenta?{" "}
+              <a
+                href="/sign-up"
+                className="font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+              >
+                Regístrate aquí
+              </a>
+            </p>
+          </div>
+
           {/* Footer */}
           <div className="mt-8 pt-6 border-t border-slate-200">
             <p className="text-center text-sm text-slate-600">

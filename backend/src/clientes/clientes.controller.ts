@@ -19,7 +19,7 @@ import { UpdateClienteDto } from './dto/update-cliente.dto';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('clientes')
 export class ClienteController {
-  constructor(private readonly clienteService: ClienteService) {}
+  constructor(private readonly clienteService: ClienteService) { }
   @Roles('admin', 'vendedor')
   @Post()
   async crearCliente(
@@ -89,5 +89,17 @@ export class ClienteController {
     if (!req.usuario) throw new UnauthorizedException('Usuario requerido');
     const usuario = req.usuario;
     return await this.clienteService.getVendedoresPorEmpresa(usuario);
+  }
+}
+
+// Controlador separado para endpoints públicos (sin autenticación)
+@Controller('clientes')
+export class ClientePublicController {
+  constructor(private readonly clienteService: ClienteService) { }
+
+  @Post('public-register')
+  async registroPublico(@Body() body: CreateClienteDto) {
+    // Crear cliente sin vendedor asignado (se asignará después por admin)
+    return await this.clienteService.crearClientePublico(body);
   }
 }
