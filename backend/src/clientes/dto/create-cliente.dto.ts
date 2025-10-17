@@ -67,6 +67,6 @@ export class CreateClienteDto {
   // empresaId: string;
 
   @IsUUID()
-  @IsNotEmpty({ message: 'El ID del vendedor (usuario) es obligatorio.' })
-  usuarioId: string;
+  @IsOptional()
+  usuarioId?: string;
 }

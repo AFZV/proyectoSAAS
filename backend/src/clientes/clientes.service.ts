@@ -42,6 +42,12 @@ export class ClienteService {
       }
 
       // Si existe el cliente pero no está asociado, creamos la relación
+      if (!data.usuarioId) {
+        throw new BadRequestException(
+          'El ID del vendedor es obligatorio para vincular clientes',
+        );
+      }
+
       const relacion = await this.prisma.clienteEmpresa.create({
         data: {
           clienteId: existente.id,
@@ -58,6 +64,14 @@ export class ClienteService {
     }
 
     // Si no existe el cliente, lo creamos
+    if (!data.usuarioId) {
+      throw new BadRequestException(
+        'El ID del vendedor es obligatorio para crear clientes',
+      );
+    }
+
+    const vendedorId = data.usuarioId; // Asegurar que no es undefined
+
     const dataCleaned = {
       ...data,
       departamento: formatearTexto(data.departamento),
@@ -79,7 +93,7 @@ export class ClienteService {
       data: {
         clienteId: cliente.id,
         empresaId,
-        usuarioId: usuarioId,
+        usuarioId: vendedorId,
       },
     });
 
@@ -367,6 +381,25 @@ export class ClienteService {
 
     // Opcional: para otros roles devolver vacío
     return [];
+  }
+
+  // Historia 2: Buscar cliente por NIT (público)
+  async findByNit(nit: string) {
+    return this.prisma.cliente.findFirst({
+      where: { nit },
+      include: {
+        empresas: {
+          include: {
+            empresa: {
+              select: {
+                id: true,
+                nombreComercial: true,
+              },
+            },
+          },
+        },
+      },
+    });
   }
 
   // Método para crear cliente desde registro público (sin autenticación)
