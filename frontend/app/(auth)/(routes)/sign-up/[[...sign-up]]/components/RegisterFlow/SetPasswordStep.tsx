@@ -204,7 +204,7 @@ export function SetPasswordStep({
               htmlFor="empresaId"
               className="text-sm font-medium text-slate-700"
             >
-              Empresa *
+              Empresa (requerida)
             </Label>
             <div className="relative">
               <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5 z-10 pointer-events-none" />

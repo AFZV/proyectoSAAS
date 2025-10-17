@@ -64,6 +64,10 @@ export class AuthService {
 
   // Historia 3: Completar registro de cliente existente
   // Historia 4: Completar registro de cliente nuevo (sin empresa)
+  // TODO: Create admin interface to:
+  //   1. List clients in Clerk without Usuario in BD (pending assignment)
+  //   2. Allow admin to assign cliente to empresa + vendedor
+  //   3. Call this method again with empresaId to complete BD registration
   async completeClientRegistration(dto: CompleteClientRegistrationDto) {
     const { clerkUserId, email, clienteId, empresaId, rol, telefono } = dto;
 
@@ -112,8 +116,14 @@ export class AuthService {
     }
 
     // Crear usuario en la base de datos
-    // Si no hay empresaId, necesitamos una empresa por defecto o manejar el caso
-    // Por ahora, si no hay empresaId, no crear el usuario en BD
+    // IMPORTANT: empresaId is required in the Usuario table schema.
+    // For new clients without empresa assignment:
+    // - User is created in Clerk (can authenticate)
+    // - User is NOT created in BD (no empresaId available)
+    // - Admin must later:
+    //   1. Create ClienteEmpresa relationship (assign cliente to empresa + vendedor)
+    //   2. Call this service again to create Usuario in BD with empresaId
+    // This approach prevents orphaned records and maintains data integrity.
     if (!empresaId) {
       return {
         message:
