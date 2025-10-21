@@ -58,4 +58,28 @@ export class BalanceController {
     const usuario = req.usuario;
     return this.balanceService.stats(usuario, clienteId);
   }
+
+  @Roles('admin', 'vendedor')
+  @Get('resumenVencimientos')
+  getResumenVencimientos(@Req() req: UsuarioRequest) {
+    if (!req.usuario) throw new UnauthorizedException('no esta autorizado');
+    const usuario = req.usuario;
+    return this.balanceService.statatsVencimientos(usuario);
+  }
+  @Roles('admin', 'vendedor')
+  @Get('saldos-por-cliente')
+  getSaldosPorCliente(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return this.balanceService.saldosPorCliente(usuario);
+  }
+  @Roles('admin', 'vendedor')
+  @Get('movimientos/porCliente/:clienteId')
+  movimientosPorCliente(
+    @Req() req: UsuarioRequest,
+    @Param('clienteId') clienteId: string
+  ) {
+    console.log('entrando a movimientosPorCliente con clienteId', clienteId);
+    const usuario = req.usuario;
+    return this.balanceService.movimientosCliente(usuario, clienteId);
+  }
 }

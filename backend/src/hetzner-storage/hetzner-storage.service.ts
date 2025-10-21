@@ -66,8 +66,10 @@ export class HetznerStorageService {
         Body: createReadStream(filePath),
         ACL: 'public-read',
         ContentType: 'application/pdf',
+
         // ❗ Antes: 'attachment' -> forzaba descarga
         ContentDisposition: `inline; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+
         CacheControl: 'public, max-age=31536000, immutable',
       })
     );

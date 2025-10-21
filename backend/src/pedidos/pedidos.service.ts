@@ -330,6 +330,7 @@ export class PedidosService {
           valorMovimiento: pedido.total,
           idPedido: pedido.id,
           tipoMovimientoOrigen: 'PEDIDO',
+          observacion: `Creación de pedido ${pedido.id.slice(0, 6)} `,
         },
       });
 

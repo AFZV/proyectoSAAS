@@ -26,6 +26,7 @@ import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { CreateCategoriaProductoDto } from './dto/create-categoria-producto.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as multer from 'multer';
+import { GenerarCatalogoPorIdsDto } from './dto/generar-catalogo-por-ids.dto';
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('productos')
@@ -141,10 +142,14 @@ export class ProductosController {
   @Roles('admin')
   @Get('catalogo/link')
   async catalogoLink(@Req() req: UsuarioRequest) {
-    const { url } = await this.productosService.generarCatalogoLink(
+    // const { url } = await this.productosService.generarCatalogoLink(
+    //   req.usuario
+    // );
+    // return { url }; // { url: 'https://...' }
+    const { url, key } = await this.productosService.generarCatalogoLink(
       req.usuario
     );
-    return { url }; // { url: 'https://...' }
+    return { url, key };
   }
   // productos.controller.ts
   @Roles('admin')
@@ -213,4 +218,19 @@ export class ProductosController {
   //   res.setHeader('Cache-Control', 'no-store');
   //   return res.redirect(url);
   // }
+  //   @Roles('admin')
+  //   @Get('catalogoppt/ppt')
+  //   async catalogoPpt(@Req() req: UsuarioRequest) {
+  //     const usuario = req.usuario;
+  //     return this.productosService.generarCatalogoLinkPPT(usuario);
+  //   }
+  @Roles('admin')
+  @Post('catalogoseleccionado/seleccionado')
+  async catalogoPdfPorIds(
+    @Req() req: UsuarioRequest,
+    @Body() dto: GenerarCatalogoPorIdsDto
+  ) {
+    const usuario = req.usuario; // UsuarioPayload
+    return this.productosService.generarCatalogoLinkPorIdsPDF(usuario, dto);
+  }
 }

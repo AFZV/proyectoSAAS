@@ -97,6 +97,7 @@ export function HeaderCatalog({
     try {
       const r = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/productos/catalogo/link`,
+
         {
           method: "GET",
           headers: { Authorization: `Bearer ${token}` },

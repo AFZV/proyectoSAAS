@@ -16,6 +16,7 @@ import {
   UploadCloud,
   FileBarChart,
   FileUp,
+  Calendar,
 } from "lucide-react";
 
 export const dataGeneralSideBar = [
@@ -49,6 +50,11 @@ export const dataCuentasPorCobrarSideBar = [
     icon: BanknoteIcon,
     label: "Cartera",
     href: "/cartera",
+  },
+  {
+    icon: Calendar,
+    label: "Vencimientos",
+    href: "/vencimientos",
   },
 ];
 
