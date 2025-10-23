@@ -15,33 +15,31 @@ enum OrigenMovimientoEnum {
 }
 
 model Empresa {
-  id               String             @id @default(uuid())
-  nit              String             @unique
-  razonSocial      String             @db.Text
-  nombreComercial  String             @db.Text
-  direccion        String             @db.Text
-  telefono         String             @db.Text
-  departamento     String             @db.Text
-  ciudad           String             @db.Text
-  correo           String             @db.Text
-  logoUrl          String             @db.Text
-  creado           DateTime           @default(now())
-  actualizado      DateTime           @updatedAt
-  estado           String             @db.Text
+  id              String   @id @default(uuid())
+  nit             String   @unique
+  razonSocial     String   @db.Text
+  nombreComercial String   @db.Text
+  direccion       String   @db.Text
+  telefono        String   @db.Text
+  departamento    String   @db.Text
+  ciudad          String   @db.Text
+  correo          String   @db.Text
+  logoUrl         String   @db.Text
+  creado          DateTime @default(now())
+  actualizado     DateTime @updatedAt
+  estado          String   @db.Text
 
-
- pedidos Pedido[]
- compras Compras[]
- reciboss Recibo[]
- movimientosCartera MovimientosCartera[]
-  usuarios         Usuario[]
-  clientes         ClienteEmpresa[]
-  productos        Producto[]
-  inventario Inventario[]
+  pedidos              Pedido[]
+  compras              Compras[]
+  reciboss             Recibo[]
+  movimientosCartera   MovimientosCartera[]
+  usuarios             Usuario[]
+  clientes             ClienteEmpresa[]
+  productos            Producto[]
+  inventario           Inventario[]
   movimientoInventario MovimientoInventario[]
-  categorias CategoriasProducto[]
-  proveedoresEmpresa ProveedorEmpresa[]
-
+  categorias           CategoriasProducto[]
+  proveedoresEmpresa   ProveedorEmpresa[]
 
   PagoProveedor PagoProveedor[]
 
@@ -49,64 +47,64 @@ model Empresa {
 }
 
 model Usuario {
-  id        String   @id @default(uuid())
-  codigo    String   @unique @db.Text /// es un id unico de clerk
-  nombre   String   @db.Text
-  apellidos String   @db.Text
-  telefono  String   @db.Text
-  correo    String   @db.Text
-  rol       String   @db.Text
-  estado    String @db.Text //// activo inactivo
+  id        String  @id @default(uuid())
+  codigo    String  @unique @db.Text /// es un id unico de clerk
+  clienteId String? @db.Text /// FK a Cliente (solo para rol CLIENTE)
+  nombre    String  @db.Text
+  apellidos String  @db.Text
+  telefono  String  @db.Text
+  correo    String  @db.Text
+  rol       String  @db.Text
+  estado    String  @db.Text //// activo inactivo
 
   empresaId String
   empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  cliente   Cliente? @relation(fields: [clienteId], references: [id])
 
-  clientes  ClienteEmpresa[] // relación con clientes como vendedor
-  recibos   Recibo[]
-  pedidos   Pedido[]
+  clientes             ClienteEmpresa[] // relación con clientes como vendedor
+  recibos              Recibo[]
+  pedidos              Pedido[]
   movimientoInventario MovimientoInventario[]
-  movimientosCartera MovimientosCartera[]
+  movimientosCartera   MovimientosCartera[]
   //clientes Cliente[]
+  PagoProveedor        PagoProveedor[]
 
   @@index([empresaId])
-  PagoProveedor PagoProveedor[]
+  @@index([clienteId])
 }
 
 model Cliente {
-  id         String            @id @default(uuid())
-  nit        String            @db.Text
-  rasonZocial String  @default("")
-  nombre    String            @db.Text
-  apellidos  String            @db.Text
-  telefono   String            @db.Text
-  email      String            @db.Text
-  direccion  String            @db.Text
-  departamento String            @db.Text
-  ciudad String            @db.Text
+  id           String @id @default(uuid())
+  nit          String @db.Text
+  rasonZocial  String @default("")
+  nombre       String @db.Text
+  apellidos    String @db.Text
+  telefono     String @db.Text
+  email        String @db.Text
+  direccion    String @db.Text
+  departamento String @db.Text
+  ciudad       String @db.Text
 
   estado Boolean @db.Boolean /// true // false
 
-
-  empresas   ClienteEmpresa[]
-  recibos    Recibo[]
-  pedidos    Pedido[]
+  empresas           ClienteEmpresa[]
+  recibos            Recibo[]
+  pedidos            Pedido[]
   movimientosCartera MovimientosCartera[]
-
+  usuarios           Usuario[] // usuarios con rol CLIENTE vinculados a este cliente
 
   @@index([nit])
 }
 
-
-
 model ClienteEmpresa {
-  id          String   @id @default(uuid())
-  clienteId   String
-  empresaId   String
-  usuarioId  String
+  id        String @id @default(uuid())
+  clienteId String
+  empresaId String
+  usuarioId String
 
-  cliente     Cliente  @relation(fields: [clienteId], references: [id])
-  empresa     Empresa  @relation(fields: [empresaId], references: [id])
-  usuario    Usuario  @relation(fields: [usuarioId], references: [id])
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
 
   @@unique([clienteId, empresaId])
   @@index([empresaId])
@@ -114,103 +112,95 @@ model ClienteEmpresa {
 }
 
 model Producto {
-  id          String   @id @default(uuid())
-  codigo      Int      @default(autoincrement())
-  nombre      String   @db.Text
-  precioCompra      Float    @db.DoublePrecision 
-  precioVenta      Float?    @db.DoublePrecision ////debo hacer este campo opcional para la creacion masiva
-  categoriaId String ?
-  imagenUrl   String ?  @db.Text          ////debo hacer este campo opcional para la creacion masiva
-  fechaCreado      DateTime @default(now())
-  fechaActualizado DateTime @updatedAt
-  estado String @db.Text
-  manifiestoUrl     String?   @db.Text // ← NUEVO CAMPO OPCIONAL
-  descripcion String? @default("")
-  empresaId   String
-  empresa     Empresa  @relation(fields: [empresaId], references: [id])
-  categoria CategoriasProducto? @relation(fields: [categoriaId],references: [idCategoria])
-observaciones String? @db.Text // campo para observaciones internas del producto
-  detallePedido DetallePedido[]
-  inventario  Inventario[]
-  detalleCompra DetalleCompra[]
+  id                   String                 @id @default(uuid())
+  codigo               Int                    @default(autoincrement())
+  nombre               String                 @db.Text
+  precioCompra         Float                  @db.DoublePrecision
+  precioVenta          Float?                 @db.DoublePrecision ////debo hacer este campo opcional para la creacion masiva
+  categoriaId          String?
+  imagenUrl            String?                @db.Text ////debo hacer este campo opcional para la creacion masiva
+  fechaCreado          DateTime               @default(now())
+  fechaActualizado     DateTime               @updatedAt
+  estado               String                 @db.Text
+  manifiestoUrl        String?                @db.Text // ← NUEVO CAMPO OPCIONAL
+  descripcion          String?                @default("")
+  empresaId            String
+  empresa              Empresa                @relation(fields: [empresaId], references: [id])
+  categoria            CategoriasProducto?    @relation(fields: [categoriaId], references: [idCategoria])
+  observaciones        String?                @db.Text // campo para observaciones internas del producto
+  detallePedido        DetallePedido[]
+  inventario           Inventario[]
+  detalleCompra        DetalleCompra[]
   movimientoInventario MovimientoInventario[]
-  
 
-  @@index([empresaId])
-  @@unique([codigo, empresaId])
-  
   ///agregar una descripcion opcinal del producto
 
+  @@unique([codigo, empresaId])
+  @@index([empresaId])
 }
 
 model CategoriasProducto {
-  idCategoria String @id @default(uuid())
-  nombre String 
-  empresaId String?
+  idCategoria String  @id @default(uuid())
+  nombre      String
+  empresaId   String?
 
-  empresa Empresa ?@relation(fields: [empresaId],references: [id])
+  empresa  Empresa?   @relation(fields: [empresaId], references: [id])
   producto Producto[]
-  }
-
+}
 
 model Inventario {
-  idInventario String   @id @default(uuid())
-  idProducto String
-  idEmpresa String
-  stockActual Float @default(0) @db.DoublePrecision
-  stockReferenciaOinicial Float? @default(0) @db.DoublePrecision  // hacer opcional para carga masiva o mandar lo mismo que se ingresa
+  idInventario            String @id @default(uuid())
+  idProducto              String
+  idEmpresa               String
+  stockActual             Float  @default(0) @db.DoublePrecision
+  stockReferenciaOinicial Float? @default(0) @db.DoublePrecision // hacer opcional para carga masiva o mandar lo mismo que se ingresa
 
-  producto Producto @relation(fields: [idProducto],references: [id])
-  empresa Empresa @relation(fields: [idEmpresa],references: [id])
+  producto Producto @relation(fields: [idProducto], references: [id])
+  empresa  Empresa  @relation(fields: [idEmpresa], references: [id])
 
   @@index([idProducto])
   @@index([idEmpresa])
-   
 }
 
 model DetalleCompra {
-    idDetalleCompra String   @id @default(uuid())
-    idCompra String
-    idProducto String
-    cantidad Float    @db.DoublePrecision
-    precioUnitario Float?    @db.DoublePrecision//campo para colocar el precio de compra unitario
+  idDetalleCompra String @id @default(uuid())
+  idCompra        String
+  idProducto      String
+  cantidad        Float  @db.DoublePrecision
+  precioUnitario  Float? @db.DoublePrecision //campo para colocar el precio de compra unitario
 
-    producto Producto @relation(fields: [idProducto],references: [id])
-    compra Compras @relation(fields: [idCompra],references: [idCompra])
+  producto Producto @relation(fields: [idProducto], references: [id])
+  compra   Compras  @relation(fields: [idCompra], references: [idCompra])
 
-    @@index([idCompra])
-    @@index([idProducto])
-
-
-
+  @@index([idCompra])
+  @@index([idProducto])
 }
 
 model Compras {
-  idCompra String   @id @default(uuid())
+  idCompra    String   @id @default(uuid())
   idProveedor String
   FechaCompra DateTime @default(now())
-  idEmpresa String
-  recibido Boolean? @default(false)//campo para saber si ya se recibio la compra
+  idEmpresa   String
+  recibido    Boolean? @default(false) //campo para saber si ya se recibio la compra
 
- empresa Empresa @relation(fields: [idEmpresa],references: [id])
-  proveedor Proveedores @relation(fields: [idProveedor],references: [idProveedor])
-  detalleCompra DetalleCompra[]
+  empresa               Empresa                @relation(fields: [idEmpresa], references: [id])
+  proveedor             Proveedores            @relation(fields: [idProveedor], references: [idProveedor])
+  detalleCompra         DetalleCompra[]
   movimientosInventario MovimientoInventario[]
 
-
-@@index([idProveedor])
-
   FacturaCompra FacturaCompra[]
+
+  @@index([idProveedor])
 }
 
 model Proveedores {
-  idProveedor String   @id @default(uuid())
+  idProveedor    String @id @default(uuid())
   identificacion String @unique
-  razonsocial String @db.Text
-  telefono String @db.Text
-  direccion String @db.Text
+  razonsocial    String @db.Text
+  telefono       String @db.Text
+  direccion      String @db.Text
 
-  compras Compras[]
+  compras          Compras[]
   proveedorEmpresa ProveedorEmpresa[]
 
   PagoProveedor PagoProveedor[]
@@ -220,101 +210,90 @@ model Proveedores {
 
 model ProveedorEmpresa {
   idProveedorEmpresa String @id @default(uuid())
-  proveedorId String
-  empresaId String
+  proveedorId        String
+  empresaId          String
 
-  proveedor Proveedores @relation(fields: [proveedorId],references: [idProveedor])
-  empresa Empresa @relation(fields: [empresaId],references: [id])
-
-
-  
+  proveedor Proveedores @relation(fields: [proveedorId], references: [idProveedor])
+  empresa   Empresa     @relation(fields: [empresaId], references: [id])
 }
 
 model Recibo {
-  id          String   @id @default(uuid())
-  clienteId   String
-  usuarioId   String
-  tipo        String   @db.Text
-  concepto    String   @db.Text
-  Fechacrecion      DateTime @default(now())
-  empresaId String
+  id           String   @id @default(uuid())
+  clienteId    String
+  usuarioId    String
+  tipo         String   @db.Text
+  concepto     String   @db.Text
+  Fechacrecion DateTime @default(now())
+  empresaId    String
 
-  revisado Boolean? @default(false)///agregar campo opcional para controlar cuando se revise un recibo
+  revisado Boolean? @default(false) ///agregar campo opcional para controlar cuando se revise un recibo
 
-
-
-empresa Empresa @relation(fields: [empresaId],references: [id])
-  cliente     Cliente  @relation(fields: [clienteId], references: [id])
-  usuario    Usuario  @relation(fields: [usuarioId], references: [id])
-  detalleRecibo DetalleRecibo[]
+  empresa            Empresa              @relation(fields: [empresaId], references: [id])
+  cliente            Cliente              @relation(fields: [clienteId], references: [id])
+  usuario            Usuario              @relation(fields: [usuarioId], references: [id])
+  detalleRecibo      DetalleRecibo[]
   movimientosCartera MovimientosCartera[]
-
 
   @@index([usuarioId])
   @@index([clienteId])
 }
 
+model DetalleRecibo {
+  idDetalleRecibo String @id @default(uuid())
+  idPedido        String
+  idRecibo        String
+  valorTotal      Float  @db.DoublePrecision
+  estado          String @default("abonado") // o parcial, completo
+  saldoPendiente  Float? // opcional
 
-model DetalleRecibo{
-  idDetalleRecibo String   @id @default(uuid())
-  idPedido String
-  idRecibo String 
-  valorTotal       Float    @db.DoublePrecision
-  estado     String @default("abonado") // o parcial, completo
-  saldoPendiente Float? // opcional
+  pedido Pedido @relation(fields: [idPedido], references: [id])
+  recibo Recibo @relation(fields: [idRecibo], references: [id])
 
-  pedido Pedido @relation(fields: [idPedido],references: [id])
-  recibo Recibo @relation(fields: [idRecibo],references: [id])
   @@index([idRecibo])
   @@index([idPedido])
-
-
-
 }
 
 model Pedido {
-  id            String           @id @default(uuid())
-  clienteId     String
-  usuarioId    String
-  total         Float            @db.DoublePrecision 
-  fechaPedido         DateTime         @default(now())
-  observaciones String?          @db.Text
-  fechaEnvio    DateTime?  
-  fechaActualizado   DateTime         @updatedAt
-  flete         Float?           @default(0) @db.DoublePrecision 
-  guiaTransporte String?         @db.Text                        
-  empresaId String
-  pdfUrl     String?   @db.Text // ← NUEVO CAMPO OPCIONAL
-  comisionVendedor Float? @default(5) @db.DoublePrecision
-  credito Float? @default(30) @db.DoublePrecision
+  id                   String                 @id @default(uuid())
+  clienteId            String
+  usuarioId            String
+  total                Float                  @db.DoublePrecision
+  fechaPedido          DateTime               @default(now())
+  observaciones        String?                @db.Text
+  fechaEnvio           DateTime?
+  fechaActualizado     DateTime               @updatedAt
+  flete                Float?                 @default(0) @db.DoublePrecision
+  guiaTransporte       String?                @db.Text
+  empresaId            String
+  pdfUrl               String?                @db.Text // ← NUEVO CAMPO OPCIONAL
+  comisionVendedor     Float?                 @default(5) @db.DoublePrecision
+  credito              Float?                 @default(30) @db.DoublePrecision
   detalleAjusteCartera DetalleAjusteCartera[]
   //agregar campo de descuento opcional de tipo float @db.DoublePrecision
 
-
-empresa Empresa @relation(fields: [empresaId],references: [id])
-  cliente       Cliente          @relation(fields: [clienteId], references: [id])
-  usuario      Usuario          @relation(fields: [usuarioId], references: [id])
-  productos     DetallePedido[]
-  estados       EstadoPedido[]
-  detalleRecibo DetalleRecibo[]
+  empresa               Empresa                @relation(fields: [empresaId], references: [id])
+  cliente               Cliente                @relation(fields: [clienteId], references: [id])
+  usuario               Usuario                @relation(fields: [usuarioId], references: [id])
+  productos             DetallePedido[]
+  estados               EstadoPedido[]
+  detalleRecibo         DetalleRecibo[]
   movimientosInventario MovimientoInventario[]
-  movimientosCartera MovimientosCartera[]
-
+  movimientosCartera    MovimientosCartera[]
 
   @@index([clienteId])
   @@index([usuarioId])
 }
-model EstadoPedido { /// este modelo es para controlar lo estados
-  id        String   @id @default(uuid())
-  pedidoId  String
-  estado    String
-  fechaEstado     DateTime @default(now())
 
-  pedido    Pedido   @relation(fields: [pedidoId], references: [id])
+model EstadoPedido {
+  id          String   @id @default(uuid())
+  pedidoId    String
+  estado      String
+  fechaEstado DateTime @default(now())
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id])
 
   @@index([pedidoId])
 }
-
 
 model DetallePedido {
   id         String @id @default(uuid())
@@ -323,46 +302,42 @@ model DetallePedido {
   cantidad   Int
   precio     Float  @db.DoublePrecision
 
-  pedido     Pedido   @relation(fields: [pedidoId], references: [id])
-  producto   Producto @relation(fields: [productoId], references: [id])
+  pedido   Pedido   @relation(fields: [pedidoId], references: [id])
+  producto Producto @relation(fields: [productoId], references: [id])
 
   @@unique([pedidoId, productoId])
   @@index([pedidoId])
   @@index([productoId])
 }
 
-
-
 model MovimientoInventario {
-  idMovimiento String   @id @default(uuid())
-  idEmpresa String
-  idProducto String
-  fechaMovimiento DateTime @default(now())
+  idMovimiento       String   @id @default(uuid())
+  idEmpresa          String
+  idProducto         String
+  fechaMovimiento    DateTime @default(now())
   cantidadMovimiendo Int
-  idTipoMovimiento String
-  IdUsuario String
-  IdPedido String?
-  idCompra String ?
-  observacion             String? @db.Text // <- nuevo campo para ajustes manuales
+  idTipoMovimiento   String
+  IdUsuario          String
+  IdPedido           String?
+  idCompra           String?
+  observacion        String?  @db.Text // <- nuevo campo para ajustes manuales
 
-
-  compra Compras? @relation(fields: [idCompra],references: [idCompra])
-  pedido Pedido? @relation(fields: [IdPedido],references: [id])
-  empresa Empresa @relation(fields: [idEmpresa],references: [id])
-  producto Producto @relation(fields: [idProducto],references: [id])
-  usuario Usuario @relation(fields: [IdUsuario],references: [id])
-  tipoMovimiento TipoMovimientos @relation(fields: [idTipoMovimiento],references: [idTipoMovimiento])
+  compra         Compras?        @relation(fields: [idCompra], references: [idCompra])
+  pedido         Pedido?         @relation(fields: [IdPedido], references: [id])
+  empresa        Empresa         @relation(fields: [idEmpresa], references: [id])
+  producto       Producto        @relation(fields: [idProducto], references: [id])
+  usuario        Usuario         @relation(fields: [IdUsuario], references: [id])
+  tipoMovimiento TipoMovimientos @relation(fields: [idTipoMovimiento], references: [idTipoMovimiento])
 
   @@index([idEmpresa])
   @@index([idProducto])
   @@index([IdUsuario])
   @@index([idTipoMovimiento])
-
 }
 
 model TipoMovimientos {
-  idTipoMovimiento String @id @default(uuid())
-  tipo             TipoMovimientoEnum
+  idTipoMovimiento     String                 @id @default(uuid())
+  tipo                 TipoMovimientoEnum
   movimientoInventario MovimientoInventario[]
 }
 
@@ -372,152 +347,133 @@ enum TipoMovimientoEnum {
   AJUSTE
 }
 
-
 model MovimientosCartera {
-  idMovimientoCartera String @id @default(uuid())
-  idCliente String
-  valorMovimiento Float @db.DoublePrecision
-  idUsuario String
-  fechaMovimientoCartera DateTime @default(now())
-  empresaId String
-  idPedido String?
-  idRecibo String?
-  observacion             String? @db.Text // 
-  tipoMovimientoOrigen OrigenMovimientoEnum? //<- nuevo campo para ajustes manuales
+  idMovimientoCartera    String                @id @default(uuid())
+  idCliente              String
+  valorMovimiento        Float                 @db.DoublePrecision
+  idUsuario              String
+  fechaMovimientoCartera DateTime              @default(now())
+  empresaId              String
+  idPedido               String?
+  idRecibo               String?
+  observacion            String?               @db.Text // 
+  tipoMovimientoOrigen   OrigenMovimientoEnum? //<- nuevo campo para ajustes manuales
 
-
-empresa Empresa @relation(fields: [empresaId],references: [id])
-  cliente Cliente @relation(fields: [idCliente],references: [id])
-  usuario Usuario @relation(fields: [idUsuario],references: [id])
-  pedido Pedido? @relation(fields: [idPedido],references: [id])
-  recibo Recibo? @relation(fields: [idRecibo],references: [id])
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  cliente Cliente @relation(fields: [idCliente], references: [id])
+  usuario Usuario @relation(fields: [idUsuario], references: [id])
+  pedido  Pedido? @relation(fields: [idPedido], references: [id])
+  recibo  Recibo? @relation(fields: [idRecibo], references: [id])
 
   detalleAjusteCartera DetalleAjusteCartera[]
+
   @@index([idCliente])
   @@index([idUsuario])
 }
 
 model DetalleAjusteCartera {
-  idDetalleAjuste String   @id @default(uuid())
+  idDetalleAjuste String  @id @default(uuid())
   idMovimiento    String?
   idPedido        String?
-  valor           Float    @db.DoublePrecision
+  valor           Float   @db.DoublePrecision
 
-  movimiento      MovimientosCartera? @relation(fields: [idMovimiento], references: [idMovimientoCartera])
-  pedido          Pedido ?            @relation(fields: [idPedido], references: [id])
+  movimiento MovimientosCartera? @relation(fields: [idMovimiento], references: [idMovimientoCartera])
+  pedido     Pedido?             @relation(fields: [idPedido], references: [id])
 
   @@index([idMovimiento])
   @@index([idPedido])
 }
 
-
 ///nuevos modelos 
 
 enum EstadoFacturaProvEnum {
-ABIERTA // registrada con saldo = total
-PARCIAL // tiene abonos
-PAGADA // saldo = 0
-ANULADA
-
+  ABIERTA // registrada con saldo = total
+  PARCIAL // tiene abonos
+  PAGADA // saldo = 0
+  ANULADA
 }
 
 model FacturaProveedor {
-idFacturaProveedor String @id @default(uuid())
-empresaId String
-proveedorId String
-numero String @db.Text // número/nit del documento del proveedor
-fechaEmision DateTime @default(now())
-fechaVencimiento DateTime?
-moneda String @default("COP") // ISO 4217 ("COP", "USD"...)
-tasaCambio Float? @db.DoublePrecision // si moneda != COP
+  idFacturaProveedor String    @id @default(uuid())
+  empresaId          String
+  proveedorId        String
+  numero             String    @db.Text // número/nit del documento del proveedor
+  fechaEmision       DateTime  @default(now())
+  fechaVencimiento   DateTime?
+  moneda             String    @default("COP") // ISO 4217 ("COP", "USD"...)
+  tasaCambio         Float?    @db.DoublePrecision // si moneda != COP
 
-total Float @default(0) @db.DoublePrecision
-saldo Float @default(0) @db.DoublePrecision// mantener por servicio
+  total Float @default(0) @db.DoublePrecision
+  saldo Float @default(0) @db.DoublePrecision // mantener por servicio
 
+  estado     EstadoFacturaProvEnum @default(ABIERTA)
+  notas      String?               @db.Text
+  soporteUrl String?               @db.Text // PDF/imagen de la factura
 
-estado EstadoFacturaProvEnum @default(ABIERTA)
-notas String? @db.Text
-soporteUrl String? @db.Text // PDF/imagen de la factura
+  empresa   Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  proveedor Proveedores @relation(fields: [proveedorId], references: [idProveedor], onDelete: Restrict, onUpdate: Cascade)
 
+  pagos   DetallePagoProveedor[]
+  compras FacturaCompra[] // enlace opcional a Compras
 
-empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-proveedor Proveedores @relation(fields: [proveedorId], references: [idProveedor], onDelete: Restrict, onUpdate: Cascade)
-
-
-pagos DetallePagoProveedor[]
-compras FacturaCompra[] // enlace opcional a Compras
-
-
-@@unique([empresaId, numero])
-@@index([proveedorId])
+  @@unique([empresaId, numero])
+  @@index([proveedorId])
 }
 
 model FacturaCompra {
-idFacturaCompra String @id @default(uuid())
-facturaId String
-compraId String
+  idFacturaCompra String @id @default(uuid())
+  facturaId       String
+  compraId        String
 
+  factura FacturaProveedor @relation(fields: [facturaId], references: [idFacturaProveedor], onDelete: Cascade, onUpdate: Cascade)
+  compra  Compras          @relation(fields: [compraId], references: [idCompra], onDelete: Restrict, onUpdate: Cascade)
 
-factura FacturaProveedor @relation(fields: [facturaId], references: [idFacturaProveedor], onDelete: Cascade, onUpdate: Cascade)
-compra Compras @relation(fields: [compraId], references: [idCompra], onDelete: Restrict, onUpdate: Cascade)
-
-
-@@unique([facturaId, compraId])
-@@index([compraId])
+  @@unique([facturaId, compraId])
+  @@index([compraId])
 }
 
 model DetallePagoProveedor {
-idDetallePagoProveedor String @id @default(uuid())
-pagoId String
-facturaId String
-valor Float @db.DoublePrecision
-// retenciones/descuentos que afectan el neto pagado de la factura específica:
-descuento Float? @db.DoublePrecision
+  idDetallePagoProveedor String @id @default(uuid())
+  pagoId                 String
+  facturaId              String
+  valor                  Float  @db.DoublePrecision
+  // retenciones/descuentos que afectan el neto pagado de la factura específica:
+  descuento              Float? @db.DoublePrecision
 
+  pago    PagoProveedor    @relation(fields: [pagoId], references: [idPagoProveedor], onDelete: Cascade, onUpdate: Cascade)
+  factura FacturaProveedor @relation(fields: [facturaId], references: [idFacturaProveedor], onDelete: Cascade, onUpdate: Cascade)
 
-pago PagoProveedor @relation(fields: [pagoId], references: [idPagoProveedor], onDelete: Cascade, onUpdate: Cascade)
-factura FacturaProveedor @relation(fields: [facturaId], references: [idFacturaProveedor], onDelete: Cascade, onUpdate: Cascade)
-
-
-@@index([pagoId])
-@@index([facturaId])
+  @@index([pagoId])
+  @@index([facturaId])
 }
 
 model PagoProveedor {
-idPagoProveedor String @id @default(uuid())
-empresaId String
-proveedorId String
-fecha DateTime @default(now())
-moneda String @default("COP")
-tasaCambio Float? @db.DoublePrecision
-metodoPago MetodoPagoProvEnum
-totalPagado Float? @db.DoublePrecision
-descripcion String? @db.Text
-comprobanteUrl String? @db.Text
-usuarioId String?
+  idPagoProveedor String             @id @default(uuid())
+  empresaId       String
+  proveedorId     String
+  fecha           DateTime           @default(now())
+  moneda          String             @default("COP")
+  tasaCambio      Float?             @db.DoublePrecision
+  metodoPago      MetodoPagoProvEnum
+  totalPagado     Float?             @db.DoublePrecision
+  descripcion     String?            @db.Text
+  comprobanteUrl  String?            @db.Text
+  usuarioId       String?
 
+  empresa   Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  proveedor Proveedores @relation(fields: [proveedorId], references: [idProveedor], onDelete: Restrict, onUpdate: Cascade)
+  usuario   Usuario?    @relation(fields: [usuarioId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-proveedor Proveedores @relation(fields: [proveedorId], references: [idProveedor], onDelete: Restrict, onUpdate: Cascade)
-usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  detalles DetallePagoProveedor[]
 
-
-detalles DetallePagoProveedor[]
-
-
-@@index([empresaId])
-@@index([proveedorId])
+  @@index([empresaId])
+  @@index([proveedorId])
 }
 
 enum MetodoPagoProvEnum {
-EFECTIVO
-TRANSFERENCIA
-TARJETA
-CHEQUE
-OTRO
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA
+  CHEQUE
+  OTRO
 }
-
-
-
-
-

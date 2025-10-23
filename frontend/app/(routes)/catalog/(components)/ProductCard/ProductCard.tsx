@@ -180,6 +180,9 @@ export function ProductCard({
   cantidadEnCarrito = 0,
   observacion,
   onChangeObservacion,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelection,
 }: ProductCardProps & { onVerDetalles?: (producto: any) => void } & {
   onDescargarImagen?: (producto: any) => void;
 }) {
@@ -193,7 +196,12 @@ export function ProductCard({
   const isOutOfStock = producto.stock === 0;
 
   const handleImageClick = () => {
-    if (onVerDetalles) onVerDetalles(producto);
+    // Si estamos en modo selección, alternar la selección
+    if (isSelectionMode && onToggleSelection) {
+      onToggleSelection();
+    } else if (onVerDetalles) {
+      onVerDetalles(producto);
+    }
   };
 
   const handleDescargarImagen = () => {
@@ -209,7 +217,9 @@ export function ProductCard({
         group hover:shadow-xl transition-all duration-300 overflow-hidden h-full flex flex-col
         ${isOutOfStock ? "opacity-60" : "hover:scale-[1.02]"}
         ${
-          isInCart
+          isSelectionMode && isSelected
+            ? "ring-2 ring-emerald-500 ring-offset-2 shadow-md shadow-emerald-500/30 border-emerald-300 bg-emerald-50/30"
+            : isInCart
             ? "ring-1 ring-emerald-400 ring-offset-1 shadow-md shadow-emerald-500/20 border-emerald-200 bg-emerald-50/30"
             : "hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/10"
         }
@@ -231,11 +241,44 @@ export function ProductCard({
             />
 
             {/* Overlay hover para indicar que es clickeable */}
-            <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors duration-300 flex items-center justify-center opacity-0 hover:opacity-100">
-              <div className="bg-white/90 rounded-full p-2 transform scale-75 hover:scale-100 transition-transform">
-                <Eye className="w-6 h-6 text-blue-600" />
+            {!isSelectionMode && (
+              <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors duration-300 flex items-center justify-center opacity-0 hover:opacity-100">
+                <div className="bg-white/90 rounded-full p-2 transform scale-75 hover:scale-100 transition-transform">
+                  <Eye className="w-6 h-6 text-blue-600" />
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Checkbox para modo selección */}
+            {isSelectionMode && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/5">
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onToggleSelection) onToggleSelection();
+                  }}
+                  className={`w-10 h-10 rounded-full border-4 flex items-center justify-center cursor-pointer transition-all duration-200 ${
+                    isSelected
+                      ? "bg-emerald-600 border-emerald-600 scale-110"
+                      : "bg-white/90 border-gray-300 hover:border-emerald-400 hover:scale-105"
+                  }`}
+                >
+                  {isSelected && (
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="3"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path d="M5 13l4 4L19 7"></path>
+                    </svg>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Badge de stock */}
             {isOutOfStock && (
@@ -295,7 +338,20 @@ export function ProductCard({
             </div>
 
             <div className="flex flex-col gap-1.5 mt-auto">
-              {!isOutOfStock ? (
+              {isSelectionMode ? (
+                // Mostrar indicador de selección en modo selección
+                <div className="text-center py-2">
+                  <Badge
+                    className={`${
+                      isSelected
+                        ? "bg-emerald-600 text-white"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {isSelected ? "Seleccionado" : "Click para seleccionar"}
+                  </Badge>
+                </div>
+              ) : !isOutOfStock ? (
                 <>
                   <div className="flex justify-end">
                     <button

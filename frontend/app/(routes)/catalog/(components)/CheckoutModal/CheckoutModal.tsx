@@ -364,8 +364,10 @@ interface CheckoutModalProps {
   onOpenChange: (open: boolean) => void;
   carrito: CarritoItem[];
   onPedidoCreado: () => void;
-  initialNotes?: string; // <- NUEVA
-  onNotesChange?: (texto: string) => void; // <- NUEVA
+  initialNotes?: string;
+  onNotesChange?: (texto: string) => void;
+  userType?: string; // Rol del usuario (CLIENTE, admin, vendedor, etc.)
+  clienteId?: string | null; // ID del cliente si el usuario es CLIENTE
 }
 
 export function CheckoutModal({
@@ -375,6 +377,8 @@ export function CheckoutModal({
   onPedidoCreado,
   initialNotes,
   onNotesChange,
+  userType,
+  clienteId,
 }: CheckoutModalProps) {
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [observaciones, setObservaciones] = useState("");
@@ -481,11 +485,15 @@ export function CheckoutModal({
   const limpiarCliente = () => setCliente(null);
 
   const finalizarPedido = async () => {
+    // ✅ Si es CLIENTE, usar su clienteId directamente
+    const esCliente = userType === "CLIENTE";
+    const clienteIdFinal = esCliente ? clienteId : cliente?.id;
+
     if (!isOnline) {
       const pedidoOffline = {
         idLocal:
           (crypto as any)?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
-        clienteId: null,
+        clienteId: clienteIdFinal || null,
         nitOffline: nitOffline.trim(),
         productos: carrito.map((item) => ({
           id: item.id,
@@ -534,9 +542,22 @@ export function CheckoutModal({
       return;
     }
 
+    // ✅ Validar que haya clienteId (ya sea del cliente autenticado o seleccionado)
+    if (!clienteIdFinal) {
+      toast({
+        title: "Error",
+        description: esCliente
+          ? "No se pudo identificar tu cuenta de cliente"
+          : "Debes seleccionar un cliente",
+        variant: "destructive",
+        duration: 1000,
+      });
+      return;
+    }
+
     const pedidoData = {
       nitOffline: isOnline ? null : nitOffline.trim(),
-      clienteId: cliente?.id || null,
+      clienteId: clienteIdFinal,
       productos: carrito.map((item) => ({
         id: item.id,
         cantidad: item.cantidad,
@@ -571,7 +592,7 @@ export function CheckoutModal({
 
       await catalogService.crearPedidoDesdeCarrito(
         token,
-        cliente!.id,
+        clienteIdFinal,
         pedidoData.productos,
         pedidoData.observaciones
       );
@@ -639,35 +660,40 @@ export function CheckoutModal({
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Columna izquierda */}
           <div className="space-y-6">
-            {isOnline ? (
-              <ClienteSearch
-                onClienteSeleccionado={handleClienteSeleccionado}
-                clienteSeleccionado={cliente}
-                onLimpiarCliente={limpiarCliente}
-              />
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="w-5 h-5" />
-                    Cliente Offline
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Label>NIT del Cliente</Label>
-                  <Input
-                    placeholder="Ingrese NIT"
-                    value={nitOffline}
-                    onChange={(e) =>
-                      setNitOffline(e.target.value.replace(/\D/g, ""))
-                    }
-                    maxLength={20}
+            {/* ✅ Solo mostrar selector de cliente si NO es CLIENTE */}
+            {userType !== "CLIENTE" && (
+              <>
+                {isOnline ? (
+                  <ClienteSearch
+                    onClienteSeleccionado={handleClienteSeleccionado}
+                    clienteSeleccionado={cliente}
+                    onLimpiarCliente={limpiarCliente}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Este NIT será validado al reconectarse
-                  </p>
-                </CardContent>
-              </Card>
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <User className="w-5 h-5" />
+                        Cliente Offline
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Label>NIT del Cliente</Label>
+                      <Input
+                        placeholder="Ingrese NIT"
+                        value={nitOffline}
+                        onChange={(e) =>
+                          setNitOffline(e.target.value.replace(/\D/g, ""))
+                        }
+                        maxLength={20}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Este NIT será validado al reconectarse
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
             )}
 
             {/* Observaciones */}
@@ -743,7 +769,7 @@ export function CheckoutModal({
               <Button
                 onClick={finalizarPedido}
                 disabled={
-                  (isOnline && !cliente) ||
+                  (isOnline && userType !== "CLIENTE" && !cliente) || // Solo validar cliente si NO es CLIENTE
                   carrito.length === 0 ||
                   isSubmitting ||
                   (!isOnline && !nitOffline)

@@ -31,7 +31,7 @@ import { GenerarCatalogoPorIdsDto } from './dto/generar-catalogo-por-ids.dto';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('productos')
 export class ProductosController {
-  constructor(private productosService: ProductosService) {}
+  constructor(private productosService: ProductosService) { }
   //Crear un producto validando los datos con el DTO
   @Roles('admin')
   @Post('create')
@@ -57,7 +57,7 @@ export class ProductosController {
   }
 
   //Obtener los productos con stock de una empresa
-  @Roles('admin', 'vendedor', 'superadmin', 'temporal', 'bodega')
+  @Roles('admin', 'vendedor', 'superadmin', 'temporal', 'bodega', 'CLIENTE')
   @Get('empresa/activos')
   async findAllActivos(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
@@ -115,7 +115,7 @@ export class ProductosController {
   }
 
   //Obtener todas las categorías de productos de una empresa
-  @Roles('admin', 'superadmin', 'vendedor', 'temporal', 'bodega')
+  @Roles('admin', 'superadmin', 'vendedor', 'temporal', 'bodega', 'CLIENTE')
   @Get('categoria/empresa')
   async findAllCategorias(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;

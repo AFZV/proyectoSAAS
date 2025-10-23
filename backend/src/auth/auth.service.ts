@@ -4,7 +4,7 @@ import { UsuarioPayload } from 'src/types/usuario-payload';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async getUserByCodigo(userId: string) {
     const usuario = await this.prisma.usuario.findUnique({
@@ -15,6 +15,7 @@ export class AuthService {
         rol: true,
         nombre: true,
         apellidos: true,
+        clienteId: true, // ✅ Incluir clienteId
         empresa: {
           select: {
             nombreComercial: true,
@@ -34,6 +35,7 @@ export class AuthService {
       rol: usuario.rol,
       nombre: usuario.nombre,
       apellidos: usuario.apellidos,
+      clienteId: usuario.clienteId, // ✅ Retornar clienteId
       logoUrl: usuario.empresa.logoUrl,
       nombreEmpresa: usuario.empresa.nombreComercial,
     };

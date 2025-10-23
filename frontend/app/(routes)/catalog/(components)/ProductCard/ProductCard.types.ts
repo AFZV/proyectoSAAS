@@ -7,6 +7,9 @@ export interface ProductCardProps {
   cantidadEnCarrito?: number;
   observacion?: string;
   onChangeObservacion?: (texto: string) => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: () => void;
 }
 
 export interface AddToCartModalProps {

@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Package } from "lucide-react";
+import { Package, ShoppingCart } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -57,6 +57,35 @@ export function SideBarRoutes({ rol }: { rol: string }) {
   const herramientas = rol === "admin" ? [...dataHerramientasSideBar] : [];
   const pagos = rol === "admin" ? [...dataCuentasPorPagarSideBar] : [];
 
+  // Vista para clientes (rol CLIENTE)
+  if (rol === "CLIENTE") {
+    return (
+      <aside className="w-full h-full flex flex-col border-r bg-background">
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-3">
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              Menú Cliente
+            </div>
+            <nav className="flex flex-col gap-1">
+              <NavLink href="/catalog" icon={Package} activePath={pathname}>
+                Catálogo
+              </NavLink>
+              <NavLink
+                href="/invoices"
+                icon={ShoppingCart}
+                activePath={pathname}
+              >
+                Mis Pedidos
+              </NavLink>
+            </nav>
+          </div>
+        </div>
+        <FooterBrand />
+      </aside>
+    );
+  }
+
+  // Vista temporal (sin autenticación completa)
   if (rol === "temporal") {
     return (
       <aside className="w-60 h-full flex flex-col border-r bg-background">

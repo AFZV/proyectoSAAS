@@ -4,10 +4,10 @@ import { auth } from "@clerk/nextjs";
 import { getToken } from "@/lib/getToken";
 import { invoicesService } from "./services/invoices.service";
 import { InvoicesClient } from "./(components)/InvoicesClient/InvoiceClient";
-// ✅ Usar el tipo correcto desde types
+// Usar el tipo correcto desde types
 import type { Pedido } from "./types/invoices.types";
 
-// ✅ Definir tipo para estadísticas
+// Definir tipo para estadísticas
 interface EstadisticasBackend {
   totalPedidos: number;
   pedidosPorEstado: Record<string, number>;
@@ -100,18 +100,18 @@ export default async function InvoicesPage() {
             {error instanceof Error ? error.message : "Error desconocido"}
           </p>
           <div className="space-x-4">
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            <a
+              href="/invoices"
+              className="inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
               Reintentar
-            </button>
-            <button
-              onClick={() => window.location.href = '/'}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+            </a>
+            <a
+              href="/"
+              className="inline-block px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
             >
               Volver al Inicio
-            </button>
+            </a>
           </div>
         </div>
       </div>

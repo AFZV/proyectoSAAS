@@ -43,9 +43,10 @@ interface InvoiceDetailModalProps {
   onUpdate: (pedidoActualizado: Pedido) => void;
 }
 
-// ✅ ESTADOS SIGUIENTES SIN ENTREGADO
+// ✅ ESTADOS SIGUIENTES CON ACEPTADO
 const ESTADOS_SIGUIENTES = {
-  GENERADO: ["SEPARADO"],
+  GENERADO: ["ACEPTADO"],
+  ACEPTADO: ["SEPARADO", "CANCELADO"],
   SEPARADO: ["FACTURADO", "CANCELADO"],
   FACTURADO: ["ENVIADO", "CANCELADO"], // ✅ Puede ir a ENVIADO o CANCELADO
   ENVIADO: [], // ✅ CAMBIO: Ya no va a ENTREGADO, es estado final
@@ -1002,11 +1003,13 @@ export function InvoiceDetailModal({
                       <th className="text-right py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Subtotal
                       </th>
-                      {estadoActual === "GENERADO" && (
-                        <th className="text-center py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Separado
-                        </th>
-                      )}
+                      {/* ✅ Solo mostrar columna "Separado" si NO es cliente Y el pedido está GENERADO */}
+                      {estadoActual === "GENERADO" &&
+                        userType !== "CLIENTE" && (
+                          <th className="text-center py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Separado
+                          </th>
+                        )}
                     </tr>
                   </thead>
 
@@ -1051,20 +1054,22 @@ export function InvoiceDetailModal({
                           <td className="py-4 px-4 text-right text-sm font-medium text-gray-900">
                             {formatValue(subtotal)}
                           </td>
-                          {estadoActual === "GENERADO" && (
-                            <td className="py-4 px-4 text-center">
-                              <input
-                                type="checkbox"
-                                checked={productosSeparados.includes(
-                                  item.productoId
-                                )}
-                                onChange={() =>
-                                  handleToggleSeparado(item.productoId)
-                                }
-                                className="w-5 h-5 accent-green-600 cursor-pointer"
-                              />
-                            </td>
-                          )}
+                          {/* ✅ Solo mostrar checkbox si NO es cliente Y el pedido está GENERADO */}
+                          {estadoActual === "GENERADO" &&
+                            userType !== "CLIENTE" && (
+                              <td className="py-4 px-4 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={productosSeparados.includes(
+                                    item.productoId
+                                  )}
+                                  onChange={() =>
+                                    handleToggleSeparado(item.productoId)
+                                  }
+                                  className="w-5 h-5 accent-green-600 cursor-pointer"
+                                />
+                              </td>
+                            )}
                         </tr>
                       );
                     })}
