@@ -46,8 +46,10 @@ export function ValidateClientStep({
     setIsLoading(true);
 
     try {
-      // Llamar a la API para buscar cliente por NIT
-      const response = await fetch(`/api/clientePorNit?nit=${data.nit}`);
+      // Llamar directamente al backend público (sin autenticación)
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/clientes/public/existe?nit=${data.nit}`
+      );
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -62,20 +64,47 @@ export function ValidateClientStep({
         throw new Error("Error al buscar cliente");
       }
 
-      const cliente = await response.json();
+      const resultado = await response.json();
 
-      toast({
-        title: "Cliente encontrado",
-        description: `Bienvenido ${cliente.nombres} ${cliente.apellidos}`,
-      });
+      // El backend devuelve { existe: true, cliente: {...}, tieneCuenta: boolean }
+      if (resultado.existe && resultado.cliente) {
+        // Si YA tiene cuenta creada, redirigir a login
+        if (resultado.tieneCuenta) {
+          toast({
+            title: "Cuenta ya existente",
+            description: `${resultado.cliente.nombre}, ya tienes una cuenta. Por favor inicia sesión.`,
+            variant: "destructive",
+          });
 
-      onClientValidated({
-        id: cliente.id,
-        nit: cliente.nit,
-        nombres: cliente.nombres,
-        apellidos: cliente.apellidos,
-        correo: cliente.correo,
-      });
+          // Redirigir al login después de 2 segundos
+          setTimeout(() => {
+            window.location.href = "/sign-in";
+          }, 2000);
+          return;
+        }
+
+        // Si NO tiene cuenta, continuar con el proceso de asignar contraseña
+        toast({
+          title: "Cliente encontrado",
+          description: `Bienvenido ${resultado.cliente.nombre} ${resultado.cliente.apellidos}. Configura tu contraseña.`,
+        });
+
+        // Las empresas ya vienen con la estructura correcta del backend:
+        // { id, nombre, nit }
+        const empresasFormateadas = resultado.cliente.empresas || [];
+
+        onClientValidated({
+          id: resultado.cliente.id,
+          nit: resultado.cliente.nit,
+          nombres: resultado.cliente.nombre,
+          apellidos: resultado.cliente.apellidos,
+          correo: resultado.cliente.email,
+          empresas: empresasFormateadas,
+        });
+      } else {
+        // No debería llegar aquí, pero por seguridad
+        onClientNotFound(data.nit);
+      }
     } catch (error) {
       console.error("Error validando cliente:", error);
       toast({

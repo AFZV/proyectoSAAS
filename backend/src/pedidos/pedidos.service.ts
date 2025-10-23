@@ -33,7 +33,7 @@ export class PedidosService {
     private cloudinaryService: CloudinaryService,
     private resend: ResendService,
     private hetznerStorage: HetznerStorageService
-  ) {}
+  ) { }
 
   private async generarYSubirPDFPedido(pedido: PedidoParaPDF) {
     const total = pedido.productos.reduce(
@@ -93,39 +93,69 @@ export class PedidosService {
       );
     }
 
-    const { empresaId, id: ejecutorId, rol: rolEjecutor } = usuario;
+    const { empresaId, id: ejecutorId, rol: rolEjecutor, clienteId: clienteIdUsuario } = usuario;
 
     const totalCalculado = data.productos.reduce(
       (s, p) => s + p.cantidad * p.precio,
       0
     );
 
-    // Trae el usuario asignado al cliente (con su rol)
-    const relacion = await this.prisma.clienteEmpresa.findFirst({
-      where: { clienteId: data.clienteId, empresaId },
-      include: {
-        usuario: {
-          select: { id: true, rol: true, nombre: true, telefono: true },
+    // NUEVA LÓGICA: Si es CLIENTE, usar su clienteId del usuario
+    let clienteId: string;
+    let vendedorId: string;
+
+    if (rolEjecutor === 'CLIENTE') {
+      // Cliente creando su propio pedido desde catálogo
+      if (!clienteIdUsuario) {
+        throw new BadRequestException('Usuario cliente no vinculado correctamente');
+      }
+
+      clienteId = clienteIdUsuario;
+
+      // Buscar el vendedor asignado en ClienteEmpresa
+      const relacion = await this.prisma.clienteEmpresa.findFirst({
+        where: { clienteId, empresaId },
+        include: {
+          usuario: { select: { id: true } },
         },
-      },
-    });
+      });
 
-    if (!relacion?.usuario) {
-      throw new BadRequestException('No hay usuario asociado a este cliente');
+      if (!relacion?.usuario) {
+        throw new BadRequestException('No hay vendedor asignado a este cliente');
+      }
+
+      vendedorId = relacion.usuario.id;
+    } else {
+      // Vendedor/Admin creando pedido para un cliente (FLUJO LEGACY)
+      clienteId = data.clienteId;
+
+      // Trae el usuario asignado al cliente (con su rol)
+      const relacion = await this.prisma.clienteEmpresa.findFirst({
+        where: { clienteId, empresaId },
+        include: {
+          usuario: {
+            select: { id: true, rol: true, nombre: true, telefono: true },
+          },
+        },
+      });
+
+      if (!relacion?.usuario) {
+        throw new BadRequestException('No hay usuario asociado a este cliente');
+      }
+
+      // Regla: si asignado es admin y quien ejecuta también es admin -> usar ejecutor
+      const asignadoEsAdmin =
+        (relacion.usuario.rol || '').toLowerCase() === 'admin';
+      const ejecutorEsAdmin = (rolEjecutor || '').toLowerCase() === 'admin';
+      vendedorId =
+        asignadoEsAdmin && ejecutorEsAdmin ? ejecutorId : relacion.usuario.id;
     }
-
-    // Regla: si asignado es admin y quien ejecuta también es admin -> usar ejecutor
-    const asignadoEsAdmin =
-      (relacion.usuario.rol || '').toLowerCase() === 'admin';
-    const ejecutorEsAdmin = (rolEjecutor || '').toLowerCase() === 'admin';
-    const vendedorId =
-      asignadoEsAdmin && ejecutorEsAdmin ? ejecutorId : relacion.usuario.id;
 
     // 2) Transacción mínima (solo DB)
     const pedidoId = await this.prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.create({
         data: {
-          clienteId: data.clienteId,
+          clienteId,
           observaciones: data.observaciones,
           empresaId,
           usuarioId: vendedorId, // <- aquí aplicamos la regla
@@ -233,7 +263,8 @@ export class PedidosService {
       );
     }
 
-    if (['SEPARADO'].includes(estadoNormalizado)) {
+    // ✅ ACEPTADO y SEPARADO: Solo registran estado sin afectar inventario
+    if (['ACEPTADO', 'SEPARADO'].includes(estadoNormalizado)) {
       await anexarObs();
       return this.prisma.estadoPedido.create({
         data: { pedidoId, estado: estadoNormalizado },
@@ -574,18 +605,35 @@ export class PedidosService {
   ///////////////////////////////
   async obtenerPedidos(usuario: UsuarioPayload) {
     if (!usuario) throw new BadRequestException('El usuario es requerido');
-    const { empresaId, id: usuarioId, rol } = usuario;
+    const { empresaId, id: usuarioId, rol, clienteId } = usuario;
+
+    // ✅ NUEVA LÓGICA: Si es CLIENTE, filtrar solo sus pedidos
+    let whereCondition: any;
+
+    if (rol === 'CLIENTE') {
+      // Cliente solo ve sus propios pedidos
+      if (!clienteId) {
+        throw new BadRequestException('Cliente no vinculado correctamente');
+      }
+      whereCondition = {
+        empresaId,
+        clienteId,
+      };
+    } else if (rol === 'admin' || rol === 'bodega') {
+      // Admin y bodega ven todos los pedidos de la empresa
+      whereCondition = {
+        empresaId,
+      };
+    } else {
+      // Vendedor ve solo sus pedidos
+      whereCondition = {
+        empresaId,
+        usuarioId,
+      };
+    }
 
     const pedidos = await this.prisma.pedido.findMany({
-      where:
-        rol === 'admin' || rol === 'bodega'
-          ? {
-              empresaId: empresaId,
-            }
-          : {
-              empresaId,
-              usuarioId,
-            },
+      where: whereCondition,
       include: {
         cliente: true,
         usuario: true,

@@ -16,12 +16,19 @@ import { UserPlus, CheckCircle } from "lucide-react";
 
 type RegisterStep = "validate" | "createClient" | "password" | "success";
 
+interface Empresa {
+  id: string;
+  nombre: string;
+  nit: string;
+}
+
 interface ClientData {
   id: string;
   nit: string;
   nombres: string;
   apellidos: string;
   correo?: string;
+  empresas?: Empresa[]; // Empresas asociadas al cliente (solo para clientes existentes)
 }
 
 export function RegisterFlow() {
@@ -41,7 +48,9 @@ export function RegisterFlow() {
 
   const handleClientCreated = (client: ClientData) => {
     setClientData(client);
-    setStep("password");
+    // Cliente nuevo ya está completamente registrado (cliente + usuario + Clerk)
+    // Va directo a pantalla de éxito
+    setStep("success");
   };
 
   const handlePasswordSet = () => {

@@ -6,14 +6,14 @@ export async function getToken() {
 
   if (!sessionId || !userId) {
     console.error("❌ No hay sesión activa");
-    redirect("/noAutorizado");
+    redirect("/sign-in"); // ✅ Cambiado a /sign-in
   }
 
   const token = await clerkClient.sessions.getToken(sessionId, "token");
 
   if (!token || !token.includes(".")) {
     console.error("❌ Token JWT inválido o malformado:", token);
-    redirect("/noAutorizado");
+    redirect("/sign-in"); // ✅ Cambiado a /sign-in
   }
 
   return token;

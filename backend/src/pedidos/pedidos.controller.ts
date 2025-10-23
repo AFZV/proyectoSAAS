@@ -24,9 +24,9 @@ import { Response } from 'express';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('pedidos')
 export class PedidosController {
-  constructor(private readonly pedidosService: PedidosService) {}
+  constructor(private readonly pedidosService: PedidosService) { }
 
-  @Roles('admin', 'vendedor')
+  @Roles('admin', 'vendedor', 'CLIENTE')
   @Post()
   crearPedido(@Body() data: CreatePedidoDto, @Req() req: UsuarioRequest) {
     const usuario = req.usuario;
@@ -48,7 +48,7 @@ export class PedidosController {
     );
   }
 
-  @Roles('admin', 'vendedor', 'bodega')
+  @Roles('admin', 'vendedor', 'bodega', 'CLIENTE')
   @Get()
   obtenerPedidos(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;

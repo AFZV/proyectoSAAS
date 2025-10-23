@@ -10,20 +10,32 @@ import { verificarTokenClerk } from 'src/auth/clerk.utils';
 
 @Injectable()
 export class UsuarioGuard implements CanActivate {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request>();
     const authHeader = req.headers.authorization;
 
-    const payload = await verificarTokenClerk(authHeader); // ✅ Reutilizas tu propia función
+    const payload = await verificarTokenClerk(authHeader); //  Reutilizas tu propia función
 
     const userId = payload.sub;
 
     const usuario = await this.prisma.usuario.findFirst({
       where: {
         codigo: userId,
-        estado: 'activo', // ✅ solo usuarios activos
+        estado: 'activo', //  solo usuarios activos
+      },
+      select: {
+        id: true,
+        codigo: true,
+        clienteId: true, // NUEVO: incluir clienteId para rol CLIENTE
+        nombre: true,
+        apellidos: true,
+        telefono: true,
+        correo: true,
+        rol: true,
+        estado: true,
+        empresaId: true,
       },
     });
 

@@ -15,30 +15,53 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { UserPlus, Loader2 } from "lucide-react";
+import { UserPlus, Loader2, Eye, EyeOff } from "lucide-react";
 import { getDepartamentos } from "@/lib/getDepartamentos";
 import { getCiudades } from "@/lib/getCiudades";
 
-const formSchema = z.object({
-  nit: z
-    .string()
-    .min(5, "NIT debe tener al menos 5 dígitos")
-    .max(20, "NIT no puede tener más de 20 dígitos"),
-  rasonZocial: z.string().min(2).max(100).optional(),
-  nombre: z.string().min(2, "Nombre debe tener al menos 2 caracteres").max(50),
-  apellidos: z
-    .string()
-    .min(2, "Apellidos debe tener al menos 2 caracteres")
-    .max(100),
-  direccion: z
-    .string()
-    .min(10, "Dirección debe tener al menos 10 caracteres")
-    .max(100),
-  telefono: z.string().min(7, "Teléfono debe tener al menos 7 dígitos").max(15),
-  email: z.string().email("Correo inválido").max(50),
-  departamento: z.string().min(1, "Debe seleccionar un departamento"),
-  ciudad: z.string().min(1, "Debe seleccionar una ciudad"),
-});
+const formSchema = z
+  .object({
+    nit: z
+      .string()
+      .min(5, "NIT debe tener al menos 5 dígitos")
+      .max(20, "NIT no puede tener más de 20 dígitos"),
+    rasonZocial: z.string().min(2).max(100).optional(),
+    nombre: z
+      .string()
+      .min(2, "Nombre debe tener al menos 2 caracteres")
+      .max(50),
+    apellidos: z
+      .string()
+      .min(2, "Apellidos debe tener al menos 2 caracteres")
+      .max(100),
+    direccion: z
+      .string()
+      .min(10, "Dirección debe tener al menos 10 caracteres")
+      .max(100),
+    telefono: z
+      .string()
+      .min(7, "Teléfono debe tener al menos 7 dígitos")
+      .max(15),
+    email: z.string().email("Correo inválido").max(50),
+    departamento: z.string().min(1, "Debe seleccionar un departamento"),
+    ciudad: z.string().min(1, "Debe seleccionar una ciudad"),
+    empresaId: z.string().min(1, "Debe seleccionar una empresa"),
+    password: z
+      .string()
+      .min(8, "La contraseña debe tener al menos 8 caracteres")
+      .regex(/[A-Z]/, "Debe contener al menos una mayúscula")
+      .regex(/[a-z]/, "Debe contener al menos una minúscula")
+      .regex(/[0-9]/, "Debe contener al menos un número")
+      .regex(
+        /[^A-Za-z0-9]/,
+        "Debe contener al menos un carácter especial (#, @, !, etc.)"
+      ),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Las contraseñas no coinciden",
+    path: ["confirmPassword"],
+  });
 
 interface Departamento {
   id: number;
@@ -48,6 +71,12 @@ interface Departamento {
 interface Ciudad {
   id: number;
   name: string;
+}
+
+interface Empresa {
+  id: string;
+  nombre: string;
+  nit: string;
 }
 
 interface CreateClientStepProps {
@@ -68,6 +97,10 @@ export function CreateClientStep({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [ciudades, setCiudades] = useState<Ciudad[]>([]);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [loadingEmpresas, setLoadingEmpresas] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -83,6 +116,9 @@ export function CreateClientStep({
       email: "",
       departamento: "",
       ciudad: "",
+      empresaId: "",
+      password: "",
+      confirmPassword: "",
     },
   });
 
@@ -101,6 +137,43 @@ export function CreateClientStep({
     }
     fetchDepartamentos();
   }, []);
+
+  // Cargar empresas públicas
+  useEffect(() => {
+    async function fetchEmpresas() {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/clientes/public/empresas`
+        );
+
+        if (!response.ok) {
+          throw new Error("Error al cargar empresas");
+        }
+
+        const data = await response.json();
+
+        // El backend devuelve { empresas: [{ id, nombreComercial, nit, ... }] }
+        // Mapear a la interfaz esperada: { id, nombre, nit }
+        const empresasList = (data.empresas || []).map((emp: any) => ({
+          id: emp.id,
+          nombre: emp.nombreComercial,
+          nit: emp.nit,
+        }));
+
+        setEmpresas(empresasList);
+      } catch (error) {
+        console.error("Error al cargar empresas:", error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las empresas disponibles",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingEmpresas(false);
+      }
+    }
+    fetchEmpresas();
+  }, [toast]);
 
   // Cargar ciudades por departamento
   useEffect(() => {
@@ -132,57 +205,78 @@ export function CreateClientStep({
       const nombreCiud =
         ciudades.find((c) => c.id.toString() === values.ciudad)?.name || "";
 
-      const clientePayload = {
+      // Payload para cliente-nuevo/registrar (crea cliente + usuario + Clerk)
+      const registroPayload = {
         nit: values.nit.trim(),
-        rasonZocial: values.rasonZocial?.trim() || "",
         nombre: values.nombre.trim(),
         apellidos: values.apellidos.trim(),
-        direccion: values.direccion.trim(),
-        telefono: values.telefono.trim(),
         email: values.email.trim(),
+        password: values.password.trim(),
+        telefono: values.telefono.trim(),
+        direccion: values.direccion.trim(),
         departamento: nombreDpto,
         ciudad: nombreCiud,
+        razonSocial: values.rasonZocial?.trim(),
+        empresaId: values.empresaId,
       };
 
-      // Crear cliente sin autenticación (endpoint público)
-      const response = await fetch(`/api/clientes/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(clientePayload),
-      });
+      // Llamar directamente al backend público
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/auth/public/cliente-nuevo/registrar`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(registroPayload),
+        }
+      );
 
       if (!response.ok) {
-        const errorData = await response.text();
-        if (response.status === 409) {
-          throw new Error("El cliente ya está registrado");
-        } else {
-          throw new Error(`Error ${response.status}: ${errorData}`);
-        }
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Error al crear cliente");
       }
 
-      const cliente = await response.json();
+      const resultado = await response.json();
 
       toast({
-        title: "¡Cliente creado exitosamente!",
-        description: `${values.nombre} ${values.apellidos} fue registrado correctamente`,
+        title: "¡Cuenta creada exitosamente!",
+        description: `Bienvenido ${resultado.usuario.nombre} ${resultado.usuario.apellidos}`,
       });
 
+      // Pasar datos al padre para ir a pantalla de éxito
+      // Usar los datos del usuario ya que el backend no devuelve el cliente completo
       onClientCreated({
-        id: cliente.id,
-        nit: cliente.nit,
-        nombres: cliente.nombre,
-        apellidos: cliente.apellidos,
-        correo: cliente.email,
+        id: resultado.usuario.id,
+        nit: values.nit, // Usamos el NIT del formulario
+        nombres: resultado.usuario.nombre,
+        apellidos: resultado.usuario.apellidos,
+        correo: resultado.usuario.email,
       });
     } catch (error: any) {
       console.error("Error al crear cliente:", error);
-      toast({
-        title: "Error al crear cliente",
-        description: error.message || "Ocurrió un error inesperado",
-        variant: "destructive",
-      });
+
+      // Manejo de errores específicos
+      if (error.message.includes("pwned")) {
+        toast({
+          title: "Contraseña insegura",
+          description:
+            "Esta contraseña ha sido filtrada en brechas de seguridad. Usa una contraseña más segura.",
+          variant: "destructive",
+        });
+      } else if (error.message.includes("email")) {
+        toast({
+          title: "Email ya registrado",
+          description: "Este email ya está en uso. Intenta iniciar sesión.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error al crear cliente",
+          description: error.message || "Ocurrió un error inesperado",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -388,24 +482,134 @@ export function CreateClientStep({
                 </FormItem>
               )}
             />
+
+            {/* Empresa */}
+            <FormField
+              control={form.control}
+              name="empresaId"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Empresa *</FormLabel>
+                  <FormControl>
+                    <select
+                      {...field}
+                      disabled={loadingEmpresas}
+                      className="w-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">
+                        {loadingEmpresas
+                          ? "Cargando empresas..."
+                          : empresas.length === 0
+                          ? "No hay empresas disponibles"
+                          : "Seleccione una empresa"}
+                      </option>
+                      {empresas.map((empresa) => (
+                        <option key={empresa.id} value={empresa.id}>
+                          {empresa.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </FormControl>
+                  <FormMessage />
+                  {!loadingEmpresas && empresas.length === 0 && (
+                    <p className="text-xs text-red-500 mt-1">
+                      ⚠️ No se encontraron empresas disponibles. Contacta con
+                      soporte.
+                    </p>
+                  )}
+                </FormItem>
+              )}
+            />
+
+            {/* Contraseña */}
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Contraseña *</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Input
+                        {...field}
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        className="pr-12 bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-5 h-5" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                  <p className="text-xs text-slate-500">
+                    Mínimo 8 caracteres: mayúscula, minúscula, número y carácter
+                    especial
+                  </p>
+                </FormItem>
+              )}
+            />
+
+            {/* Confirmar Contraseña */}
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Confirmar Contraseña *</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Input
+                        {...field}
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        className="pr-12 bg-slate-50 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowConfirmPassword(!showConfirmPassword)
+                        }
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="w-5 h-5" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
 
           {/* Botón de envío */}
           <div className="flex justify-center pt-4">
             <Button
               type="submit"
-              disabled={!isValid || isSubmitting}
+              disabled={!isValid || isSubmitting || loadingEmpresas}
               className="w-full md:w-auto px-8 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creando perfil...
+                  Creando cuenta...
                 </>
               ) : (
                 <>
                   <UserPlus className="w-4 h-4 mr-2" />
-                  Crear Perfil de Cliente
+                  Crear Cuenta Completa
                 </>
               )}
             </Button>

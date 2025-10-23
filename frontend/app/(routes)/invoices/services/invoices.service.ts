@@ -74,7 +74,7 @@ export class InvoicesService {
     });
   }
 
-  // 🔄 ACTUALIZAR ESTADO DE PEDIDO - SIN ENTREGADO
+  // 🔄 ACTUALIZAR ESTADO DE PEDIDO - CON ACEPTADO
   async actualizarEstadoPedido(
     token: string,
     pedidoId: string,
@@ -84,9 +84,10 @@ export class InvoicesService {
       flete?: number;
     }
   ): Promise<any> {
-    // ✅ VALIDACIÓN: Solo estados permitidos (sin ENTREGADO)
+    // ✅ VALIDACIÓN: Solo estados permitidos (con ACEPTADO)
     const estadosPermitidos = [
       "GENERADO",
+      "ACEPTADO",
       "SEPARADO",
       "FACTURADO",
       "ENVIADO",
@@ -94,8 +95,7 @@ export class InvoicesService {
     ];
     if (!estadosPermitidos.includes(data.estado)) {
       throw new Error(
-        `Estado no válido: ${
-          data.estado
+        `Estado no válido: ${data.estado
         }. Estados permitidos: ${estadosPermitidos.join(", ")}`
       );
     }
@@ -162,12 +162,12 @@ export class InvoicesService {
     filtros: {
       filtro: string;
       tipoFiltro:
-        | "id"
-        | "clienteId"
-        | "usuarioId"
-        | "total"
-        | "empresaId"
-        | "fechaPedido";
+      | "id"
+      | "clienteId"
+      | "usuarioId"
+      | "total"
+      | "empresaId"
+      | "fechaPedido";
     }
   ): Promise<Pedido[]> {
     // ✅ USAR QUERY PARAMETERS - PERO VERIFICAR SI BACKEND ESPERA BODY
@@ -276,7 +276,7 @@ export class InvoicesService {
     }
   }
 
-  // 🔍 VERIFICAR SI PEDIDO PUEDE SER CANCELADO - SIN ENTREGADO
+  // 🔍 VERIFICAR SI PEDIDO PUEDE SER CANCELADO - CON ACEPTADO
   verificarPuedeCancelar(pedido: Pedido): { puede: boolean; razon?: string } {
     if (!pedido.estados || pedido.estados.length === 0) {
       return { puede: true }; // GENERADO puede cancelarse
@@ -289,6 +289,7 @@ export class InvoicesService {
 
     switch (estadoActual) {
       case "GENERADO":
+      case "ACEPTADO":
       case "SEPARADO":
       case "FACTURADO":
         return { puede: true };
@@ -381,8 +382,8 @@ export class InvoicesService {
         tasaCancelacion:
           estadisticas.totalPedidos > 0
             ? ((estadisticas.pedidosCancelados ?? 0) /
-                estadisticas.totalPedidos) *
-              100
+              estadisticas.totalPedidos) *
+            100
             : 0,
 
         //  tasaExito: estadisticas.porcentajeExito || 0, // % que llegan a ENVIADO
@@ -410,13 +411,14 @@ export class InvoicesService {
     return estadosOrdenados[0].estado;
   }
 
-  // 📊 VALIDAR TRANSICIÓN DE ESTADO - SIN ENTREGADO
+  // 📊 VALIDAR TRANSICIÓN DE ESTADO - CON ACEPTADO
   validarTransicionEstado(
     estadoActual: string,
     nuevoEstado: string
   ): { valida: boolean; razon?: string } {
     const transicionesValidas: Record<string, string[]> = {
-      GENERADO: ["SEPARADO"],
+      GENERADO: ["ACEPTADO"],
+      ACEPTADO: ["SEPARADO", "CANCELADO"],
       SEPARADO: ["FACTURADO", "CANCELADO"],
       FACTURADO: ["ENVIADO", "CANCELADO"],
       ENVIADO: [], // ✅ Estado final, no puede cambiar
@@ -428,9 +430,8 @@ export class InvoicesService {
     if (!estadosPermitidos.includes(nuevoEstado)) {
       return {
         valida: false,
-        razon: `No se puede cambiar de ${estadoActual} a ${nuevoEstado}. Estados permitidos: ${
-          estadosPermitidos.join(", ") || "ninguno (estado final)"
-        }`,
+        razon: `No se puede cambiar de ${estadoActual} a ${nuevoEstado}. Estados permitidos: ${estadosPermitidos.join(", ") || "ninguno (estado final)"
+          }`,
       };
     }
 
@@ -443,7 +444,10 @@ export class InvoicesService {
 
     switch (estadoActual) {
       case "GENERADO":
-        return ["Separar productos del inventario"];
+        return ["Aceptar pedido para continuar procesamiento"];
+
+      case "ACEPTADO":
+        return ["Separar productos del inventario", "Cancelar si es necesario"];
 
       case "SEPARADO":
         return ["Facturar pedido", "Cancelar si es necesario"];

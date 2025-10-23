@@ -14,7 +14,7 @@ export default async function CatalogPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-            <span className="text-red-600 text-2xl">🔒</span>
+            <span className="text-red-600 text-2xl"></span>
           </div>
           <h2 className="text-2xl font-bold text-gray-900">
             Acceso no autorizado
@@ -64,6 +64,7 @@ export default async function CatalogPage() {
           productos={productos}
           userType={usuario.rol}
           userName={`${usuario.nombre} ${usuario.apellidos || ""}`}
+          clienteId={usuario.clienteId || null}
         />
       </div>
     );

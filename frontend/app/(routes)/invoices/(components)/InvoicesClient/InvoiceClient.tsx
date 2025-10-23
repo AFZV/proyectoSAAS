@@ -193,6 +193,9 @@ export function InvoicesClient({
       case "GENERADO":
         badgeClass += " bg-blue-100 text-blue-800";
         break;
+      case "ACEPTADO":
+        badgeClass += " bg-green-200 text-green-800"; // ✅ Verde oscuro para ACEPTADO
+        break;
       case "SEPARADO":
         badgeClass += " bg-yellow-100 text-yellow-800";
         break;

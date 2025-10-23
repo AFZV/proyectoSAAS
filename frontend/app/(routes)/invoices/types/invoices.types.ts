@@ -2,7 +2,7 @@
 
 export interface EstadoPedido {
   id: string;
-  estado: "GENERADO" | "SEPARADO" | "FACTURADO" | "ENVIADO" | "CANCELADO"; // ✅ QUITADO ENTREGADO
+  estado: "GENERADO" | "ACEPTADO" | "SEPARADO" | "FACTURADO" | "ENVIADO" | "CANCELADO"; // ✅ AGREGADO ACEPTADO
   fechaEstado: string;
   pedidoId: string;
 }
@@ -83,10 +83,10 @@ export interface CreatePedidoDto {
   }[];
 }
 
-// ✅ DTO sin ENTREGADO
+// ✅ DTO con ACEPTADO
 export interface UpdateEstadoPedidoDto {
   pedidoId: string;
-  estado: "GENERADO" | "SEPARADO" | "FACTURADO" | "ENVIADO" | "CANCELADO"; // ✅ SIN ENTREGADO
+  estado: "GENERADO" | "ACEPTADO" | "SEPARADO" | "FACTURADO" | "ENVIADO" | "CANCELADO"; // ✅ AGREGADO ACEPTADO
   guiaTransporte?: string;
   flete?: number;
   motivoCancelacion?: string;
@@ -95,22 +95,29 @@ export interface UpdateEstadoPedidoDto {
 export interface FilterPedidoOptions {
   filtro: string;
   tipoFiltro:
-    | "id"
-    | "clienteId"
-    | "usuarioId"
-    | "total"
-    | "empresaId"
-    | "fechaPedido";
+  | "id"
+  | "clienteId"
+  | "usuarioId"
+  | "total"
+  | "empresaId"
+  | "fechaPedido";
 }
 
-// ✅ ESTADOS SIN ENTREGADO - ENVIADO ES FINAL
+// ✅ ESTADOS CON ACEPTADO - ENVIADO ES FINAL
 export const ESTADOS_PEDIDO = {
   GENERADO: {
     label: "Generado",
     color: "bg-blue-100 text-blue-800",
     icon: "📝",
     description: "Pedido creado y registrado",
-    siguientes: ["SEPARADO"], // ✅ Solo puede ir a SEPARADO
+    siguientes: ["ACEPTADO"], // ✅ Solo puede ir a ACEPTADO
+  },
+  ACEPTADO: {
+    label: "Aceptado",
+    color: "bg-green-200 text-green-800",
+    icon: "",
+    description: "Pedido aceptado por administración",
+    siguientes: ["SEPARADO", "CANCELADO"], // ✅ Puede ir a SEPARADO o CANCELADO
   },
   SEPARADO: {
     label: "Separado",
@@ -158,14 +165,14 @@ export interface EstadisticasPedidos {
   pedidosFinalizados?: number; // ✅ ENVIADO será el equivalente a "finalizados"
 }
 
-// ✅ Enum sin ENTREGADO
+// ✅ Enum con ACEPTADO
 export enum EstadoPedidoEnum {
   GENERADO = "GENERADO",
+  ACEPTADO = "ACEPTADO",
   SEPARADO = "SEPARADO",
   FACTURADO = "FACTURADO",
   ENVIADO = "ENVIADO", // ✅ Ahora es estado final
   CANCELADO = "CANCELADO",
-  // ✅ ELIMINADO: ENTREGADO = 'ENTREGADO'
 }
 
 // ✅ Helper para obtener estados siguientes
@@ -175,9 +182,9 @@ export const getEstadosSiguientes = (
   return ESTADOS_PEDIDO[estadoActual]?.siguientes.slice() || [];
 };
 
-// ✅ Helper para verificar si puede cancelarse - SEPARADO y FACTURADO
+// ✅ Helper para verificar si puede cancelarse - ACEPTADO, SEPARADO y FACTURADO
 export const puedeSerCancelado = (estadoActual: EstadoPedidoKey): boolean => {
-  return ["SEPARADO", "FACTURADO"].includes(estadoActual);
+  return ["ACEPTADO", "SEPARADO", "FACTURADO"].includes(estadoActual);
 };
 
 // ✅ Helper para verificar si es estado final - ENVIADO y CANCELADO
@@ -192,7 +199,7 @@ export const esPedidoExitoso = (estado: EstadoPedidoKey): boolean => {
 
 // ✅ Helper para verificar si el pedido está en proceso
 export const esPedidoEnProceso = (estado: EstadoPedidoKey): boolean => {
-  return ["GENERADO", "SEPARADO", "FACTURADO"].includes(estado);
+  return ["GENERADO", "ACEPTADO", "SEPARADO", "FACTURADO"].includes(estado);
 };
 
 // ✅ Helper para obtener color del badge
@@ -252,6 +259,7 @@ export interface MetricasPedidos {
 export const ESTADOS_FINALES: EstadoPedidoKey[] = ["ENVIADO", "CANCELADO"];
 export const ESTADOS_ACTIVOS: EstadoPedidoKey[] = [
   "GENERADO",
+  "ACEPTADO",
   "SEPARADO",
   "FACTURADO",
 ];
@@ -275,6 +283,8 @@ export const getSiguientePasoRecomendado = (
 ): string => {
   switch (estado) {
     case "GENERADO":
+      return "Aceptar pedido para continuar procesamiento";
+    case "ACEPTADO":
       return "Separar productos del inventario";
     case "SEPARADO":
       return "Facturar pedido para descontar stock";

@@ -38,7 +38,7 @@ export function AdvancedFilters({
   const { getToken } = useAuth();
   const { toast } = useToast();
 
-  // ✅ Tipos de filtro que coinciden exactamente con tu backend
+  // Tipos de filtro que coinciden exactamente con tu backend
   const tiposFiltro = [
     { value: "id", label: "ID del Pedido", placeholder: "Ej: abc123..." },
     {

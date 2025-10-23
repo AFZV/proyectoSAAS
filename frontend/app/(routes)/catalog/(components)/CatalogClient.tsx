@@ -33,12 +33,14 @@ interface CatalogClientProps {
   productos: Producto[];
   userType: string;
   userName: string;
+  clienteId: string | null;
 }
 
 export function CatalogClient({
   productos: productosIniciales,
   userType,
   userName,
+  clienteId,
 }: CatalogClientProps) {
   // -------------------- ESTADOS BASE --------------------
   const [productos] = useState<Producto[]>(productosIniciales);
@@ -734,6 +736,8 @@ export function CatalogClient({
         onPedidoCreado={handlePedidoCreado}
         initialNotes={buildTextoObservacionesCheckout()}
         onNotesChange={(nuevoTexto) => setObservacionGeneral(nuevoTexto)}
+        userType={userType}
+        clienteId={clienteId}
       />
 
       {/* Modal de detalles */}
