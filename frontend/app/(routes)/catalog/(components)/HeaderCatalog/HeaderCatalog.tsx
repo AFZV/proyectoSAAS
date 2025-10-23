@@ -16,6 +16,7 @@ import {
   RefreshCw,
   DownloadIcon,
   Tags,
+  ImageIcon,
 } from "lucide-react";
 import { ProductManagementModal } from "../ProductManagementModal/ProductManagementModal";
 import { FormCreateProduct } from "../FormCreateProduct/FormCreateProduct";
@@ -28,6 +29,8 @@ interface HeaderCatalogProps {
   onProductUpdated?: () => void;
   totalProductos?: number;
   productosEnStock?: number;
+  onToggleSelectionMode?: () => void;
+  isSelectionMode?: boolean;
 }
 
 type Categoria = { idCategoria: string; nombre: string };
@@ -36,6 +39,8 @@ export function HeaderCatalog({
   onProductUpdated,
   totalProductos = 0,
   productosEnStock = 0,
+  onToggleSelectionMode,
+  isSelectionMode = false,
 }: HeaderCatalogProps) {
   const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -298,6 +303,19 @@ export function HeaderCatalog({
             >
               <Tags className="w-4 h-4" />
               PDF por categoría
+            </Button>
+
+            {/* ⬇️ nuevo botón: Seleccionar Fotos */}
+            <Button
+              onClick={onToggleSelectionMode}
+              className={`flex items-center gap-2 shadow-lg w-full sm:w-auto ${
+                isSelectionMode
+                  ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 hover:shadow-red-500/25"
+                  : "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 hover:shadow-blue-500/25"
+              } text-white`}
+            >
+              <ImageIcon className="w-4 h-4" />
+              {isSelectionMode ? "Cancelar Selección" : "Seleccionar Fotos"}
             </Button>
           </div>
         </div>

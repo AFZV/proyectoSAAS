@@ -276,6 +276,17 @@ export class CatalogService {
       body: JSON.stringify(pedidoData),
     });
   }
+
+  // 📄 GENERAR CATÁLOGO PDF POR IDS SELECCIONADOS
+  async generarCatalogoPorIds(
+    token: string,
+    productoIds: string[]
+  ): Promise<{ url: string; key: string; count: number }> {
+    return this.makeRequest("/productos/catalogoseleccionado/seleccionado", token, {
+      method: "POST",
+      body: JSON.stringify({ productoIds }),
+    });
+  }
 }
 
 // Instancia singleton

@@ -14,6 +14,7 @@ import {
   ShoppingCart,
   ArrowUp01Icon,
   ArrowUpCircle,
+  DownloadIcon,
 } from "lucide-react";
 import { Pagination } from "./Pagination";
 import { useAuth } from "@clerk/nextjs";
@@ -24,6 +25,7 @@ import { CategoryFilter } from "./CategoryFilter/CategoryFilter";
 import { SearchBar } from "./SearchBar/SearchBar";
 import { CartSidebar } from "./CartSidebar/CartSidebar";
 import { CheckoutModal } from "./CheckoutModal/CheckoutModal";
+import { HeaderCatalog } from "./HeaderCatalog/HeaderCatalog";
 import { catalogService } from "../services/catalog.services";
 import type { Producto, CarritoItem, Categoria } from "../types/catalog.types";
 import { formatValue } from "@/utils/FormartValue";
@@ -34,6 +36,8 @@ interface CatalogClientProps {
   userType: string;
   userName: string;
   clienteId: string | null;
+  totalProductos?: number;
+  productosEnStock?: number;
 }
 
 export function CatalogClient({
@@ -41,6 +45,8 @@ export function CatalogClient({
   userType,
   userName,
   clienteId,
+  totalProductos = 0,
+  productosEnStock = 0,
 }: CatalogClientProps) {
   // -------------------- ESTADOS BASE --------------------
   const [productos] = useState<Producto[]>(productosIniciales);
@@ -110,6 +116,13 @@ export function CatalogClient({
   const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // 📸 Modo selección de fotos para PDF
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const { toast } = useToast();
 
@@ -494,9 +507,95 @@ export function CatalogClient({
       console.error("Error generando imagen:", err);
     }
   };
+
+  // -------------------- MODO SELECCIÓN --------------------
+  const handleToggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    if (isSelectionMode) {
+      // Al cancelar, limpiar selección
+      setSelectedProductIds(new Set());
+    }
+  };
+
+  const handleToggleProductSelection = (productoId: string) => {
+    setSelectedProductIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(productoId)) {
+        newSet.delete(productoId);
+      } else {
+        newSet.add(productoId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleGenerarPDFSeleccionado = async () => {
+    if (selectedProductIds.size === 0) {
+      toast({
+        title: "Sin selección",
+        description: "Selecciona al menos un producto para generar el PDF",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingPDF(true);
+    try {
+      const token = await getToken();
+      if (!token) {
+        toast({
+          title: "Sin acceso",
+          description: "Necesitas iniciar sesión de nuevo",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const productoIdsArray = Array.from(selectedProductIds);
+      const response = await catalogService.generarCatalogoPorIds(
+        token,
+        productoIdsArray
+      );
+
+      // Abrir el PDF en nueva pestaña
+      window.open(response.url, "_blank", "noopener,noreferrer");
+
+      // Copiar URL al portapapeles
+      await navigator.clipboard.writeText(response.url);
+
+      toast({
+        title: "✅ PDF Generado",
+        description: `Catálogo con ${response.count} producto(s) generado. Link copiado al portapapeles.`,
+      });
+
+      // Limpiar selección y salir del modo selección
+      setSelectedProductIds(new Set());
+      setIsSelectionMode(false);
+    } catch (error: any) {
+      console.error("Error generando PDF:", error);
+      toast({
+        title: "Error al generar PDF",
+        description: error?.message || "Inténtalo de nuevo",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   // -------------------- RENDER --------------------
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
+      {/* Header con botones de administración (solo admin) */}
+      {userType === "admin" && (
+        <HeaderCatalog
+          totalProductos={totalProductos}
+          productosEnStock={productosEnStock}
+          onToggleSelectionMode={handleToggleSelectionMode}
+          isSelectionMode={isSelectionMode}
+        />
+      )}
+
       {/* Bienvenida */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center justify-between">
@@ -630,6 +729,11 @@ export function CatalogClient({
                     onChangeObservacion={(texto) =>
                       setObservacionProducto(producto.id, texto)
                     }
+                    isSelectionMode={isSelectionMode}
+                    isSelected={selectedProductIds.has(producto.id)}
+                    onToggleSelection={() =>
+                      handleToggleProductSelection(producto.id)
+                    }
                   />
                 );
               })}
@@ -651,6 +755,30 @@ export function CatalogClient({
             <ArrowUpCircle className="w-5 h-5" />
             Ir Arriba
           </button>
+
+          {/* Botón flotante para generar PDF con productos seleccionados */}
+          {isSelectionMode && selectedProductIds.size > 0 && (
+            <button
+              onClick={handleGenerarPDFSeleccionado}
+              disabled={isGeneratingPDF}
+              className="fixed bottom-20 right-6 flex items-center gap-3 px-5 py-3 
+               bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 
+               text-white font-bold rounded-full shadow-2xl transition-all duration-300 
+               hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed z-50"
+            >
+              {isGeneratingPDF ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Generando...</span>
+                </>
+              ) : (
+                <>
+                  <DownloadIcon className="w-5 h-5" />
+                  <span>Generar PDF ({selectedProductIds.size})</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Carrito lateral (desktop) */}

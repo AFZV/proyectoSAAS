@@ -51,20 +51,14 @@ export default async function CatalogPage() {
 
     return (
       <div className="space-y-6">
-        {/* Header con botones de administración y estadísticas (solo admin) */}
-        {usuario.rol === "admin" && (
-          <HeaderCatalog
-            totalProductos={productos.length}
-            productosEnStock={productos.filter((p) => p.stock > 0).length}
-          />
-        )}
-
         {/* Componente cliente con toda la funcionalidad */}
         <CatalogClient
           productos={productos}
           userType={usuario.rol}
           userName={`${usuario.nombre} ${usuario.apellidos || ""}`}
           clienteId={usuario.clienteId || null}
+          totalProductos={productos.length}
+          productosEnStock={productos.filter((p) => p.stock > 0).length}
         />
       </div>
     );
