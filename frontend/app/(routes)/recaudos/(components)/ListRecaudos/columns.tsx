@@ -293,13 +293,29 @@ export const columns: ColumnDef<ReciboConRelaciones>[] = [
 
   // 👇 NUEVA COLUMNA
   {
-    accessorKey: "revisado",
-    header: "Estado",
+    id: "revisado",
+    header: ({ column }: { column: Column<ReciboConRelaciones, unknown> }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Estado <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    // Valor usado para ordenar (0 = Pendiente, 1 = Revisado)
+    accessorFn: (row) => (row.revisado ? 1 : 0),
+    // Asegura ordenación básica por el número anterior
+    sortingFn: (rowA, rowB, columnId) => {
+      const a = rowA.getValue<number>(columnId) ?? 0;
+      const b = rowB.getValue<number>(columnId) ?? 0;
+      return a === b ? 0 : a > b ? 1 : -1;
+    },
+    sortDescFirst: true, // primero los Revisado (1)
+    enableSorting: true,
+    enableHiding: true,
     cell: ({ row }) => (
       <RevisadoToggle key={row.original.id} recibo={row.original} />
     ),
-    // permite ocultarla desde el menú de columnas si quieres
-    enableHiding: true,
   },
 
   {

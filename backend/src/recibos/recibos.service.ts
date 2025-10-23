@@ -263,38 +263,38 @@ export class RecibosService {
 
           if (!recibo.cliente?.email) throw new Error('Error al obtener email');
 
-          const numeroWhatsApp = `+57${recibo.usuario?.telefono?.replace(/\D/g, '')}`;
+          // const numeroWhatsApp = `+57${recibo.usuario?.telefono?.replace(/\D/g, '')}`;
 
-          await this.resendService.enviarCorreo(
-            recibo.cliente.email,
-            'Confirmación de tu recibo',
-            `
-  <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
-    <p>Hola <strong>${recibo.cliente.nombre}</strong>,</p>
+          //         await this.resendService.enviarCorreo(
+          //           recibo.cliente.email,
+          //           'Confirmación de tu recibo',
+          //           `
+          // <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+          //   <p>Hola <strong>${recibo.cliente.nombre}</strong>,</p>
 
-    <p>Tu Recibo ha sido <strong>Generado exitosamente</strong>. Adjuntamos el comprobante en PDF:</p>
+          //   <p>Tu Recibo ha sido <strong>Generado exitosamente</strong>. Adjuntamos el comprobante en PDF:</p>
 
-    <p style="margin: 16px 0;">
-      <a href="${url}" target="_blank"
-         style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
-        Ver Comprobante PDF
-      </a>
-    </p>
+          //   <p style="margin: 16px 0;">
+          //     <a href="${url}" target="_blank"
+          //        style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
+          //       Ver Comprobante PDF
+          //     </a>
+          //   </p>
 
-    <p>¿Tienes alguna duda sobre tu pago? Contáctanos:</p>
+          //   <p>¿Tienes alguna duda sobre tu pago? Contáctanos:</p>
 
-    <p>
-      <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
-         style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
-        💬 Contactar por WhatsApp
-      </a>
-    </p>
+          //   <p>
+          //     <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
+          //        style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
+          //       💬 Contactar por WhatsApp
+          //     </a>
+          //   </p>
 
-    <p style="margin-top: 30px;">Gracias por tu pago,</p>
-    <p><strong>Equipo de Recaudos</strong></p>
-  </div>
-  `
-          );
+          //   <p style="margin-top: 30px;">Gracias por tu pago,</p>
+          //   <p><strong>Equipo de Recaudos</strong></p>
+          // </div>
+          // `
+          //         );
         } catch (err) {
           console.error('❌ Error generando o subiendo PDF de recibo:', err);
         }
@@ -536,37 +536,37 @@ export class RecibosService {
 
           if (!recibo.cliente?.email) throw new Error('Error al obtener email');
 
-          const numeroWhatsApp = `+57${recibo.usuario?.telefono?.replace(/\D/g, '')}`;
-          await this.resendService.enviarCorreo(
-            recibo.cliente.email,
-            'Actualizacion de tu recibo',
-            `
-  <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
-    <p>Hola <strong>${recibo.cliente.nombre}</strong>,</p>
+          //         const numeroWhatsApp = `+57${recibo.usuario?.telefono?.replace(/\D/g, '')}`;
+          //         await this.resendService.enviarCorreo(
+          //           recibo.cliente.email,
+          //           'Actualizacion de tu recibo',
+          //           `
+          // <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+          //   <p>Hola <strong>${recibo.cliente.nombre}</strong>,</p>
 
-    <p>Tu Recibo ha sido <strong>Generado exitosamente</strong>. Adjuntamos el comprobante en PDF:</p>
+          //   <p>Tu Recibo ha sido <strong>Generado exitosamente</strong>. Adjuntamos el comprobante en PDF:</p>
 
-    <p style="margin: 16px 0;">
-      <a href="${url}" target="_blank"
-         style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
-        Ver Comprobante PDF
-      </a>
-    </p>
+          //   <p style="margin: 16px 0;">
+          //     <a href="${url}" target="_blank"
+          //        style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
+          //       Ver Comprobante PDF
+          //     </a>
+          //   </p>
 
-    <p>¿Tienes alguna duda sobre tu pago? Contáctanos:</p>
+          //   <p>¿Tienes alguna duda sobre tu pago? Contáctanos:</p>
 
-    <p>
-      <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
-         style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
-        💬 Contactar por WhatsApp
-      </a>
-    </p>
+          //   <p>
+          //     <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
+          //        style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
+          //       💬 Contactar por WhatsApp
+          //     </a>
+          //   </p>
 
-    <p style="margin-top: 30px;">Gracias por tu pago,</p>
-    <p><strong>Equipo de Recaudos</strong></p>
-  </div>
-  `
-          );
+          //   <p style="margin-top: 30px;">Gracias por tu pago,</p>
+          //   <p><strong>Equipo de Recaudos</strong></p>
+          // </div>
+          // `
+          //         );
         } catch (err) {
           console.error('❌ Error al regenerar PDF actualizado:', err);
         }

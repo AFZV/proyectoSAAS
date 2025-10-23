@@ -17,6 +17,7 @@ type MovimientoClienteDTO = {
   saldo: number; // saldo acumulado
   descripcion?: string;
   vencimiento?: Date | null;
+  pedidosIds?: string[];
 };
 
 @Injectable()
@@ -232,6 +233,7 @@ export class BalanceService {
     resultado.sort(
       (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
     );
+    console.log('movimientosCarteraCliente', { resultado });
 
     return { movimientos: resultado };
   }
@@ -620,31 +622,31 @@ export class BalanceService {
   ): Promise<MovimientoClienteDTO[]> {
     if (!usuario) throw new UnauthorizedException('Usuario no autorizado');
 
-    const { empresaId, id: userId, rol } = usuario;
+    const { empresaId } = usuario;
 
     // Alcance por rol:
     // admin  -> todos los movimientos de la empresa
     // vendedor -> solo movimientos suyos (idUsuario) o enlazados a pedido/recibo creados por él
-    const whereBase: any = {
-      empresaId,
-      idCliente: clienteId,
-      // si manejas anulaciones, agrega: anulado: false
-    };
+    // const whereBase: any = {
+    //   empresaId,
+    //   idCliente: clienteId,
+    //   // si manejas anulaciones, agrega: anulado: false
+    // };
 
-    const whereRol =
-      rol === 'admin'
-        ? {}
-        : {
-            OR: [
-              { idUsuario: userId },
-              { pedido: { usuarioId: userId } },
-              { recibo: { usuarioId: userId } },
-            ],
-          };
+    // const whereRol =
+    //   rol === 'admin'
+    //     ? {}
+    //     : {
+    //         OR: [
+    //           { idUsuario: userId },
+    //           { pedido: { usuarioId: userId } },
+    //           { recibo: { usuarioId: userId } },
+    //         ],
+    //       };
 
     // Traemos los movimientos con lo mínimo necesario para construir el DTO
     const movs = await this.prisma.movimientosCartera.findMany({
-      where: { ...whereBase, ...whereRol },
+      where: { empresaId: empresaId, idCliente: clienteId },
       select: {
         idMovimientoCartera: true,
         idPedido: true,
@@ -654,13 +656,16 @@ export class BalanceService {
         valorMovimiento: true,
         observacion: true,
         tipoMovimientoOrigen: true, // PEDIDO | RECIBO | AJUSTE_MANUAL
+        detalleAjusteCartera: {
+          select: { idPedido: true, valor: true },
+        },
         pedido: {
           select: {
             id: true,
             usuarioId: true,
             fechaPedido: true,
             fechaEnvio: true,
-            credito: true, // Float? -> días
+            credito: true,
           },
         },
         recibo: {
@@ -670,15 +675,24 @@ export class BalanceService {
             Fechacrecion: true,
             tipo: true,
             concepto: true,
+            // 👇 IMPORTANTE: trae los pedidos implicados
+            detalleRecibo: {
+              select: {
+                idPedido: true,
+                valorTotal: true,
+                estado: true,
+                saldoPendiente: true,
+                pedido: { select: { id: true } }, // opcional
+              },
+            },
           },
         },
       },
-      orderBy: { fechaMovimientoCartera: 'asc' }, // orden base
+      orderBy: { fechaMovimientoCartera: 'asc' },
     });
 
     // Mapeo a DTO del front
     const mapped = movs.map<MovimientoClienteDTO>((m) => {
-      // Tipo para el front
       const tipo: MovimientoClienteDTO['tipo'] =
         m.tipoMovimientoOrigen === 'PEDIDO'
           ? 'Factura'
@@ -686,9 +700,8 @@ export class BalanceService {
             ? 'Recaudo'
             : m.tipoMovimientoOrigen === 'AJUSTE_MANUAL'
               ? 'Ajuste'
-              : 'Nota crédito'; // fallback si agregas NOTA_CREDITO en el futuro
+              : 'Nota crédito';
 
-      // Fecha visible según origen
       const fechaOrigen =
         tipo === 'Factura'
           ? (m.pedido?.fechaPedido ?? m.fechaMovimientoCartera)
@@ -696,7 +709,6 @@ export class BalanceService {
             ? (m.recibo?.Fechacrecion ?? m.fechaMovimientoCartera)
             : m.fechaMovimientoCartera;
 
-      // Vencimiento (solo para Factura): fechaEnvio + credito(días)
       const diasCredito = Number(m.pedido?.credito ?? 0);
       const vencimiento =
         tipo === 'Factura' && m.pedido?.fechaEnvio
@@ -706,13 +718,16 @@ export class BalanceService {
             )
           : null;
 
-      // Número (no tienes campos "numero" en Pedido/Recibo): formateo por id
+      // 👇 Pedidos implicados
+      const pedidosIdsFromRecibo =
+        m.recibo?.detalleRecibo?.map((d) => d.idPedido).filter(Boolean) ?? [];
+
+      // Número visible
       const numero =
         (m.idPedido ? `${m.idPedido.slice(0, 6)}` : null) ??
         (m.idRecibo ? `${m.idRecibo.slice(0, 6)}` : null) ??
         `NC-${m.idMovimientoCartera.slice(0, 6)}`;
 
-      // Descripción
       const descripcion =
         m.observacion ??
         (tipo === 'Factura'
@@ -721,17 +736,20 @@ export class BalanceService {
             ? m.recibo?.concepto || 'Recaudo'
             : 'Ajuste de cartera');
 
-      // Signo del monto:
-      //  - Factura: +valor
-      //  - Recaudo: -valor
-      //  - Ajuste: por tu lógica, NEGATIVO (reduce cartera)
+      const ajusteDetalles =
+        m.tipoMovimientoOrigen === 'AJUSTE_MANUAL'
+          ? (m.detalleAjusteCartera ?? []).map((d) => ({
+              pedidoId: d.idPedido,
+              valor: Number(d.valor || 0),
+            }))
+          : [];
+
       let monto = Number(m.valorMovimiento || 0);
       if (tipo === 'Recaudo' || tipo === 'Nota crédito') {
         monto = -Math.abs(monto);
       } else if (tipo === 'Ajuste') {
         monto = -Math.abs(monto);
       } else {
-        // Factura
         monto = +Math.abs(monto);
       }
 
@@ -741,11 +759,26 @@ export class BalanceService {
         tipo,
         numero,
         monto,
-        saldo: 0, // se calcula en el acumulado
+        saldo: 0,
         descripcion,
         vencimiento,
+        // Mantén compatibilidad:
+        pedidoId: m.idPedido ?? pedidosIdsFromRecibo[0] ?? null,
+        // Nuevo campo opcional con TODOS los pedidos implicados:
+        pedidosIds: pedidosIdsFromRecibo.length
+          ? pedidosIdsFromRecibo
+          : m.idPedido
+            ? [m.idPedido]
+            : [],
+        pedidosIdsAjuste: ajusteDetalles.length
+          ? ajusteDetalles.map((d) => d.pedidoId)
+          : m.idPedido
+            ? [m.idPedido]
+            : [],
+        ajusteDetalles, // 👈 NUEVO: [{ pedidoId, valor }]
       };
     });
+    console.log('[movimientosCliente mapped]', JSON.stringify(mapped, null, 2));
 
     // Orden final por la "fecha" consolidada (sin que el front tenga que ordenar)
     mapped.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
