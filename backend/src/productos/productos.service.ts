@@ -14,7 +14,8 @@ import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import { formatearTexto } from 'src/lib/formatearTexto';
 import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
 import { promises as fs } from 'fs';
-
+import { GenerarCatalogoPorIdsDto } from './dto/generar-catalogo-por-ids.dto';
+import { format } from 'date-fns';
 @Injectable()
 export class ProductosService {
   constructor(
@@ -215,8 +216,12 @@ export class ProductosService {
     if (!usuario) throw new BadRequestException('no permitido');
     if (usuario.rol !== 'admin')
       throw new UnauthorizedException('usuario no autorizado');
+    // const logoUrl = await prisma?.empresa.findUnique({
+    //   where: { id: usuario.empresaId },
+    //   select: { logoUrl: true },
+    // });
 
-    // 1) Obtén los productos igual que en findAllforCatalog:
+    // // 1) Obtén los productos igual que en findAllforCatalog:
     const empresaId = usuario.empresaId;
     const productos = await this.prisma.producto.findMany({
       where: {
@@ -506,5 +511,98 @@ export class ProductosService {
       }
       return null;
     }
+  }
+
+  async generarCatalogoLinkPorIdsPDF(
+    usuario: UsuarioPayload,
+    dto: GenerarCatalogoPorIdsDto
+  ): Promise<{ url: string; key: string; count: number }> {
+    if (!usuario) throw new BadRequestException('no permitido');
+    if (usuario.rol !== 'admin')
+      throw new UnauthorizedException('usuario no autorizado');
+
+    const { productoIds } = dto;
+    if (!productoIds?.length)
+      throw new BadRequestException('productoIds vacío');
+
+    // 1) Traer productos de la empresa, activos y con stock > 0
+    const productos = await this.prisma.producto.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+        id: { in: productoIds },
+        estado: 'activo',
+        inventario: { some: { stockActual: { gt: 0 } } }, // ← SOLO con stock
+      },
+      include: {
+        inventario: {
+          where: { idEmpresa: usuario.empresaId },
+          select: { stockActual: true },
+        },
+        categoria: { select: { nombre: true } },
+      },
+    });
+
+    if (!productos?.length) {
+      throw new BadRequestException(
+        'no hay productos con stock para generar el catálogo'
+      );
+    }
+
+    // 2) Mantener el orden solicitado y recalcular stock por seguridad
+    const order: Record<string, number> = {};
+    productoIds.forEach((id, idx) => (order[id] = idx));
+
+    const productosConStock = productos
+      .map((p) => ({
+        ...p,
+        stockDisponible: p.inventario.reduce(
+          (acc, inv) => acc + (inv.stockActual || 0),
+          0
+        ),
+      }))
+      .filter((p) => p.stockDisponible > 0)
+      .sort((a, b) => (order[a.id] ?? 99999) - (order[b.id] ?? 99999));
+
+    if (!productosConStock.length) {
+      throw new BadRequestException(
+        'ninguno de los productos seleccionados tiene stock'
+      );
+    }
+
+    // 3) Adaptar al formato de tu plantilla EJS
+    const productosFormateados = productosConStock.map((p) => ({
+      nombre: p.nombre,
+      imagenUrl: p.imagenUrl ?? '',
+      precioVenta: p.precioVenta ?? 0,
+      categoria: p.categoria ?? undefined,
+      stockDisponible: p.stockDisponible,
+    }));
+
+    // 4) Generar PDF a disco
+    const fecha = format(new Date(), 'yyyyMMdd_HHmm');
+    const fileName = `catalogo_seleccionado_${fecha}.pdf`;
+
+    const { path } = await this.pdfUploaderService.generarCatalogoPDFaDisco(
+      productosFormateados,
+      fileName
+    );
+
+    // 5) Subir a Hetzner (forzar descarga)
+    const folder = `catalogos/${usuario.empresaId}/por-ids`;
+    const { url, key } = await this.hetznerService.uploadPublicFromPath(
+      path,
+      fileName,
+      folder
+      // si tu método acepta opts; si no, cambia ContentDisposition en el service de Hetzner
+    );
+
+    // 6) Limpiar archivo temporal
+    try {
+      await fs.unlink(path);
+    } catch {
+      /* noop */
+    }
+
+    return { url, key, count: productosConStock.length };
   }
 }

@@ -20,6 +20,7 @@ interface MovimientoCartera {
   valorMovimiento: number;
   tipoMovimiento: string;
   referencia: string;
+  pedidoId?: string | null; // 👈 NUEVO: id del pedido afectado, si aplica
 }
 
 interface Cliente {
@@ -193,37 +194,61 @@ export function CarteraDetalleModal({
 
                 <tbody>
                   {(() => {
-                    // 1) Ordenar cronológicamente (más antiguos primero)
+                    // 1) Orden cronológico (antiguos primero)
                     const ordenados = [...movimientos].sort(
                       (a, b) =>
                         new Date(a.fecha).getTime() -
                         new Date(b.fecha).getTime()
                     );
 
+                    type Tipo = "PEDIDO" | "RECIBO" | "AJUSTE_MANUAL" | string;
                     type Grupo = {
-                      clave: string; // tipo:referencia
-                      tipo: "PEDIDO" | "RECIBO" | "AJUSTE_MANUAL" | string;
+                      clave: string;
+                      tipo: Tipo;
                       referencia: string;
-                      fechaInicio: string; // primera del grupo
-                      total: number; // suma del grupo (positivo)
+                      fechaInicio: string;
+                      total: number;
                       items: MovimientoCartera[];
                     };
 
-                    // 2) Agrupar por tipo + referencia (para ajustes sin ref, uso "AJUSTE")
+                    // 2) Agrupar SOLO si es RECIBO o AJUSTE_MANUAL; PEDIDO siempre individual
                     const mapa = new Map<string, Grupo>();
-                    for (const m of ordenados) {
-                      const ref = m.referencia || "AJUSTE";
-                      const clave = `${m.tipoMovimiento}:${ref}`;
+                    ordenados.forEach((m, idx) => {
+                      const refLimpia = (m.referencia || "").trim();
+                      const tipo = m.tipoMovimiento as Tipo;
+
+                      const esAgrupable =
+                        tipo === "RECIBO" || tipo === "AJUSTE_MANUAL";
+
+                      // 👇 Clave:
+                      // - Agrupable (RECIBO/AJUSTE): agrupa por tipo + referencia
+                      // - No agrupable (PEDIDO): fuerza clave única por movimiento
+                      const clave = esAgrupable
+                        ? `${tipo}:${
+                            refLimpia ||
+                            (tipo === "RECIBO" ? "RECIBO" : "AJUSTE")
+                          }`
+                        : `${tipo}:${refLimpia || "PEDIDO"}:${new Date(
+                            m.fecha
+                          ).getTime()}:${idx}`;
+
                       if (!mapa.has(clave)) {
                         mapa.set(clave, {
                           clave,
-                          tipo: m.tipoMovimiento,
-                          referencia: ref,
+                          tipo,
+                          referencia:
+                            refLimpia ||
+                            (tipo === "RECIBO"
+                              ? "RECIBO"
+                              : tipo === "AJUSTE_MANUAL"
+                              ? "AJUSTE"
+                              : "PEDIDO"),
                           fechaInicio: m.fecha,
                           total: 0,
                           items: [],
                         });
                       }
+
                       const g = mapa.get(clave)!;
                       g.items.push(m);
                       g.total += m.valorMovimiento;
@@ -233,21 +258,17 @@ export function CarteraDetalleModal({
                       ) {
                         g.fechaInicio = m.fecha;
                       }
-                    }
+                    });
 
-                    // 3) A array y ordenar por fecha de inicio
+                    // 3) A array + ordenar por fecha de inicio
                     const grupos = Array.from(mapa.values()).sort(
                       (a, b) =>
                         new Date(a.fechaInicio).getTime() -
                         new Date(b.fechaInicio).getTime()
                     );
 
-                    // 4) Saldo acumulado por grupo
+                    // 4) Saldo acumulado por grupo (muestra el saldo después de cada grupo)
                     let saldoAcumulado = 0;
-
-                    // 5) Estado expandido (define este useState ARRIBA del componente):
-                    // const [expandido, setExpandido] = useState<Record<string, boolean>>({});
-                    // const toggle = (k: string) => setExpandido(prev => ({...prev, [k]: !prev[k]}));
 
                     const renderBadge = (tipo: string) => (
                       <span
@@ -268,14 +289,15 @@ export function CarteraDetalleModal({
                     );
 
                     return grupos.map((g) => {
+                      // signo/color por grupo
                       let signo = "";
                       let colorValor = "";
                       if (g.tipo === "PEDIDO") {
-                        saldoAcumulado += g.total; // Cargo suma
+                        saldoAcumulado += g.total; // cargo suma
                         signo = "+";
                         colorValor = "text-green-600";
                       } else if (g.tipo === "RECIBO") {
-                        saldoAcumulado -= g.total; // Abono resta
+                        saldoAcumulado -= g.total; // abono resta
                         signo = "-";
                         colorValor = "text-red-600";
                       } else {
@@ -290,11 +312,15 @@ export function CarteraDetalleModal({
                           ? `Pedido #${g.referencia.slice(0, 6)}`
                           : g.tipo === "RECIBO"
                           ? `Recibo #${g.referencia.slice(0, 6)}`
+                          : g.referencia && g.referencia !== "AJUSTE"
+                          ? `Ajuste #${g.referencia.slice(0, 6)}`
                           : "Ajuste manual";
+
+                      const tieneMultiples = g.items.length > 1; // 👈 solo colapsable cuando hay varios (recibo multi-pedido o ajuste multi-pedido)
 
                       return (
                         <React.Fragment key={g.clave}>
-                          {/* Fila principal: EXACTAMENTE 6 celdas */}
+                          {/* Fila principal */}
                           <tr className="border-b hover:bg-gray-50 transition-colors">
                             <td className="px-4 py-2">{fmt(g.fechaInicio)}</td>
                             <td className="px-4 py-2">{renderBadge(g.tipo)}</td>
@@ -314,7 +340,7 @@ export function CarteraDetalleModal({
                               ${saldoAcumulado.toLocaleString("es-CO")}
                             </td>
                             <td className="px-4 py-2 text-right">
-                              {g.items.length > 1 ? (
+                              {tieneMultiples ? (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -329,8 +355,8 @@ export function CarteraDetalleModal({
                             </td>
                           </tr>
 
-                          {/* Detalle (UNA SOLA celda que ocupa TODAS las columnas) */}
-                          {expandido[g.clave] && g.items.length > 1 && (
+                          {/* Detalle expandible: SOLO cuando hay múltiples items */}
+                          {tieneMultiples && expandido[g.clave] && (
                             <tr className="bg-gray-50">
                               <td colSpan={6} className="px-6 py-3">
                                 <div className="space-y-2">
@@ -339,22 +365,33 @@ export function CarteraDetalleModal({
                                       m.tipoMovimiento === "PEDIDO";
                                     const esAbono =
                                       m.tipoMovimiento === "RECIBO";
+                                    const esAjuste =
+                                      m.tipoMovimiento === "AJUSTE_MANUAL";
+
                                     const colorDetalle = esCargo
                                       ? "text-green-600"
                                       : esAbono
                                       ? "text-red-600"
                                       : "text-blue-600";
+
                                     const labelDetalle = esCargo
                                       ? "Cargo"
                                       : esAbono
                                       ? "Abono"
                                       : "Ajuste";
                                     const signoDetalle = esCargo ? "+" : "-";
+
+                                    // 👇 NUEVO: cuando es ajuste o recibo, preferimos mostrar el pedido afectado
                                     const refDetalle = esCargo
-                                      ? `Pedido #${m.referencia.slice(0, 6)}`
-                                      : esAbono
-                                      ? `Recibo #${m.referencia.slice(0, 6)}`
-                                      : "Ajuste manual";
+                                      ? `Pedido #${(m.referencia || "").slice(
+                                          0,
+                                          6
+                                        )}`
+                                      : esAbono || esAjuste
+                                      ? m.pedidoId
+                                        ? `Pedido #${m.pedidoId.slice(0, 6)}`
+                                        : "Pedido afectado"
+                                      : "—";
 
                                     return (
                                       <div

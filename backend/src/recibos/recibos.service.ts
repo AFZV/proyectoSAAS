@@ -174,7 +174,7 @@ export class RecibosService {
             idUsuario: relacion.usuarioId,
             empresaId: usuario.empresaId,
             idRecibo: creado.id,
-            observacion: `Abono generado desde creación de recibo #${creado.id}`,
+            observacion: `Abono generado desde creación de recibo #${creado.id.slice(0, 6)}`,
             tipoMovimientoOrigen: 'RECIBO',
           },
         });

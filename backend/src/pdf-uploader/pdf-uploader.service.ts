@@ -11,7 +11,6 @@ import { launch, Browser, Page } from 'puppeteer';
 import * as os from 'os';
 import { PDFDocument } from 'pdf-lib';
 import axios, { AxiosResponse } from 'axios';
-
 import { ResumenPedidoDto } from './dto/resumen-pedido.dto';
 import { ResumenReciboDto } from './dto/resumen-recibo.dto';
 import { ResumenCompraDto } from 'src/compras/dto/resumen-compra.dto';
