@@ -10,6 +10,14 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Loader2 } from "lucide-react";
 
+type Empresa = {
+  id: string;
+  nit: string;
+  nombre: string;
+  razonSocial: string;
+  nombreComercial?: string;
+};
+
 const validateSchema = z.object({
   nit: z.string().min(1, "El NIT es requerido"),
 });
@@ -23,6 +31,7 @@ interface ValidateClientStepProps {
     nombres: string;
     apellidos: string;
     correo?: string;
+    empresas?: Empresa[];
   }) => void;
   onClientNotFound: (nit: string) => void;
 }
