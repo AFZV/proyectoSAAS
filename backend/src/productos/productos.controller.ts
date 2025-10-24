@@ -31,7 +31,7 @@ import { GenerarCatalogoPorIdsDto } from './dto/generar-catalogo-por-ids.dto';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('productos')
 export class ProductosController {
-  constructor(private productosService: ProductosService) { }
+  constructor(private productosService: ProductosService) {}
   //Crear un producto validando los datos con el DTO
   @Roles('admin')
   @Post('create')
@@ -152,7 +152,7 @@ export class ProductosController {
     return { url, key };
   }
   // productos.controller.ts
-  @Roles('admin')
+  @Roles('admin', 'vendedor')
   @Get('catalogo/link/categoria/:categoriaId')
   async catalogoLinkPorCategoria(
     @Req() req: UsuarioRequest,
@@ -224,7 +224,7 @@ export class ProductosController {
   //     const usuario = req.usuario;
   //     return this.productosService.generarCatalogoLinkPPT(usuario);
   //   }
-  @Roles('admin')
+  @Roles('admin', 'vendedor')
   @Post('catalogoseleccionado/seleccionado')
   async catalogoPdfPorIds(
     @Req() req: UsuarioRequest,

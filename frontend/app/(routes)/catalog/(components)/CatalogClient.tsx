@@ -116,7 +116,8 @@ export function CatalogClient({
   const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
+  const isAdmin = userType === "admin";
+  const isSeller = userType === "vendedor";
   // 📸 Modo selección de fotos para PDF
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(
@@ -265,8 +266,13 @@ export function CatalogClient({
       }
     }
 
+    // 👇 extra: para vendedor no mostrar agotados
+    if (isSeller) {
+      filtered = filtered.filter((p) => (p.stock ?? 0) > 0);
+    }
+
     return filtered;
-  }, [productos, searchTerm, categoriaSeleccionada, categorias]);
+  }, [productos, searchTerm, categoriaSeleccionada, categorias, isSeller]);
 
   const totalPaginas = Math.ceil(
     productosFiltrados.length / productosPorPagina
@@ -279,10 +285,13 @@ export function CatalogClient({
   }, [productosFiltrados, paginaActual]);
 
   const cantidadPorCategoria = useMemo(() => {
+    const base = isSeller
+      ? productos.filter((p) => (p.stock ?? 0) > 0)
+      : productos;
     const counts: Record<string, number> = {};
 
     categorias.forEach((categoria) => {
-      const count = productos.filter(
+      const count = base.filter(
         (producto) =>
           producto.categoria.toLowerCase() === categoria.nombre.toLowerCase()
       ).length;
@@ -290,7 +299,7 @@ export function CatalogClient({
     });
 
     return counts;
-  }, [productos, categorias]);
+  }, [productos, categorias, isSeller]);
 
   useEffect(() => {
     setPaginaActual(1);
@@ -587,7 +596,8 @@ export function CatalogClient({
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
       {/* Header con botones de administración (solo admin) */}
-      {userType === "admin" && (
+      {/* Header con botones de administración (admin y vendedor) */}
+      {(isAdmin || isSeller) && (
         <HeaderCatalog
           totalProductos={totalProductos}
           productosEnStock={productosEnStock}

@@ -133,8 +133,10 @@ export class ProductosService {
     categoriaId: string
   ): Promise<{ url: string; key: string }> {
     if (!usuario) throw new BadRequestException('no permitido');
-    if (usuario.rol !== 'admin')
+    const rolesPermitidos = ['admin', 'vendedor'];
+    if (!rolesPermitidos.includes(usuario.rol)) {
       throw new UnauthorizedException('usuario no autorizado');
+    }
 
     // 1) Verifica que la categoría exista en la empresa
     const categoria = await this.prisma.categoriasProducto.findFirst({
@@ -518,8 +520,10 @@ export class ProductosService {
     dto: GenerarCatalogoPorIdsDto
   ): Promise<{ url: string; key: string; count: number }> {
     if (!usuario) throw new BadRequestException('no permitido');
-    if (usuario.rol !== 'admin')
+    const rolesPermitidos = ['admin', 'vendedor'];
+    if (!rolesPermitidos.includes(usuario.rol)) {
       throw new UnauthorizedException('usuario no autorizado');
+    }
 
     const { productoIds } = dto;
     if (!productoIds?.length)
