@@ -3,11 +3,12 @@ import { AuthService } from './auth.service';
 import { UsuarioGuard } from 'src/common/guards/usuario.guard'; // Asegúrate de importar bien
 import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { SuperadminGuard } from 'src/common/guards/superadmin.guard';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
-
+  @SkipThrottle()
   @UseGuards(UsuarioGuard)
   @Get('usuario-actual')
   async obtenerUsuarioActual(@Req() req: UsuarioRequest) {

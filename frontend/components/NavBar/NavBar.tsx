@@ -26,7 +26,6 @@ export async function NavBar() {
 
   return (
     <nav className="flex items-center px-2 gap-x-4 md:px-6 w-full bg-background border-b h-20">
-
       {/* Menú lateral (solo visible en pantallas pequeñas) */}
       <div className="block xl:hidden">
         <Sheet>
@@ -43,7 +42,6 @@ export async function NavBar() {
 
       {/* Empuja lo siguiente a la derecha */}
       <div className="flex items-center gap-x-3 ml-auto">
-
         {/* Notificaciones */}
         <Button variant="ghost" size="icon" className="hover:bg-muted relative">
           <Bell className="h-5 w-5" />

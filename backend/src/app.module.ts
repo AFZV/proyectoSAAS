@@ -38,10 +38,12 @@ import { AuthPublicModule } from './auth-public/auth-public.module';
 @Module({
   imports: [
     // Rate Limiting: 10 requests por minuto por IP
-    ThrottlerModule.forRoot([{
-      ttl: 60000, // 60 segundos
-      limit: 10,  // 10 requests máximo
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // 60 segundos
+        limit: 20, // 10 requests máximo
+      },
+    ]),
     PrismaModule,
     UsuarioModule,
     DashboardModule,
@@ -83,4 +85,4 @@ import { AuthPublicModule } from './auth-public/auth-public.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}
