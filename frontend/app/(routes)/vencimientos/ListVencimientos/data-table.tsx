@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -13,6 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import type { PaginationState } from "@tanstack/react-table";
 
 import {
   Table,
@@ -62,7 +63,13 @@ export function DataTableClients<TData, TValue>({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [pageSize, setPageSize] = useState<number>(10);
+  // Reemplaza estos estados:
+  // const [pageSize, setPageSize] = useState<number>(10);
+
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
 
   const table = useReactTable({
     data,
@@ -70,6 +77,7 @@ export function DataTableClients<TData, TValue>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
+    onPaginationChange: setPagination, // 👈 IMPORTANTE
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -78,26 +86,21 @@ export function DataTableClients<TData, TValue>({
       sorting,
       columnFilters,
       columnVisibility,
-      pagination: { pageIndex: 0, pageSize },
+      pagination, // 👈 usa tu estado, NO hardcodees pageIndex: 0
     },
   });
 
   // Total de clientes filtrados para el footer
   const totalRows = table.getFilteredRowModel().rows.length;
+  useEffect(() => {
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  }, [columnFilters]); // o cuando cambie el valor del buscador
 
   // Texto accesible para rango mostrado
   const rangeText = useMemo(() => {
-    const start =
-      totalRows === 0
-        ? 0
-        : table.getState().pagination.pageIndex *
-            table.getState().pagination.pageSize +
-          1;
-    const end = Math.min(
-      (table.getState().pagination.pageIndex + 1) *
-        table.getState().pagination.pageSize,
-      totalRows
-    );
+    const { pageIndex, pageSize } = table.getState().pagination;
+    const start = totalRows === 0 ? 0 : pageIndex * pageSize + 1;
+    const end = Math.min((pageIndex + 1) * pageSize, totalRows);
     return `${start} a ${end}`;
   }, [table, totalRows]);
 
@@ -125,8 +128,8 @@ export function DataTableClients<TData, TValue>({
         <div className="flex items-center gap-2">
           {/* Page size */}
           <Select
-            value={String(pageSize)}
-            onValueChange={(v) => setPageSize(Number(v))}
+            value={String(table.getState().pagination.pageSize)}
+            onValueChange={(v) => table.setPageSize(Number(v))} // 👈
           >
             <SelectTrigger className="w-[120px]">
               <SelectValue placeholder="Tamaño" />
