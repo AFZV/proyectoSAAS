@@ -3,6 +3,7 @@
 
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { safeCopyToClipboard } from "@/utils/safeCopy";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -566,18 +567,40 @@ export function CatalogClient({
         productoIdsArray
       );
 
-      // Abrir el PDF en nueva pestaña
-      window.open(response.url, "_blank", "noopener,noreferrer");
+      const urlPublica = response.url; // Asegúrate que sea URL pública (no blob:)
 
-      // Copiar URL al portapapeles
-      await navigator.clipboard.writeText(response.url);
+      // 1) COPIAR PRIMERO (dentro del mismo onClick)
+      const copied = await safeCopyToClipboard(urlPublica);
+
+      // 2) Si no copió en móvil, intenta Web Share (mejor UX que fallar)
+      if (
+        !copied &&
+        typeof navigator !== "undefined" &&
+        (navigator as any).share
+      ) {
+        try {
+          await (navigator as any).share({
+            title: "Catálogo",
+            text: `Catálogo con ${response.count} producto(s)`,
+            url: urlPublica,
+          });
+        } catch {
+          // usuario canceló compartir; seguimos
+        }
+      }
+
+      // 3) ABRIR/descargar DESPUÉS para no perder el gesture
+      // abrir en nueva pestaña
+      window.open(urlPublica, "_blank", "noopener,noreferrer");
 
       toast({
         title: "✅ PDF Generado",
-        description: `Catálogo con ${response.count} producto(s) generado. Link copiado al portapapeles.`,
+        description: copied
+          ? `Catálogo con ${response.count} producto(s). Link copiado.`
+          : `Catálogo con ${response.count} producto(s). Abierto. (No se pudo copiar automáticamente)`,
       });
 
-      // Limpiar selección y salir del modo selección
+      // 4) Limpiar selección
       setSelectedProductIds(new Set());
       setIsSelectionMode(false);
     } catch (error: any) {
@@ -591,7 +614,6 @@ export function CatalogClient({
       setIsGeneratingPDF(false);
     }
   };
-
   // -------------------- RENDER --------------------
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">

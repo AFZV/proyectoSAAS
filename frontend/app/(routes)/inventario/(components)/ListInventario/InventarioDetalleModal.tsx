@@ -82,8 +82,6 @@ export function InventarioDetalleModal({
         const movimientosData = movimientos || [];
         setMovimientos(movimientosData);
         setFilteredMovimientos(movimientosData);
-        console.log("movimientos que llegan", movimientos);
-        console.log("movimientos filtrados:", filteredMovimientos);
       } catch (e: any) {
         setError(e.message);
       } finally {

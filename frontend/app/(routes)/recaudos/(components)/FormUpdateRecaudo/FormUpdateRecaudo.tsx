@@ -124,7 +124,7 @@ export function FormUpdateRecibo({
     setIsUpdating(true);
     try {
       const token = await getToken();
-      console.log("valores a enviar", values);
+
       await axios.patch(
         `${process.env.NEXT_PUBLIC_API_URL}/recibos/${searchForm.getValues(
           "idRecibo"

@@ -28,6 +28,11 @@ import {
   AlertCircle,
   Columns,
   CheckCircle,
+  XCircle,
+  BadgeCheck,
+  ListChecks,
+  Package,
+  PlusCircle,
 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
@@ -100,6 +105,68 @@ export function InvoicesClient({
 
   const { getToken } = useAuth();
   const { toast } = useToast();
+
+  const STAT_ICONS: Record<
+    string,
+    { Icon: React.ElementType; bg: string; fg: string }
+  > = {
+    totalPedidos: { Icon: ListChecks, bg: "bg-blue-100", fg: "text-blue-600" },
+    pedidosGenerados: {
+      Icon: PlusCircle,
+      bg: "bg-blue-100",
+      fg: "text-blue-600",
+    },
+    pedidosFacturados: {
+      Icon: FileText,
+      bg: "bg-purple-100",
+      fg: "text-purple-600",
+    },
+    pedidosCompletados: {
+      Icon: CheckCircle,
+      bg: "bg-green-100",
+      fg: "text-green-600",
+    }, // ENVIADO
+    pedidosCancelados: { Icon: XCircle, bg: "bg-red-100", fg: "text-red-600" },
+    pedidosSeparados: {
+      Icon: Package,
+      bg: "bg-yellow-100",
+      fg: "text-yellow-600",
+    },
+    pedidosAceptados: {
+      Icon: BadgeCheck,
+      bg: "bg-emerald-100",
+      fg: "text-emerald-600",
+    },
+  };
+
+  function StatCard({
+    label,
+    value,
+    statKey,
+  }: {
+    label: string;
+    value: number;
+    statKey: keyof typeof STAT_ICONS;
+  }) {
+    const { Icon, bg, fg } = STAT_ICONS[statKey];
+    return (
+      <div className="bg-white rounded-xl p-3 lg:p-6 border border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xl lg:text-3xl font-bold text-gray-900">
+              {value}
+            </p>
+            <p className="text-xs lg:text-sm text-gray-500 font-medium">
+              {label}
+            </p>
+          </div>
+          <div className={`${bg} p-2 lg:p-4 rounded-xl`}>
+            <Icon className={`w-3 h-3 lg:w-6 lg:h-6 ${fg}`} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Funciones helper
   const getEstadoActual = (pedido: Pedido): string => {
@@ -955,11 +1022,12 @@ export function InvoicesClient({
           .filter(
             ([estado]) =>
               ![
-                "SEPARADO",
+                "GENERADO",
                 "CANCELADO",
                 "ENVIADO",
                 "SEPARADO",
                 "FACTURADO",
+                "ACEPTADO",
               ].includes(estado)
           ) // ✅ ENVIADO ya no es activo
           .reduce((sum, [, count]) => sum + count, 0),
@@ -968,6 +1036,7 @@ export function InvoicesClient({
         pedidosSeparados: estadisticas.pedidosPorEstado.SEPARADO || 0,
         pedidosGenerados: estadisticas.pedidosPorEstado.GENERADO || 0,
         pedidosFacturados: estadisticas.pedidosPorEstado.FACTURADO || 0,
+        pedidosAceptados: estadisticas.pedidosPorEstado.ACEPTADO || 0,
       };
     }
 
@@ -992,6 +1061,9 @@ export function InvoicesClient({
       const estado = getEstadoActual(p);
       return estado === "FACTURADO";
     }).length;
+    const pedidosAceptados = pedidosFiltrados.filter(
+      (p) => getEstadoActual(p) === "ACEPTADO"
+    ).length;
 
     return {
       totalPedidos,
@@ -1000,6 +1072,7 @@ export function InvoicesClient({
       pedidosCompletados,
       pedidosCancelados,
       pedidosSeparados,
+      pedidosAceptados,
     };
   }, [pedidosFiltrados, estadisticas]);
 
@@ -1049,100 +1122,43 @@ export function InvoicesClient({
       </div>
 
       {/* ✅ Stats Cards actualizadas - Responsive mejorado */}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6 mb-6 lg:mb-8">
-        <div className="bg-white rounded-xl p-3 lg:p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xl lg:text-3xl font-bold text-gray-900">
-                {stats.totalPedidos}
-              </p>
-              <p className="text-xs lg:text-sm text-gray-500 font-medium">
-                Total
-              </p>
-            </div>
-            <div className="bg-blue-100 p-2 lg:p-4 rounded-xl">
-              <div className="w-3 h-3 lg:w-6 lg:h-6 bg-blue-600 rounded-lg"></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3 lg:p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xl lg:text-3xl font-bold text-gray-900">
-                {stats.pedidosGenerados}
-              </p>
-              <p className="text-xs lg:text-sm text-gray-500 font-medium">
-                Generados
-              </p>
-            </div>
-            <div className="bg-blue-100 p-2 lg:p-4 rounded-xl">
-              <div className="w-3 h-3 lg:w-6 lg:h-6 bg-blue-600 rounded-lg"></div>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl p-3 lg:p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xl lg:text-3xl font-bold text-gray-900">
-                {stats.pedidosSeparados}
-              </p>
-              <p className="text-xs lg:text-sm text-gray-500 font-medium">
-                Separados
-              </p>
-            </div>
-            <div className="bg-yellow-100 p-2 lg:p-4 rounded-xl">
-              <div className="w-3 h-3 lg:w-6 lg:h-6 bg-yellow-600 rounded-lg"></div>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl p-3 lg:p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xl lg:text-3xl font-bold text-gray-900">
-                {stats.pedidosFacturados}
-              </p>
-              <p className="text-xs lg:text-sm text-gray-500 font-medium">
-                Facturados
-              </p>
-            </div>
-            <div className="bg-green-100 p-2 lg:p-4 rounded-xl">
-              <FileText className="w-3 h-3 lg:w-6 lg:h-6 text-purple-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3 lg:p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xl lg:text-3xl font-bold text-gray-900">
-                {stats.pedidosCompletados}
-              </p>
-              <p className="text-xs lg:text-sm text-gray-500 font-medium">
-                Enviados ✓
-              </p>
-            </div>
-            <div className="bg-green-100 p-2 lg:p-4 rounded-xl">
-              <CheckCircle className="w-3 h-3 lg:w-6 lg:h-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-3 lg:p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xl lg:text-3xl font-bold text-gray-900">
-                {stats.pedidosCancelados}
-              </p>
-              <p className="text-xs lg:text-sm text-gray-500 font-medium">
-                Cancelados
-              </p>
-            </div>
-            <div className="bg-red-100 p-2 lg:p-4 rounded-xl">
-              <div className="w-3 h-3 lg:w-6 lg:h-6 bg-red-600 rounded-full"></div>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          label="Total"
+          value={stats.totalPedidos}
+          statKey="totalPedidos"
+        />
+        <StatCard
+          label="Generados"
+          value={stats.pedidosGenerados}
+          statKey="pedidosGenerados"
+        />
+        <StatCard
+          label="Aceptados"
+          value={stats.pedidosAceptados}
+          statKey="pedidosAceptados"
+        />
+        <StatCard
+          label="Separados"
+          value={stats.pedidosSeparados}
+          statKey="pedidosSeparados"
+        />
+        <StatCard
+          label="Facturados"
+          value={stats.pedidosFacturados}
+          statKey="pedidosFacturados"
+        />
+        <StatCard
+          label="Enviados ✓"
+          value={stats.pedidosCompletados}
+          statKey="pedidosCompletados"
+        />
+        <StatCard
+          label="Cancelados"
+          value={stats.pedidosCancelados}
+          statKey="pedidosCancelados"
+        />
       </div>
 
       {/* Sección de pedidos */}

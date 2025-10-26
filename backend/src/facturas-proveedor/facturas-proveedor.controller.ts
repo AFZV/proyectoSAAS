@@ -53,7 +53,7 @@ export class FacturasProveedorController {
     @Req() req: UsuarioRequest
   ) {
     const usuario = req.usuario;
-    console.log('Usuario en controlador:', usuario);
+
     if (!usuario) {
       throw new UnauthorizedException('Usuario no autenticado');
     }

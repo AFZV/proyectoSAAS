@@ -33,7 +33,7 @@ export class PedidosService {
     private cloudinaryService: CloudinaryService,
     private resend: ResendService,
     private hetznerStorage: HetznerStorageService
-  ) { }
+  ) {}
 
   private async generarYSubirPDFPedido(pedido: PedidoParaPDF) {
     const total = pedido.productos.reduce(
@@ -93,7 +93,12 @@ export class PedidosService {
       );
     }
 
-    const { empresaId, id: ejecutorId, rol: rolEjecutor, clienteId: clienteIdUsuario } = usuario;
+    const {
+      empresaId,
+      id: ejecutorId,
+      rol: rolEjecutor,
+      clienteId: clienteIdUsuario,
+    } = usuario;
 
     const totalCalculado = data.productos.reduce(
       (s, p) => s + p.cantidad * p.precio,
@@ -107,7 +112,9 @@ export class PedidosService {
     if (rolEjecutor === 'CLIENTE') {
       // Cliente creando su propio pedido desde catálogo
       if (!clienteIdUsuario) {
-        throw new BadRequestException('Usuario cliente no vinculado correctamente');
+        throw new BadRequestException(
+          'Usuario cliente no vinculado correctamente'
+        );
       }
 
       clienteId = clienteIdUsuario;
@@ -121,7 +128,9 @@ export class PedidosService {
       });
 
       if (!relacion?.usuario) {
-        throw new BadRequestException('No hay vendedor asignado a este cliente');
+        throw new BadRequestException(
+          'No hay vendedor asignado a este cliente'
+        );
       }
 
       vendedorId = relacion.usuario.id;
@@ -676,7 +685,10 @@ export class PedidosService {
     if (rol !== 'admin' && rol !== 'bodega') {
       throw new UnauthorizedException('No está autorizado');
     }
-
+    const vendedorAsignado = await this.prisma.clienteEmpresa.findFirst({
+      where: { clienteId: data.clienteId, empresaId },
+      select: { usuarioId: true },
+    });
     // ✅ 0) Garantiza un producto por línea (sin duplicados)
     const ids = (data.productos ?? []).map((p) => p.productoId);
     if (new Set(ids).size !== ids.length) {
@@ -939,7 +951,11 @@ export class PedidosService {
         }
       })();
     });
-
+    //actualizar vendedor si cambia el cliente
+    await this.prisma.pedido.update({
+      where: { id: pedidoId },
+      data: { usuarioId: vendedorAsignado?.usuarioId },
+    });
     // Respuesta al front
     const pedidoFinal = await this.prisma.pedido.findUnique({
       where: { id: pedidoId },
@@ -1114,13 +1130,6 @@ export class PedidosService {
       // 4) Extraer solo las URLs (ya sabemos que son strings válidas)
       const urls = productosConManifiesto.map((p) => p.url as string);
 
-      console.log(
-        `📋 Productos con manifiesto: ${productosConManifiesto.length}/${productos.length}`
-      );
-      productosConManifiesto.forEach((p) =>
-        console.log(`✅ ${p.nombre}: ${p.url}`)
-      );
-
       // 5) Fusionar
       const resultado = await this.pdfUploaderService.fusionarPdfsDesdeUrls(
         urls,
@@ -1208,10 +1217,6 @@ export class PedidosService {
       }
 
       const urls = manifiestos.map((m) => m.url);
-
-      console.log(
-        `📋 Manifiestos válidos encontrados: ${manifiestos.length}/${pedido.productos.length}`
-      );
 
       // Fusionar
       const resultado = await this.pdfUploaderService.fusionarPdfsDesdeUrls(

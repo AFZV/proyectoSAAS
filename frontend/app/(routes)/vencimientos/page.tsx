@@ -41,7 +41,6 @@ export default async function VencimientosPage() {
       stats.vencenHoy = data.vencenHoy || 0;
       stats.vencen7Dias = data.vencen7Dias || 0;
       stats.totalPorCobrar = data.totalPorCobrar || 0;
-      console.log("Fetched stats:", stats);
     } else {
       console.error("Error fetching stats:", res.status, res.statusText);
     }

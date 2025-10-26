@@ -233,7 +233,6 @@ export class BalanceService {
     resultado.sort(
       (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
     );
-    console.log('movimientosCarteraCliente', { resultado });
 
     return { movimientos: resultado };
   }
@@ -778,7 +777,6 @@ export class BalanceService {
         ajusteDetalles, // 👈 NUEVO: [{ pedidoId, valor }]
       };
     });
-    console.log('[movimientosCliente mapped]', JSON.stringify(mapped, null, 2));
 
     // Orden final por la "fecha" consolidada (sin que el front tenga que ordenar)
     mapped.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
@@ -789,7 +787,6 @@ export class BalanceService {
       running += it.monto;
       it.saldo = running;
     }
-    console.log('movimientosCliente', { clienteId, mapped });
 
     return mapped;
   }

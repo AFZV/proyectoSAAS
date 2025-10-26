@@ -95,7 +95,8 @@ export class InvoicesService {
     ];
     if (!estadosPermitidos.includes(data.estado)) {
       throw new Error(
-        `Estado no válido: ${data.estado
+        `Estado no válido: ${
+          data.estado
         }. Estados permitidos: ${estadosPermitidos.join(", ")}`
       );
     }
@@ -131,7 +132,6 @@ export class InvoicesService {
     pedidoId: string,
     data: Partial<CreatePedidoDto>
   ): Promise<Pedido> {
-    console.log("data que se enviara a backend:", data);
     return this.makeRequest<Pedido>(`/pedidos/${pedidoId}`, token, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -162,12 +162,12 @@ export class InvoicesService {
     filtros: {
       filtro: string;
       tipoFiltro:
-      | "id"
-      | "clienteId"
-      | "usuarioId"
-      | "total"
-      | "empresaId"
-      | "fechaPedido";
+        | "id"
+        | "clienteId"
+        | "usuarioId"
+        | "total"
+        | "empresaId"
+        | "fechaPedido";
     }
   ): Promise<Pedido[]> {
     // ✅ USAR QUERY PARAMETERS - PERO VERIFICAR SI BACKEND ESPERA BODY
@@ -382,8 +382,8 @@ export class InvoicesService {
         tasaCancelacion:
           estadisticas.totalPedidos > 0
             ? ((estadisticas.pedidosCancelados ?? 0) /
-              estadisticas.totalPedidos) *
-            100
+                estadisticas.totalPedidos) *
+              100
             : 0,
 
         //  tasaExito: estadisticas.porcentajeExito || 0, // % que llegan a ENVIADO
@@ -430,8 +430,9 @@ export class InvoicesService {
     if (!estadosPermitidos.includes(nuevoEstado)) {
       return {
         valida: false,
-        razon: `No se puede cambiar de ${estadoActual} a ${nuevoEstado}. Estados permitidos: ${estadosPermitidos.join(", ") || "ninguno (estado final)"
-          }`,
+        razon: `No se puede cambiar de ${estadoActual} a ${nuevoEstado}. Estados permitidos: ${
+          estadosPermitidos.join(", ") || "ninguno (estado final)"
+        }`,
       };
     }
 

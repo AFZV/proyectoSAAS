@@ -45,7 +45,6 @@ export class PagosProveedorService {
       select: { idPagoProveedor: true, empresaId: true },
     });
     if (!pago) throw new NotFoundException('Pago no encontrado');
-    console.log('pago encontrado :', pago);
     if (empresaId && pago.empresaId !== empresaId) {
       throw new ForbiddenException('No tienes acceso a este recurso');
     }

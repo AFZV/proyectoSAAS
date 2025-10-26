@@ -221,7 +221,6 @@ export class FacturasProveedorService {
             : undefined,
       };
     });
-    console.log('Movimientos calculados:', movimientos);
 
     return movimientos;
   }
@@ -432,7 +431,6 @@ export class FacturasProveedorService {
 
   async remove(idFacturaProveedor: string, usuario: UsuarioPayload) {
     // 1) verificar existencia
-    console.log('entro al service');
     if (!usuario) {
       throw new BadRequestException('usuario noa utenticado aun');
     }
@@ -458,7 +456,7 @@ export class FacturasProveedorService {
     await this.prisma.facturaProveedor.delete({
       where: { idFacturaProveedor, empresaId },
     });
-    console.log('saliendo del service');
+
     return { ok: true };
   }
 }

@@ -56,7 +56,7 @@ export class PagosProveedorController {
     }
 
     // Obtén empresaId desde tu guard/req.user/headers (ajústalo a tu proyecto)
-    console.log('pago a eliminar:', idPagoProveedor);
+
     return this.pagosProveedorService.deletePagoProveedor(
       idPagoProveedor,
       usuario

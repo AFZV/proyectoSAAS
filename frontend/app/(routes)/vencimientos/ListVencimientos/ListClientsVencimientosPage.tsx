@@ -44,9 +44,9 @@ const fmtCOP = (v: number) =>
 
 export async function ListClientsVencimientosPage() {
   const data = await getClientesConSaldo();
-  console.log("Clientes con saldo:", data);
+
   const totalClientes = data.length;
-  console.log("Total clientes con saldo:", totalClientes);
+
   // const totalSaldoCOP = data.reduce(
   //   (acc, c) => acc + (c.saldoPendienteCOP || 0),
   //   0

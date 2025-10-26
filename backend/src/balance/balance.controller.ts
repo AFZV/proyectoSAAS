@@ -78,7 +78,6 @@ export class BalanceController {
     @Req() req: UsuarioRequest,
     @Param('clienteId') clienteId: string
   ) {
-    console.log('entrando a movimientosPorCliente con clienteId', clienteId);
     const usuario = req.usuario;
     return this.balanceService.movimientosCliente(usuario, clienteId);
   }

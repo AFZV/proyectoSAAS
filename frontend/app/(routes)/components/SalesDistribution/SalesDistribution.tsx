@@ -1,13 +1,14 @@
 import { CustomIcon } from "@/components/CustomIcon";
-import { BarChart, TrendingUp } from "lucide-react";
+import { BarChart, TrendingUp, TrendingDown } from "lucide-react";
 import { GraphicsVentas } from "../Graphics";
 import { GraphicsRecaudos } from "../GraphicsRecaudos";
 import { getToken } from "@/lib/getToken";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
 type SalesDistributionProps = {
-  variacionVentas?: string;
-  variacionCobros?: string;
+  variacionVentas?: number | string;
+  variacionCobros?: number | string;
 };
 
 export async function SalesDistribution({
@@ -16,23 +17,57 @@ export async function SalesDistribution({
 }: SalesDistributionProps) {
   const token = await getToken();
 
-  // Fetch ventas
   const resventas = await fetch(`${BACKEND_URL}/dashboard/ventas`, {
     headers: { Authorization: `Bearer ${token}` },
     next: { revalidate: 0 },
   });
   const dataVentas = await resventas.json();
 
-  // Fetch cobros
   const resCobros = await fetch(`${BACKEND_URL}/dashboard/cobros`, {
     headers: { Authorization: `Bearer ${token}` },
     next: { revalidate: 0 },
   });
   const dataCobros = await resCobros.json();
 
+  // 👉 Función auxiliar para decidir icono/color
+  const renderVariacion = (valor?: number | string) => {
+    if (valor === undefined || valor === null) return null;
+
+    // Normalizar a número (soporta " -54.6% ", "-54.6", 0, 12.3, etc.)
+    const n =
+      typeof valor === "number"
+        ? valor
+        : parseFloat(String(valor).replace("%", "").trim());
+
+    if (Number.isNaN(n)) return null;
+
+    const esNegativo = n < 0;
+    const esCero = n === 0;
+
+    // Icono y color según signo (comportamiento natural)
+    const Icono = esNegativo ? TrendingDown : TrendingUp;
+    const colorClass = esNegativo
+      ? "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/20"
+      : esCero
+      ? "text-muted-foreground bg-muted/30 dark:bg-muted/10"
+      : "text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-900/20";
+
+    // Formatear porcentaje mostrado
+    const mostrar = `${n.toFixed(2)}%`;
+
+    return (
+      <div
+        className={`flex items-center space-x-1 text-xs px-2 py-1 rounded-full ${colorClass}`}
+      >
+        <Icono className="h-3 w-3" />
+        <span>{mostrar}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
-      {/* Gráfico de Ventas - ✅ className corregido */}
+      {/* Gráfico de Ventas */}
       <div className="bg-card border rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
@@ -51,19 +86,16 @@ export async function SalesDistribution({
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-1 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full">
-            <TrendingUp className="h-3 w-3" />
-            <span>{variacionVentas}</span>
-          </div>
+
+          {renderVariacion(variacionVentas)}
         </div>
 
-        {/* ✅ Altura fija más pequeña y controlada */}
         <div className="h-[240px] w-full">
           <GraphicsVentas data={dataVentas} />
         </div>
       </div>
 
-      {/* Gráfico de Cobros - ✅ className corregido */}
+      {/* Gráfico de Cobros */}
       <div className="bg-card border rounded-xl p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
@@ -82,13 +114,10 @@ export async function SalesDistribution({
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-1 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full">
-            <TrendingUp className="h-3 w-3" />
-            <span>{variacionCobros}</span>
-          </div>
+
+          {renderVariacion(variacionCobros)}
         </div>
 
-        {/* ✅ Altura fija más pequeña y controlada */}
         <div className="h-[240px] w-full">
           <GraphicsRecaudos data={dataCobros} />
         </div>

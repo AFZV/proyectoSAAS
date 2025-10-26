@@ -76,7 +76,6 @@ async function getFacturasPorVencer(): Promise<VencimientoFacturaProveedor[]> {
   if (!res.ok) return [];
 
   const data: VencimientoFacturaProveedor[] = await res.json();
-  console.log("facturas por vencer que llegan:", data);
 
   const enriched = data.map((f) => ({
     ...f,

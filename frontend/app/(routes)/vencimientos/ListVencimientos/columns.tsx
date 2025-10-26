@@ -334,7 +334,6 @@ function ClienteHistorial({
     fetchMovs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId]);
-  console.log("items", items);
 
   // ========= Agrupación en front (sin reordenar ni recalcular) =========
   type Grupo = {

@@ -132,7 +132,6 @@ export function FormCreateFacturaProveedor({
           { headers: { Authorization: `Bearer ${token}` } }
         );
         const data = await res.json();
-        console.log("Proveedores cargados:", data);
 
         let normalized: ProveedorItem[] = [];
         if (Array.isArray(data)) normalized = data;
