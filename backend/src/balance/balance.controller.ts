@@ -81,4 +81,10 @@ export class BalanceController {
     const usuario = req.usuario;
     return this.balanceService.movimientosCliente(usuario, clienteId);
   }
+  @Roles('admin', 'vendedor')
+  @Get('vencimientos-clientes/saldos')
+  async vencimientosClientes(@Req() req: UsuarioRequest) {
+    const user = req.usuario;
+    return this.balanceService.getVencimientosFacturas(user);
+  }
 }

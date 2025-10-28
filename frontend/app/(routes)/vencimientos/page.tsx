@@ -1,7 +1,11 @@
 import React from "react";
 import { HeaderVencimientosClientes } from "./HeaderVencimientos";
-import { ListClientsVencimientosPage } from "./ListVencimientos";
+import {
+  ListClientsVencimientosPage,
+  ListVencimientosFacturasPage,
+} from "./ListVencimientos";
 import { getToken } from "@/lib/getToken";
+import { List } from "lucide-react";
 
 type StatsProps = {
   vencidos: number;
@@ -60,6 +64,9 @@ export default async function VencimientosPage() {
       <HeaderVencimientosClientes stats={stats} />
       <div>
         <ListClientsVencimientosPage />
+      </div>
+      <div>
+        <ListVencimientosFacturasPage />
       </div>
     </>
   );

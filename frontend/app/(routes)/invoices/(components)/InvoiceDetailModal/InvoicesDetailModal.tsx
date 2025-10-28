@@ -139,7 +139,7 @@ export function InvoiceDetailModal({
     estadosSiguientes.includes("FACTURADO") || estadoActual === "FACTURADO";
 
   const handleCambiarEstado = async () => {
-    if (nuevoEstado !== "GENERADO" && pedido) {
+    if (nuevoEstado !== "ACEPTADO" && pedido) {
       localStorage.removeItem(`separados_${pedido.id}`);
       setProductosSeparados([]);
     }
@@ -444,8 +444,10 @@ export function InvoiceDetailModal({
                       ? "bg-yellow-100 text-yellow-800"
                       : estadoActual === "FACTURADO"
                       ? "bg-purple-100 text-purple-800"
+                      : estadoActual === "ACEPTADO"
+                      ? "bg-gray-100 text-gray-800" // 👈 ACEPTADO en gris
                       : estadoActual === "ENVIADO"
-                      ? "bg-green-100 text-green-800" // ✅ Verde para ENVIADO (exitoso)
+                      ? "bg-green-100 text-green-800"
                       : estadoActual === "CANCELADO"
                       ? "bg-red-100 text-red-800"
                       : "bg-gray-100 text-gray-800"
@@ -965,7 +967,7 @@ export function InvoiceDetailModal({
                 </span>
               )}
             </h3>
-            {estadoActual === "GENERADO" && totalProductos > 0 && (
+            {estadoActual === "ACEPTADO" && totalProductos > 0 && (
               <div className="mb-4">
                 <div className="flex justify-between mb-1">
                   <span className="text-sm text-gray-600">
@@ -1004,7 +1006,7 @@ export function InvoiceDetailModal({
                         Subtotal
                       </th>
                       {/* ✅ Solo mostrar columna "Separado" si NO es cliente Y el pedido está GENERADO */}
-                      {estadoActual === "GENERADO" &&
+                      {estadoActual === "ACEPTADO" &&
                         userType !== "CLIENTE" && (
                           <th className="text-center py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Separado
@@ -1054,8 +1056,8 @@ export function InvoiceDetailModal({
                           <td className="py-4 px-4 text-right text-sm font-medium text-gray-900">
                             {formatValue(subtotal)}
                           </td>
-                          {/* ✅ Solo mostrar checkbox si NO es cliente Y el pedido está GENERADO */}
-                          {estadoActual === "GENERADO" &&
+                          {/* ✅ Solo mostrar checkbox si NO es cliente Y el pedido está ACEPTADO */}
+                          {estadoActual === "ACEPTADO" &&
                             userType !== "CLIENTE" && (
                               <td className="py-4 px-4 text-center">
                                 <input
@@ -1142,10 +1144,12 @@ export function InvoiceDetailModal({
                                   ? "bg-red-600 border-red-600"
                                   : estado.estado === "ENVIADO"
                                   ? "bg-green-600 border-green-600"
+                                  : estado.estado === "ACEPTADO"
+                                  ? "bg-gray-600 border-gray-600" // 👈 gris para ACEPTADO
                                   : "bg-blue-600 border-blue-600"
                                 : "bg-white border-gray-400"
                             }`}
-                          ></div>
+                          />
 
                           <div className="ml-10 flex-1">
                             <div
@@ -1155,6 +1159,8 @@ export function InvoiceDetailModal({
                                     ? "bg-red-50 border border-red-200"
                                     : estado.estado === "ENVIADO"
                                     ? "bg-green-50 border border-green-200"
+                                    : estado.estado === "ACEPTADO"
+                                    ? "bg-gray-50 border border-gray-200" // 👈 gris para ACEPTADO
                                     : "bg-blue-50 border border-blue-200"
                                   : "bg-gray-50 border border-gray-200"
                               }`}
@@ -1185,6 +1191,8 @@ export function InvoiceDetailModal({
                                           ? "text-red-600"
                                           : estado.estado === "ENVIADO"
                                           ? "text-green-600"
+                                          : estado.estado === "ACEPTADO"
+                                          ? "text-gray-600" // 👈 gris para ACEPTADO
                                           : "text-blue-600"
                                       }`}
                                     >

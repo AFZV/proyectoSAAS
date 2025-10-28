@@ -19,6 +19,20 @@ type MovimientoClienteDTO = {
   vencimiento?: Date | null;
   pedidosIds?: string[];
 };
+export type VencimientoFacturaClienteDTO = {
+  idPedido: string;
+  numero: string;
+  fechaEmision: string;
+  fechaVencimiento: string;
+  total: number;
+  saldo: number;
+  cliente: {
+    rasonZocial: string;
+    nit?: string | null;
+  };
+  diasRestantes?: number;
+  estado?: string | null;
+};
 
 @Injectable()
 export class BalanceService {
@@ -499,7 +513,8 @@ export class BalanceService {
           select: {
             id: true,
             nombre: true,
-            rasonZocial: true,
+            apellidos: true, // 👈 faltaba
+            rasonZocial: true, // ojo con este nombre en tu schema
             nit: true,
             ciudad: true,
             telefono: true,
@@ -561,32 +576,56 @@ export class BalanceService {
     }
 
     // Construcción de saldos por cliente
-    const porCliente = new Map<
-      string,
-      {
-        idCliente: string;
-        nombre: string;
-        identificacion?: string;
-        ciudad?: string;
-        telefono?: string;
-        email?: string;
-        saldoPendienteCOP: number;
-      }
-    >();
+    type ItemClienteSaldo = {
+      idCliente: string;
+      nombre: string; // visible en tabla (razón social o nombre completo)
+      identificacion?: string;
+      ciudad?: string;
+      telefono?: string;
+      email?: string;
+      saldoPendienteCOP: number;
+      cliente: {
+        rasonZocial?: string | null;
+        nombre?: string | null;
+        apellidos?: string | null;
+        identificacion?: string | null;
+        ciudad?: string | null;
+        telefono?: string | null;
+        email?: string | null;
+      };
+    };
+
+    const porCliente = new Map<string, ItemClienteSaldo>();
 
     for (const p of pedidos) {
       if (!p.clienteId) continue;
 
-      const cliente = p.cliente;
+      const c = p.cliente;
+      const razon = c?.rasonZocial?.trim() || null;
+      const nombres = [c?.nombre, c?.apellidos]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const nombreVisible = razon || nombres || '(Sin nombre)';
+
       if (!porCliente.has(p.clienteId)) {
         porCliente.set(p.clienteId, {
           idCliente: p.clienteId,
-          nombre: cliente?.rasonZocial || cliente?.nombre || 'Sin nombre',
-          identificacion: cliente?.nit ?? undefined,
-          ciudad: cliente?.ciudad ?? undefined,
-          telefono: cliente?.telefono ?? undefined,
-          email: cliente?.email ?? undefined,
+          nombre: nombreVisible,
+          identificacion: c?.nit ?? undefined,
+          ciudad: c?.ciudad ?? undefined,
+          telefono: c?.telefono ?? undefined,
+          email: c?.email ?? undefined,
           saldoPendienteCOP: 0,
+          cliente: {
+            rasonZocial: c?.rasonZocial ?? null,
+            nombre: c?.nombre ?? null,
+            apellidos: c?.apellidos ?? null,
+            identificacion: c?.nit ?? null,
+            ciudad: c?.ciudad ?? null,
+            telefono: c?.telefono ?? null,
+            email: c?.email ?? null,
+          },
         });
       }
 
@@ -608,13 +647,14 @@ export class BalanceService {
       entry.saldoPendienteCOP = Math.max(0, entry.saldoPendienteCOP + ag);
     }
 
-    // Respuesta final: SOLO clientes con saldo > 0
+    // Solo clientes con saldo > 0
     const items = Array.from(porCliente.values())
       .filter((x) => x.saldoPendienteCOP > 0)
       .sort((a, b) => b.saldoPendienteCOP - a.saldoPendienteCOP);
 
     return items;
   }
+
   async movimientosCliente(
     usuario: UsuarioPayload,
     clienteId: string
@@ -789,5 +829,138 @@ export class BalanceService {
     }
 
     return mapped;
+  }
+  async getVencimientosFacturas(
+    usuario: UsuarioPayload
+  ): Promise<VencimientoFacturaClienteDTO[]> {
+    if (!usuario) throw new UnauthorizedException('Usuario no autorizado');
+    const ALERTA_DIAS_MORA = 100;
+    const { empresaId, rol } = usuario;
+    const pedidos = await this.prisma.pedido.findMany({
+      where:
+        rol === 'admin'
+          ? {
+              empresaId,
+              estados: { some: { estado: 'FACTURADO' } },
+              NOT: { estados: { some: { estado: 'CANCELADO' } } },
+            }
+          : {
+              empresaId,
+              usuarioId: usuario.id,
+              estados: { some: { estado: 'FACTURADO' } },
+              NOT: { estados: { some: { estado: 'CANCELADO' } } },
+            },
+
+      select: {
+        id: true,
+        total: true,
+        fechaPedido: true,
+        fechaEnvio: true,
+        credito: true,
+        cliente: {
+          select: {
+            rasonZocial: true,
+            nit: true,
+            nombre: true,
+            apellidos: true,
+          },
+        },
+        estados: { select: { estado: true, fechaEstado: true } },
+
+        // 🔹 Donde están los abonos reales
+        detalleRecibo: { select: { valorTotal: true } },
+
+        // 🔹 Ajustes por pedido (con signo)
+        detalleAjusteCartera: { select: { valor: true } },
+      },
+    });
+
+    const toYMD = (d: Date) => {
+      const nd = new Date(d);
+      nd.setHours(0, 0, 0, 0);
+      return nd;
+    };
+
+    const result = pedidos
+      .map((p) => {
+        // Emisión = fechaEnvio si existe, si no fechaPedido
+        const fechaEmision = new Date(p.fechaEnvio ?? p.fechaPedido);
+
+        // Vencimiento = emisión + crédito (fallback 30)
+        const diasCredito = Number.isFinite(p.credito) ? Number(p.credito) : 30;
+        const fechaVenc = new Date(fechaEmision);
+        fechaVenc.setDate(fechaVenc.getDate() + diasCredito);
+
+        const totalFactura = Number(p.total ?? 0);
+
+        // ✅ Abonos desde DetalleRecibo
+        const abonos = p.detalleRecibo.reduce(
+          (acc, d) => acc + (Number(d.valorTotal) || 0),
+          0
+        );
+
+        // ✅ Ajustes (pueden ser ±)
+        const ajustesNetos = p.detalleAjusteCartera.reduce(
+          (acc, d) => acc + (Number(d.valor) || 0),
+          0
+        );
+
+        // ✅ Saldo final
+        const saldo = Math.max(
+          0,
+          Number((totalFactura + ajustesNetos - abonos).toFixed(2))
+        );
+
+        // Estado último
+        const lastEstado =
+          p.estados
+            .slice()
+            .sort(
+              (a, b) =>
+                new Date(b.fechaEstado).getTime() -
+                new Date(a.fechaEstado).getTime()
+            )[0]?.estado ?? null;
+
+        // Días restantes
+        const today = toYMD(new Date());
+        const diasRestantes = Math.round(
+          (toYMD(fechaVenc).getTime() - today.getTime()) / 86_400_000
+        );
+        const diasDesdeEmision = Math.round(
+          (toYMD(today).getTime() - toYMD(fechaEmision).getTime()) / 86_400_000
+        );
+        const alertaMora100 = diasDesdeEmision >= ALERTA_DIAS_MORA && saldo > 0;
+
+        return {
+          idPedido: p.id,
+          numero: p.id.slice(0, 8).toUpperCase(),
+          fechaEmision: fechaEmision.toISOString(),
+          fechaVencimiento: fechaVenc.toISOString(),
+          total: totalFactura,
+          saldo,
+          cliente: {
+            rasonZocial: p.cliente?.rasonZocial ?? '',
+            nit: p.cliente?.nit ?? null,
+            nombre: p.cliente?.nombre ?? '',
+            apellidos: p.cliente?.apellidos ?? '',
+          },
+          estado: lastEstado,
+          diasRestantes,
+          alerta: alertaMora100 ? 'MORA_100' : null,
+          prioridadCobro: alertaMora100
+            ? 'ALTA'
+            : diasRestantes < 0
+              ? 'MEDIA'
+              : 'BAJA',
+        };
+      })
+      .filter((f) => f.saldo > 0)
+      .sort(
+        (a, b) =>
+          new Date(a.fechaVencimiento).getTime() -
+          new Date(b.fechaVencimiento).getTime()
+      );
+
+    return result;
   }
 }

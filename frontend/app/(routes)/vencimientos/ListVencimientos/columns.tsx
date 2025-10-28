@@ -45,6 +45,11 @@ export type ClienteConSaldo = {
   telefono?: string;
   email?: string;
   saldoPendienteCOP: number; // SIEMPRE en COP
+  cliente: {
+    nombre?: string;
+    apellidos?: string;
+    rasonZocial: string;
+  };
 };
 
 export type MovimientoCliente = {
@@ -61,7 +66,14 @@ export type MovimientoCliente = {
   pedidosIdsAjuste?: string[];
   ajusteDetalles?: { pedidoId: string; valor: number }[]; // ← nuevo
 };
-
+const norm = (v?: string | null) =>
+  (v ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 // =============== Utils UI ===============
 function getTipoBadgeVariant(tipo: MovimientoCliente["tipo"]) {
   switch (tipo) {
@@ -94,6 +106,19 @@ function ClienteDetalles({
             <label className="text-xs text-muted-foreground">Cliente</label>
             <p className="text-lg font-semibold">{cliente.nombre}</p>
           </div>
+          <div>
+            <label className="text-xs text-muted-foreground">
+              Razón social
+            </label>
+            <p className="text-sm">{cliente.cliente.rasonZocial}</p>
+          </div>
+          <div>
+            <label>nombre y apellidos</label>
+            <p>
+              {cliente.cliente.nombre} {cliente.cliente.apellidos}
+            </p>
+          </div>
+
           <div>
             <label className="text-xs text-muted-foreground">
               Identificación
@@ -904,6 +929,29 @@ function ClienteActions({ cliente }: { cliente: ClienteConSaldo }) {
 // =============== Columns (export principal) ===============
 export const columns: ColumnDef<ClienteConSaldo>[] = [
   {
+    id: "buscar",
+    header: "Buscar",
+    accessorFn: (row) =>
+      [
+        row.cliente?.rasonZocial,
+        row.cliente?.nombre,
+        row.cliente?.apellidos,
+        row.identificacion,
+        row.email,
+        row.ciudad,
+        row.telefono,
+      ]
+        .map(norm)
+        .join(" "),
+    filterFn: (row, id, value) => {
+      const haystack = String(row.getValue(id) ?? "");
+      return haystack.includes(norm(value));
+    },
+    enableHiding: true,
+    enableSorting: false,
+    cell: () => null, // no se muestra
+  },
+  {
     accessorKey: "nombre",
     header: ({ column }: { column: Column<ClienteConSaldo, unknown> }) => (
       <Button
@@ -915,13 +963,19 @@ export const columns: ColumnDef<ClienteConSaldo>[] = [
       </Button>
     ),
     cell: ({ row }) => {
-      const { nombre, identificacion } = row.original;
+      const c = row.original as ClienteConSaldo; // tu tipo front
+      const razon = c.cliente?.rasonZocial || ""; // cambia a tu campo real
+      const nyap = [c.cliente?.nombre, c.cliente?.apellidos]
+        .filter(Boolean)
+        .join(" ");
+
       return (
         <div className="space-y-1">
-          <div className="font-medium">{nombre}</div>
-          {identificacion && (
+          <div className="font-medium">{razon || c.nombre}</div>
+          {nyap && <div className="text-xs text-muted-foreground">{nyap}</div>}
+          {c.identificacion && (
             <div className="text-xs text-muted-foreground">
-              ID {identificacion}
+              ID {c.identificacion}
             </div>
           )}
         </div>

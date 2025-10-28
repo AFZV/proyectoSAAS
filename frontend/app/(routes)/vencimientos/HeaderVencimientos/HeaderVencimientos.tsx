@@ -88,6 +88,10 @@ export function HeaderVencimientosClientes({
               Prioriza recordatorios y seguimiento
             </div>
           </div>
+          <div className="text-withe/70 md:col-span-2 flex items-center gap-2 text-sm italic">
+            <AlertTriangle className="w-6 h-6 inline-block mr-2" />
+            este panel esta en desarrollo 🚧 va a ir cambiando continuamente
+          </div>
         </div>
       </div>
     </div>

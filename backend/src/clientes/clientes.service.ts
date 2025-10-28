@@ -14,7 +14,7 @@ import { formatearTexto } from 'src/lib/formatearTexto';
 
 @Injectable()
 export class ClienteService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
   /// crea un cliente y lo asocia a una empresa y un usuario de esa empresa
   async crearCliente(data: CreateClienteDto, usuario: UsuarioPayload) {
     if (!usuario) throw new BadRequestException('EL USUARIO ES REQUERIDO');
@@ -251,9 +251,9 @@ export class ClienteService {
         rol === 'admin'
           ? { empresaId }
           : {
-            empresaId,
-            usuarioId,
-          },
+              empresaId,
+              usuarioId,
+            },
       include: {
         cliente: {
           select: {
@@ -299,14 +299,14 @@ export class ClienteService {
       where:
         rol === 'admin'
           ? {
-            empresaId: empresaId,
-            cliente: { estado: false },
-          }
+              empresaId: empresaId,
+              cliente: { estado: false },
+            }
           : {
-            empresaId: empresaId,
-            usuarioId: usuarioId,
-            cliente: { estado: false },
-          },
+              empresaId: empresaId,
+              usuarioId: usuarioId,
+              cliente: { estado: false },
+            },
     });
 
     const activos = await this.prisma.clienteEmpresa.count({
@@ -314,10 +314,10 @@ export class ClienteService {
         rol === 'admin'
           ? { empresaId: empresaId, cliente: { estado: true } }
           : {
-            empresaId: empresaId,
-            usuarioId: usuarioId,
-            cliente: { estado: true },
-          },
+              empresaId: empresaId,
+              usuarioId: usuarioId,
+              cliente: { estado: true },
+            },
     });
     const totalClientes = activos + inactivos;
 

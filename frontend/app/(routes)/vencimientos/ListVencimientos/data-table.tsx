@@ -89,6 +89,10 @@ export function DataTableClients<TData, TValue>({
       pagination, // 👈 usa tu estado, NO hardcodees pageIndex: 0
     },
   });
+  const searchCol =
+    table.getColumn(searchColumnId) ??
+    table.getColumn("buscar") ??
+    table.getColumn("nombre");
 
   // Total de clientes filtrados para el footer
   const totalRows = table.getFilteredRowModel().rows.length;
@@ -113,13 +117,8 @@ export function DataTableClients<TData, TValue>({
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder={searchPlaceholder}
-              value={
-                (table.getColumn(searchColumnId)?.getFilterValue() as string) ??
-                ""
-              }
-              onChange={(e) =>
-                table.getColumn(searchColumnId)?.setFilterValue(e.target.value)
-              }
+              value={(searchCol?.getFilterValue() as string) ?? ""}
+              onChange={(e) => searchCol?.setFilterValue(e.target.value)}
               className="pl-10 w-[260px] sm:w-[280px] md:w-[320px] lg:w-[360px]"
             />
           </div>

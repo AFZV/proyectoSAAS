@@ -134,8 +134,8 @@ export function InvoicesClient({
     },
     pedidosAceptados: {
       Icon: BadgeCheck,
-      bg: "bg-emerald-100",
-      fg: "text-emerald-600",
+      bg: "bg-gray-100",
+      fg: "text-gray-700",
     },
   };
 
@@ -250,7 +250,6 @@ export function InvoicesClient({
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const pedidosPaginados = pedidosFiltrados.slice(startIndex, endIndex);
-
   const getEstadoBadge = (estado: string) => {
     const estadoInfo = ESTADOS_PEDIDO[estado as keyof typeof ESTADOS_PEDIDO];
     let badgeClass =
@@ -261,7 +260,7 @@ export function InvoicesClient({
         badgeClass += " bg-blue-100 text-blue-800";
         break;
       case "ACEPTADO":
-        badgeClass += " bg-green-200 text-green-800"; // ✅ Verde oscuro para ACEPTADO
+        badgeClass += " bg-gray-100 text-gray-800"; // 👈 ahora gris
         break;
       case "SEPARADO":
         badgeClass += " bg-yellow-100 text-yellow-800";
@@ -270,7 +269,7 @@ export function InvoicesClient({
         badgeClass += " bg-purple-100 text-purple-800";
         break;
       case "ENVIADO":
-        badgeClass += " bg-green-100 text-green-800"; // ✅ Verde para ENVIADO (estado final exitoso)
+        badgeClass += " bg-green-100 text-green-800";
         break;
       case "CANCELADO":
         badgeClass += " bg-red-100 text-red-800";

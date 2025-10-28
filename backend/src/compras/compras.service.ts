@@ -181,6 +181,14 @@ export class ComprasService {
         },
         include: {
           producto: true, // traer precioCompra si lo necesitas
+          compra: {
+            select: {
+              proveedor: {
+                select: { razonsocial: true },
+              },
+              idCompra: true,
+            },
+          },
         },
       });
 
@@ -235,7 +243,7 @@ export class ComprasService {
             cantidadMovimiendo: detalle.cantidad,
             idTipoMovimiento: tipoEntrada.idTipoMovimiento,
             idCompra: idCompra,
-            observacion: `Compra recibida por ${usuario.nombre}.`,
+            observacion: `Compra # ${detalle.compra.idCompra.slice(0, 5)}-Proveedor:${detalle.compra.proveedor.razonsocial} `,
           },
         });
 

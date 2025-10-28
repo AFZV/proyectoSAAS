@@ -72,7 +72,12 @@ export async function ListClientsVencimientosPage() {
               )}
             </div>
 
-            <DataTableClients columns={columns} data={data} />
+            <DataTableClients
+              searchColumnId="buscar"
+              searchPlaceholder="Buscar por razón social, NIT, nombre, apellidos, email…"
+              columns={columns}
+              data={data}
+            />
           </div>
         </div>
 
