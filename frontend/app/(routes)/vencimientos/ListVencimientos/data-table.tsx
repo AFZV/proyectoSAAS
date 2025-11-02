@@ -14,7 +14,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import type { PaginationState } from "@tanstack/react-table";
-
+import { usePathname } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -65,12 +65,16 @@ export function DataTableClients<TData, TValue>({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   // Reemplaza estos estados:
   // const [pageSize, setPageSize] = useState<number>(10);
-
+  const pathname = usePathname();
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
   });
-
+  // useEffect(() => {
+  //   setOpen(false);
+  //   setOpenHistory(false);
+  //   setSelectOpen(false);
+  // }, [pathname]);
   const table = useReactTable({
     data,
     columns,
@@ -107,7 +111,7 @@ export function DataTableClients<TData, TValue>({
     const end = Math.min((pageIndex + 1) * pageSize, totalRows);
     return `${start} a ${end}`;
   }, [table, totalRows]);
-
+  const [selectOpen, setSelectOpen] = useState(false);
   return (
     <div className="space-y-4">
       {/* Barra de filtros */}
@@ -118,7 +122,10 @@ export function DataTableClients<TData, TValue>({
             <Input
               placeholder={searchPlaceholder}
               value={(searchCol?.getFilterValue() as string) ?? ""}
-              onChange={(e) => searchCol?.setFilterValue(e.target.value)}
+              onChange={(e) => {
+                searchCol?.setFilterValue(e.target.value);
+                setSelectOpen(false);
+              }}
               className="pl-10 w-[260px] sm:w-[280px] md:w-[320px] lg:w-[360px]"
             />
           </div>
@@ -127,8 +134,10 @@ export function DataTableClients<TData, TValue>({
         <div className="flex items-center gap-2">
           {/* Page size */}
           <Select
+            open={selectOpen}
+            onOpenChange={setSelectOpen}
             value={String(table.getState().pagination.pageSize)}
-            onValueChange={(v) => table.setPageSize(Number(v))} // 👈
+            onValueChange={(v) => table.setPageSize(Number(v))}
           >
             <SelectTrigger className="w-[120px]">
               <SelectValue placeholder="Tamaño" />

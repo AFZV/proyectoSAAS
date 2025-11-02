@@ -7,6 +7,8 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CrearAjusteManualDto } from './dto/create-ajuste.dto';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { OrigenMovimientoEnum } from '@prisma/client';
 
 type MovimientoClienteDTO = {
   id: string;
@@ -29,14 +31,59 @@ export type VencimientoFacturaClienteDTO = {
   cliente: {
     rasonZocial: string;
     nit?: string | null;
+    telefono?: string | null;
+    email?: string | null;
   };
   diasRestantes?: number;
   estado?: string | null;
 };
-
+type DbClient = Prisma.TransactionClient | PrismaClient;
 @Injectable()
 export class BalanceService {
   constructor(private prisma: PrismaService) {}
+  // Saldo de un pedido (derivado)
+  async getSaldoPedido(db: DbClient, pedidoId: string) {
+    const pedido = await db.pedido.findUnique({
+      where: { id: pedidoId },
+      select: { total: true },
+    });
+
+    const rec = await db.detalleRecibo.aggregate({
+      where: { idPedido: pedidoId },
+      _sum: { valorTotal: true },
+    });
+
+    const aj = await db.detalleAjusteCartera.aggregate({
+      where: { idPedido: pedidoId },
+      _sum: { valor: true }, // incluye reversos (negativos)
+    });
+
+    const total = Number(pedido?.total ?? 0);
+    const recibos = Number(rec._sum.valorTotal ?? 0);
+    const ajustes = Number(aj._sum.valor ?? 0);
+
+    // Tu regla (ajustes restan del saldo): saldo = total - recibos - ajustes
+    return Math.max(0, total - recibos - ajustes);
+  }
+
+  // Saldo total del cliente (suma de saldos de pedidos)
+  async calcularSaldoCliente(
+    db: DbClient,
+    clienteId: string,
+    empresaId: string
+  ) {
+    const pedidos = await db.pedido.findMany({
+      where: { empresaId, clienteId },
+      select: { id: true },
+    });
+
+    let saldo = 0;
+    for (const p of pedidos) {
+      saldo += await this.getSaldoPedido(db, p.id);
+    }
+    return saldo;
+  }
+
   //retorna el saldo total por cliente solo clientes con deuda >0 y los ordena por nombre
   async ctasPorCobrar(usuario: UsuarioPayload) {
     if (!usuario) throw new BadRequestException('El usuario es requerido');
@@ -140,6 +187,7 @@ export class BalanceService {
         recibo: {
           select: {
             id: true,
+            concepto: true,
             detalleRecibo: { select: { idPedido: true, valorTotal: true } },
           },
         },
@@ -158,6 +206,7 @@ export class BalanceService {
       tipoMovimiento: 'PEDIDO' | 'RECIBO' | 'AJUSTE_MANUAL';
       referencia: string;
       pedidoId?: string | null;
+      observaciones?: string | null; // 👈 NUEVO
     };
 
     const resultado: Row[] = [];
@@ -178,7 +227,7 @@ export class BalanceService {
       if (tipo === 'AJUSTE_MANUAL') {
         const claveAjuste = m.idMovimientoCartera;
         if (ajustesProcesados.has(claveAjuste)) {
-          continue; // ya explotado
+          continue;
         }
         ajustesProcesados.add(claveAjuste);
 
@@ -189,26 +238,28 @@ export class BalanceService {
               fecha: m.fechaMovimientoCartera,
               valorMovimiento: Number(d.valor || 0),
               tipoMovimiento: 'AJUSTE_MANUAL',
-              referencia: claveAjuste, // misma ref para agrupar
-              pedidoId: d.idPedido ?? null, // pedido afectado
+              referencia: claveAjuste,
+              pedidoId: d.idPedido ?? null,
+              observaciones: (m.observacion ?? '').trim() || null, // 👈 AQUÍ
             });
           }
         } else {
-          // ajuste sin detalles: una sola fila
           resultado.push({
             fecha: m.fechaMovimientoCartera,
             valorMovimiento: Number(m.valorMovimiento || 0),
             tipoMovimiento: 'AJUSTE_MANUAL',
             referencia: claveAjuste,
             pedidoId: null,
+            observaciones: (m.observacion ?? '').trim() || null, // 👈 AQUÍ
           });
         }
       } else if (tipo === 'RECIBO') {
         const idRec = m.recibo?.id;
         if (idRec && recibosProcesados.has(idRec)) {
-          continue; // ya explotado este recibo
+          continue;
         }
         if (idRec) recibosProcesados.add(idRec);
+        const obsRecibo = (m.recibo?.concepto ?? '').trim() || null; // 👈 aquí
 
         const dets = m.recibo?.detalleRecibo ?? [];
         if (dets.length > 0) {
@@ -217,28 +268,30 @@ export class BalanceService {
               fecha: m.fechaMovimientoCartera,
               valorMovimiento: Number(d.valorTotal || 0),
               tipoMovimiento: 'RECIBO',
-              referencia: idRec || `REC:${m.idMovimientoCartera}`, // agrupa por recibo
-              pedidoId: d.idPedido ?? null, // pedido afectado
+              referencia: idRec || `REC:${m.idMovimientoCartera}`,
+              pedidoId: d.idPedido ?? null,
+              observaciones: obsRecibo,
             });
           }
         } else {
-          // recibo sin detalles: una sola fila
           resultado.push({
             fecha: m.fechaMovimientoCartera,
             valorMovimiento: Number(m.valorMovimiento || 0),
             tipoMovimiento: 'RECIBO',
             referencia: idRec || `REC:${m.idMovimientoCartera}`,
             pedidoId: null,
+            observaciones: obsRecibo,
           });
         }
       } else {
-        // PEDIDO: no se agrupa; una fila
+        // PEDIDO
         resultado.push({
           fecha: m.fechaMovimientoCartera,
           valorMovimiento: Number(m.valorMovimiento || 0),
           tipoMovimiento: 'PEDIDO',
           referencia: m.pedido?.id ?? `PED:${m.idMovimientoCartera}`,
           pedidoId: m.pedido?.id ?? null,
+          observaciones: (m.observacion ?? '').trim() || null, // opcional para pedido
         });
       }
     }
@@ -373,6 +426,118 @@ export class BalanceService {
       movimiento: result.movimiento,
     };
   }
+
+  //reversar ajuste manual
+  async reversarAjuste(
+    ajusteId: string,
+    usuario: UsuarioPayload,
+    dto?: { motivo?: string }
+  ) {
+    if (!usuario) throw new UnauthorizedException('Usuario no autorizado');
+
+    const { empresaId, id: userId, rol } = usuario;
+
+    // 1) Ajuste original
+    const original = await this.prisma.movimientosCartera.findFirst({
+      where: {
+        idMovimientoCartera: ajusteId,
+        empresaId,
+        tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+      },
+      include: { detalleAjusteCartera: true },
+    });
+    if (!original)
+      throw new NotFoundException('Ajuste no encontrado o no es de tu empresa');
+
+    // 1.a) No permitir reversar un reverso
+    if ((original.observacion ?? '').includes('REVERSO_DE:{')) {
+      throw new BadRequestException('No puedes reversar un reverso de ajuste.');
+    }
+
+    // 2) Permisos
+    if (rol !== 'admin' && original.idUsuario !== userId) {
+      throw new UnauthorizedException(
+        'No tienes permisos para reversar este ajuste'
+      );
+    }
+
+    // 3) Transacción con lock y chequeo atómico
+    const resultado = await this.prisma.$transaction(async (tx) => {
+      // 3.a) LOCK asesor por UUID, sin crypto (en Postgres)
+      await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(
+        ('x' || substr(replace(${ajusteId}, '-', ''), 1, 8))::bit(32)::int,
+        ('x' || substr(replace(${ajusteId}, '-', ''), 9, 8))::bit(32)::int
+      )
+    `;
+
+      // 3.b) ¿ya existe reverso? (chequeo dentro de la misma TX)
+      const yaReversado = await tx.movimientosCartera.findFirst({
+        where: {
+          empresaId,
+          observacion: {
+            contains: `REVERSO_DE:{${original.idMovimientoCartera}}`,
+          },
+        },
+        select: { idMovimientoCartera: true },
+      });
+      if (yaReversado)
+        throw new BadRequestException('Este ajuste ya fue reversado');
+
+      // 3.c) Crear contra-asiento
+      const reverso = await tx.movimientosCartera.create({
+        data: {
+          empresaId,
+          idCliente: original.idCliente,
+          idUsuario: userId,
+          idPedido: original.idPedido ?? null,
+          idRecibo: null,
+          valorMovimiento: -Number(original.valorMovimiento || 0),
+          tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+          observacion: `REVERSO_DE:{${original.idMovimientoCartera}}${dto?.motivo ? ' ' + dto.motivo : ''}`,
+        },
+      });
+
+      // 3.d) Detalles invertidos
+      const detalles = original.detalleAjusteCartera || [];
+      if (detalles.length > 0) {
+        await tx.detalleAjusteCartera.createMany({
+          data: detalles.map((d) => ({
+            idMovimiento: reverso.idMovimientoCartera,
+            idPedido: d.idPedido,
+            valor: -Number(d.valor || 0),
+          })),
+        });
+      }
+
+      // 3.e) Recalcular saldos de pedidos afectados
+      const pedidosAfectadosIds = Array.from(
+        new Set(detalles.map((d) => d.idPedido).filter(Boolean) as string[])
+      );
+      const pedidosAfectados = await Promise.all(
+        pedidosAfectadosIds.map(async (pedidoId) => ({
+          pedidoId,
+          saldo: await this.getSaldoPedido(tx, pedidoId),
+        }))
+      );
+
+      // 3.f) Saldo total del cliente
+      const saldoCliente = await this.calcularSaldoCliente(
+        tx,
+        original.idCliente,
+        empresaId
+      );
+
+      return { reverso, pedidosAfectados, saldoCliente };
+    });
+
+    return { message: 'Ajuste reversado correctamente', ...resultado };
+  }
+
+  /**
+   * Calcula el saldo del cliente derivando de pedidos, recibos y ajustes.
+   * Si tienes otra regla, ajusta aquí.
+   */
 
   async stats(usuario: UsuarioPayload, clienteId: string) {
     if (!usuario) {
@@ -534,16 +699,24 @@ export class BalanceService {
             tipoMovimientoOrigen: 'AJUSTE_MANUAL',
           },
         },
-        select: { idPedido: true, valor: true },
+        select: {
+          idPedido: true,
+          valor: true,
+          movimiento: { select: { observacion: true } }, // 👈 necesitamos saber si es reverso
+        },
       });
 
     const ajustesPorPedido = new Map<string, number>();
     for (const a of ajustesPorPedidoRows) {
       if (!a.idPedido) continue;
-      const neg = -Math.abs(Number(a.valor || 0));
+      const v = Math.abs(Number(a.valor || 0));
+      const obs = a.movimiento?.observacion || '';
+      const esReverso = /\bREVERSO_DE:\{/.test(obs); // 👈 tu convención actual
+
+      const signed = esReverso ? +v : -v; // reverso suma, ajuste normal resta
       ajustesPorPedido.set(
         a.idPedido,
-        (ajustesPorPedido.get(a.idPedido) ?? 0) + neg
+        (ajustesPorPedido.get(a.idPedido) ?? 0) + signed
       );
     }
 
@@ -559,7 +732,7 @@ export class BalanceService {
         },
         select: {
           valor: true,
-          movimiento: { select: { idCliente: true } },
+          movimiento: { select: { idCliente: true, observacion: true } }, // 👈
         },
       }
     );
@@ -568,10 +741,14 @@ export class BalanceService {
     for (const ag of ajustesGlobalesRows) {
       const cId = ag.movimiento?.idCliente;
       if (!cId) continue;
-      const neg = -Math.abs(Number(ag.valor || 0));
+      const v = Math.abs(Number(ag.valor || 0));
+      const obs = ag.movimiento?.observacion || '';
+      const esReverso = /\bREVERSO_DE:\{/.test(obs); // 👈
+
+      const signed = esReverso ? +v : -v;
       ajustesGlobalesPorCliente.set(
         cId,
-        (ajustesGlobalesPorCliente.get(cId) ?? 0) + neg
+        (ajustesGlobalesPorCliente.get(cId) ?? 0) + signed
       );
     }
 
@@ -775,20 +952,31 @@ export class BalanceService {
             ? m.recibo?.concepto || 'Recaudo'
             : 'Ajuste de cartera');
 
-      const ajusteDetalles =
-        m.tipoMovimientoOrigen === 'AJUSTE_MANUAL'
-          ? (m.detalleAjusteCartera ?? []).map((d) => ({
-              pedidoId: d.idPedido,
-              valor: Number(d.valor || 0),
-            }))
-          : [];
+      // ¿Es ajuste y además reverso?
+      const esAjuste = m.tipoMovimientoOrigen === 'AJUSTE_MANUAL';
+      const esReverso =
+        esAjuste &&
+        (m.observacion ?? '').toUpperCase().includes('REVERSO_DE:{'); // si tienes campo esReverso/reversoDeId, úsalo
 
+      // Detalle de ajuste con signo correcto por ítem
+      const ajusteDetalles = esAjuste
+        ? (m.detalleAjusteCartera ?? []).map((d) => ({
+            pedidoId: d.idPedido,
+            // reverso suma (+), ajuste normal descuenta (-)
+            valor: esReverso
+              ? +Math.abs(Number(d.valor || 0))
+              : -Math.abs(Number(d.valor || 0)),
+          }))
+        : [];
+
+      // Monto total del movimiento con signo correcto
       let monto = Number(m.valorMovimiento || 0);
       if (tipo === 'Recaudo' || tipo === 'Nota crédito') {
         monto = -Math.abs(monto);
       } else if (tipo === 'Ajuste') {
-        monto = -Math.abs(monto);
+        monto = esReverso ? +Math.abs(monto) : -Math.abs(monto);
       } else {
+        // Factura
         monto = +Math.abs(monto);
       }
 
@@ -834,8 +1022,10 @@ export class BalanceService {
     usuario: UsuarioPayload
   ): Promise<VencimientoFacturaClienteDTO[]> {
     if (!usuario) throw new UnauthorizedException('Usuario no autorizado');
-    const ALERTA_DIAS_MORA = 100;
+
+    const DIAS_MORA_VENCIDO = 15; // >=15 días después de VTO => mora (prioridad ALTA)
     const { empresaId, rol } = usuario;
+
     const pedidos = await this.prisma.pedido.findMany({
       where:
         rol === 'admin'
@@ -850,7 +1040,6 @@ export class BalanceService {
               estados: { some: { estado: 'FACTURADO' } },
               NOT: { estados: { some: { estado: 'CANCELADO' } } },
             },
-
       select: {
         id: true,
         total: true,
@@ -863,18 +1052,17 @@ export class BalanceService {
             nit: true,
             nombre: true,
             apellidos: true,
+            telefono: true,
+            email: true,
           },
         },
         estados: { select: { estado: true, fechaEstado: true } },
-
-        // 🔹 Donde están los abonos reales
         detalleRecibo: { select: { valorTotal: true } },
-
-        // 🔹 Ajustes por pedido (con signo)
         detalleAjusteCartera: { select: { valor: true } },
       },
     });
 
+    const MS_DIA = 86_400_000;
     const toYMD = (d: Date) => {
       const nd = new Date(d);
       nd.setHours(0, 0, 0, 0);
@@ -883,35 +1071,41 @@ export class BalanceService {
 
     const result = pedidos
       .map((p) => {
-        // Emisión = fechaEnvio si existe, si no fechaPedido
-        const fechaEmision = new Date(p.fechaEnvio ?? p.fechaPedido);
+        // 1) Emisión: cuando se marcó ENVIADO (si existe); si no, fechaEnvio; si no, fechaPedido
+        const estadoEnviado = p.estados.find((e) => e.estado === 'ENVIADO');
+        const fechaEmision = new Date(
+          (estadoEnviado?.fechaEstado as unknown as Date) ??
+            (p.fechaEnvio as unknown as Date) ??
+            (p.fechaPedido as unknown as Date)
+        );
 
-        // Vencimiento = emisión + crédito (fallback 30)
+        // 2) Vencimiento = emisión + crédito (fallback 30 días)
         const diasCredito = Number.isFinite(p.credito) ? Number(p.credito) : 30;
         const fechaVenc = new Date(fechaEmision);
         fechaVenc.setDate(fechaVenc.getDate() + diasCredito);
 
-        const totalFactura = Number(p.total ?? 0);
+        // 3) Totales
+        const totalFactura: number = Number(p.total ?? 0);
 
-        // ✅ Abonos desde DetalleRecibo
-        const abonos = p.detalleRecibo.reduce(
+        // 4) Abonos desde DetalleRecibo
+        const abonos: number = p.detalleRecibo.reduce<number>(
           (acc, d) => acc + (Number(d.valorTotal) || 0),
           0
         );
 
-        // ✅ Ajustes (pueden ser ±)
-        const ajustesNetos = p.detalleAjusteCartera.reduce(
+        // 5) Ajustes (pueden ser ±)
+        const ajustesNetos: number = p.detalleAjusteCartera.reduce<number>(
           (acc, d) => acc + (Number(d.valor) || 0),
           0
         );
 
-        // ✅ Saldo final
-        const saldo = Math.max(
+        // 6) Saldo
+        const saldo: number = Math.max(
           0,
-          Number((totalFactura + ajustesNetos - abonos).toFixed(2))
+          Number((totalFactura - ajustesNetos - abonos).toFixed(2))
         );
 
-        // Estado último
+        // 7) Último estado
         const lastEstado =
           p.estados
             .slice()
@@ -921,15 +1115,42 @@ export class BalanceService {
                 new Date(a.fechaEstado).getTime()
             )[0]?.estado ?? null;
 
-        // Días restantes
-        const today = toYMD(new Date());
+        // 8) Días restantes / vencidos (desde HOY)
+        const hoy = toYMD(new Date());
         const diasRestantes = Math.round(
-          (toYMD(fechaVenc).getTime() - today.getTime()) / 86_400_000
+          (toYMD(fechaVenc).getTime() - hoy.getTime()) / MS_DIA
         );
-        const diasDesdeEmision = Math.round(
-          (toYMD(today).getTime() - toYMD(fechaEmision).getTime()) / 86_400_000
+        const diasVencidos = Math.max(
+          0,
+          Math.round((hoy.getTime() - toYMD(fechaVenc).getTime()) / MS_DIA)
         );
-        const alertaMora100 = diasDesdeEmision >= ALERTA_DIAS_MORA && saldo > 0;
+
+        // 9) Regla de mora (>=15 días después del vencimiento y con saldo)
+        const enMora = saldo > 0 && diasVencidos >= DIAS_MORA_VENCIDO;
+        const normalizePhoneCO = (raw?: string | null): string | null => {
+          if (!raw) return null;
+          const digits = raw.replace(/\D/g, ''); // quita todo lo no numérico
+
+          // Ya viene con 57 + 10 dígitos (móvil)
+          if (/^57[3]\d{9}$/.test(digits)) return digits;
+
+          // Solo 10 dígitos y parece móvil (inicia con 3) -> anteponer 57
+          if (/^[3]\d{9}$/.test(digits)) return `57${digits}`;
+
+          // Quitar ceros iniciales comunes y reintentar
+          const noLeadingZeros = digits.replace(/^0+/, '');
+          if (/^[3]\d{9}$/.test(noLeadingZeros)) return `57${noLeadingZeros}`;
+
+          // Si vino 57 + algo mal, intenta corregir ceros
+          if (/^57[0]+([3]\d{9})$/.test(digits)) {
+            const m = digits.match(/^57[0]+([3]\d{9})$/);
+            return m ? `57${m[1]}` : null;
+          }
+
+          // No es móvil colombiano válido para WhatsApp
+          return null;
+        };
+        const telefonoNormalizado = normalizePhoneCO(p.cliente?.telefono);
 
         return {
           idPedido: p.id,
@@ -943,16 +1164,18 @@ export class BalanceService {
             nit: p.cliente?.nit ?? null,
             nombre: p.cliente?.nombre ?? '',
             apellidos: p.cliente?.apellidos ?? '',
+            telefono: telefonoNormalizado,
+            email: p.cliente?.email ?? null,
           },
           estado: lastEstado,
           diasRestantes,
-          alerta: alertaMora100 ? 'MORA_100' : null,
-          prioridadCobro: alertaMora100
+          alerta: enMora ? 'MORA_100' : null,
+          prioridadCobro: enMora
             ? 'ALTA'
             : diasRestantes < 0
               ? 'MEDIA'
               : 'BAJA',
-        };
+        } as VencimientoFacturaClienteDTO;
       })
       .filter((f) => f.saldo > 0)
       .sort(
@@ -962,5 +1185,100 @@ export class BalanceService {
       );
 
     return result;
+  }
+  async getAjustePorId(ajusteId: string, usuario: UsuarioPayload) {
+    if (!usuario) throw new UnauthorizedException('Usuario no autorizado');
+    const { empresaId } = usuario;
+
+    // Trae el movimiento + detalle + cliente + usuario + pedido
+    const ajuste = await this.prisma.movimientosCartera.findFirst({
+      where: {
+        idMovimientoCartera: ajusteId,
+        empresaId,
+        tipoMovimientoOrigen: OrigenMovimientoEnum.AJUSTE_MANUAL,
+      },
+      include: {
+        usuario: { select: { id: true, nombre: true, apellidos: true } },
+        cliente: {
+          select: {
+            id: true,
+            nit: true,
+            rasonZocial: true,
+            nombre: true,
+            apellidos: true,
+          },
+        },
+        detalleAjusteCartera: {
+          select: {
+            idDetalleAjuste: true,
+            idPedido: true,
+            valor: true,
+            pedido: { select: { id: true, total: true } },
+          },
+        },
+      },
+    });
+
+    if (!ajuste) {
+      throw new NotFoundException(
+        'Ajuste no encontrado para este tenant o no es AJUSTE_MANUAL'
+      );
+    }
+
+    // Helper para detectar reverso y extraer el id original (si está anotado)
+    const obs = (ajuste.observacion || '').trim();
+    const esReverso = /\bREVERSO_DE:\{/.test(obs);
+
+    // Intenta extraer un id dentro del tag REVERSO_DE:{id:...}
+    let reversaDeId: string | null = null;
+    try {
+      // busca algo como REVERSO_DE:{id:xxxxxxxx-....}
+      const m = obs.match(/REVERSO_DE:\{\s*id\s*:\s*([0-9a-fA-F-]{8,})\s*\}/);
+      if (m && m[1]) reversaDeId = m[1];
+    } catch {
+      /* noop */
+    }
+
+    // Lista de pedidos afectados por el ajuste
+    const pedidos = (ajuste.detalleAjusteCartera || [])
+      .filter((d) => !!d.idPedido)
+      .map((d) => ({
+        id: d.idPedido,
+        // Puedes mostrar solo los primeros 6 chars en el front
+        valor: Number(d.valor) || 0,
+      }));
+
+    // Suma total del ajuste (por si lo quieres mostrar destacado)
+    const valorTotal = pedidos.reduce((acc, p) => acc + (p.valor || 0), 0);
+
+    // DTO listo para el front (simple y completo)
+    const dto = {
+      id: ajuste.idMovimientoCartera,
+      fecha: ajuste.fechaMovimientoCartera, // Date
+      observaciones: ajuste.observacion ?? null,
+      esReverso,
+      reversaDeId, // null si no hay marca
+      usuario: ajuste.usuario
+        ? {
+            id: ajuste.usuario.id,
+            nombre: ajuste.usuario.nombre,
+            apellidos: ajuste.usuario.apellidos,
+          }
+        : null,
+      cliente: ajuste.cliente
+        ? {
+            id: ajuste.cliente.id,
+            nit: ajuste.cliente.nit,
+            rasonZocial: ajuste.cliente.rasonZocial,
+            nombre: ajuste.cliente.nombre,
+            apellidos: ajuste.cliente.apellidos,
+          }
+        : null,
+      pedidos, // [{ id, valor }]
+      valorTotal, // suma de valores
+    };
+    console.log('DTO ajuste por id:', dto);
+
+    return dto;
   }
 }

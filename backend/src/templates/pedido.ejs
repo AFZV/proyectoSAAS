@@ -89,17 +89,31 @@
         border-bottom: 1px solid #ddd;
       }
 
-      .observaciones {
-        margin-top: 12px;
-        font-size: 10px;
-        background-color: #f9f9f9;
-        border: 1px solid #ddd;
-        padding: 6px;
-        border-radius: 4px;
-      }
-      .observaciones strong {
-        color: #007bff;
-      }
+     .observaciones { 
+    margin-top: 12px; 
+    font-size: 10px; 
+    background-color: #f9f9f9; 
+    border: 1px solid #ddd; 
+    padding: 8px; 
+    border-radius: 4px; 
+  }
+  .observaciones h4 {
+    margin: 0 0 4px 0;
+    font-size: 11px;
+    color: #007bff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .observaciones h5 {
+    margin: 6px 0 6px 0;
+    font-size: 10.5px;
+    color: #333;
+    font-weight: 600;
+  }
+  .obs-body {
+    white-space: pre-line; /* <-- respeta \n y \r\n */
+    line-height: 1.35;
+  }
 
       .resumen {
         margin-top: 14px;
@@ -174,10 +188,13 @@
     </div>
 
     <% if (observaciones && observaciones.trim() !== "") { %>
-    <div class="observaciones">
-      <strong>Observaciones:</strong> <%= observaciones %>
-    </div>
-    <% } %>
+  <div class="observaciones">
+    <h4>Observaciones</h4>
+    <h5>Auditoría</h5>
+    <p class="obs-body"><%= observaciones %></p>
+  </div>
+<% } %>
+
 
     <div class="resumen">
       Total Pedido: $<%= total.toLocaleString("es-CO") %>

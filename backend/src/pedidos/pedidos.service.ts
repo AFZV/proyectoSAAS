@@ -1245,4 +1245,44 @@ export class PedidosService {
       throw error;
     }
   }
+
+  //   id: string;
+  // fechaPedido: string;
+  // cliente?: ClienteLite | null;
+  // usuario?: { nombre?: string | null } | null; // vendedor (opcional)
+  // productos: ProductoLinea[];
+  // subtotal?: number | null; // si ya lo calculas en backend
+  // flete?: number | null;
+  // total: number;
+  // observaciones?: string | null;
+  async obtenerPedidoPorId(pedidoId: string, usuario: UsuarioPayload) {
+    if (!usuario) throw new BadRequestException('El usuario es requerido');
+    const { empresaId } = usuario;
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id: pedidoId, empresaId },
+      include: {
+        cliente: {
+          select: {
+            nombre: true,
+            apellidos: true,
+            rasonZocial: true,
+            nit: true,
+          },
+        },
+        usuario: true,
+        productos: {
+          include: {
+            producto: true, // ✅ Incluir información del producto
+          },
+          orderBy: { producto: { nombre: 'asc' } },
+        },
+        estados: {
+          orderBy: {
+            fechaEstado: 'desc', // ✅ Ordenar estados por fecha
+          },
+        },
+      },
+    });
+    return pedido;
+  }
 }

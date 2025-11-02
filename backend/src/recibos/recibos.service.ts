@@ -246,7 +246,7 @@ export class RecibosService {
           }
           const folder = `empresas/${recibo.empresaId}/recibos`;
 
-          const url = await this.hetznerStorageService.uploadFile(
+          await this.hetznerStorageService.uploadFile(
             pdfResult.buffer,
             `recibo_${recibo.id}.pdf`,
             folder
@@ -519,7 +519,7 @@ export class RecibosService {
 
           const folder = `empresas/${recibo.empresaId}/recibos`;
 
-          const url = await this.hetznerStorageService.uploadFile(
+          await this.hetznerStorageService.uploadFile(
             pdfBuffer.buffer,
             `recibo_${recibo.id}.pdf`,
             folder
@@ -626,6 +626,15 @@ export class RecibosService {
     return result;
   }
 
+  //   export type ReciboResumen = {
+  //   id: string;
+  //   fecha: string;
+  //   cliente?: ClienteLite | null;
+  //   pedidos?: { id: string; numero?: string | null; valor?: number | null }[];
+  //   valorTotal?: number | null;
+  //   observaciones?: string | null;
+  // };
+
   //logica para obtener acceso a un recibo por su id
   async getReciboPorId(id: string, usuario: UsuarioPayload) {
     if (!usuario) throw new UnauthorizedException('Usuario no autorizado');
@@ -636,13 +645,14 @@ export class RecibosService {
       include: {
         cliente: true,
         detalleRecibo: true,
-        usuario: true,
+        //usuario: true,
       },
     });
 
     if (!recibo) {
       throw new NotFoundException('Recibo no encontrado');
     }
+    console.log('recibo encontrado:', recibo);
 
     return recibo;
   }

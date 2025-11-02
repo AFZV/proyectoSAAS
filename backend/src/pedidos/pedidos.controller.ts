@@ -24,7 +24,7 @@ import { Response } from 'express';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('pedidos')
 export class PedidosController {
-  constructor(private readonly pedidosService: PedidosService) { }
+  constructor(private readonly pedidosService: PedidosService) {}
 
   @Roles('admin', 'vendedor', 'CLIENTE')
   @Post()
@@ -137,5 +137,17 @@ export class PedidosController {
         // error: error?.message ?? 'Error desconocido',
       });
     }
+  }
+  @Roles('admin')
+  @Get('pedidoPorId/:pedidoId')
+  async obtenerPedidoPorId(
+    @Param('pedidoId') pedidoId: string,
+    @Req() req: UsuarioRequest
+  ) {
+    const usuario = req.usuario;
+    if (!usuario) {
+      throw new BadRequestException('Usuario no autenticado');
+    }
+    return this.pedidosService.obtenerPedidoPorId(pedidoId, usuario);
   }
 }

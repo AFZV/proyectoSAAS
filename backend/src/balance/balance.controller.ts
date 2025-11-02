@@ -41,7 +41,7 @@ export class BalanceController {
   }
 
   @Roles('admin')
-  @Post('ajusteManual')
+  @Post('ajusteManual/ajuste')
   crearAjusteManual(
     @Body() data: CrearAjusteManualDto,
     @Req() req: UsuarioRequest
@@ -86,5 +86,26 @@ export class BalanceController {
   async vencimientosClientes(@Req() req: UsuarioRequest) {
     const user = req.usuario;
     return this.balanceService.getVencimientosFacturas(user);
+  }
+
+  //reversar ajustes manuales
+  @Roles('admin')
+  @Post('ajustes/:id/reversar')
+  async reversar(
+    @Param('id') id: string,
+    @Body() dto: { motivo?: string },
+    @Req() req: UsuarioRequest
+  ) {
+    const user = req.usuario;
+    if (!user) throw new UnauthorizedException('No está autorizado');
+    return this.balanceService.reversarAjuste(id, user, dto);
+  }
+
+  @Roles('admin')
+  @Get('ajustes/porId/:id')
+  async getAjustePorId(@Param('id') id: string, @Req() req: UsuarioRequest) {
+    const user = req.usuario;
+    if (!user) throw new UnauthorizedException('No está autorizado');
+    return await this.balanceService.getAjustePorId(id, user);
   }
 }

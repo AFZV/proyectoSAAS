@@ -14,6 +14,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loading } from "@/components/Loading";
+import { useAuth } from "@clerk/nextjs";
 
 const schema = z.object({
   observacion: z.string().min(3),
@@ -34,19 +35,19 @@ export function ModalAjusteManual({
   open,
   onClose,
   cliente,
-  token,
+  //token,
   onSuccess,
 }: {
   open: boolean;
   onClose: () => void;
   cliente: { id: string; nombre: string };
-  token: string;
+  //token: string;
   onSuccess?: () => void;
 }) {
   const [pedidos, setPedidos] = useState<PedidoConSaldoPendiente[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
-
+  const { getToken } = useAuth();
   const form = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -62,6 +63,8 @@ export function ModalAjusteManual({
 
   useEffect(() => {
     const cargarPedidos = async () => {
+      const token = await getToken();
+      if (!token) return;
       try {
         setLoading(true);
         if (!open || !cliente?.id) return;
@@ -93,34 +96,70 @@ export function ModalAjusteManual({
     };
 
     cargarPedidos();
-  }, [open, cliente?.id, token]);
+  }, [open, cliente?.id]);
 
   const agregarPedido = (pedido: any) => {
     if (fields.find((f) => f.pedidoId === pedido.id)) return;
     append({ pedidoId: pedido.id, valorAplicado: pedido.saldoPendiente });
   };
 
+  // Reemplaza tu onSubmit para usar token fresco + reintento 401
   const onSubmit = async (values: any) => {
     setIsSubmitting(true);
+    try {
+      const body = {
+        clienteId: cliente.id,
+        observacion: values.observacion,
+        pedidos: values.pedidos,
+      };
 
-    const body = {
-      clienteId: cliente.id,
-      observacion: values.observacion,
-      pedidos: values.pedidos,
-    };
+      let freshToken = await getToken();
+      if (!freshToken) throw new Error("No se pudo obtener token");
 
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/balance/ajusteManual`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    setIsSubmitting(false);
+      const doPost = async () => {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/balance/ajusteManual/ajuste`, // <-- ruta correcta
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${freshToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          }
+        );
+        if (res.status === 401) {
+          freshToken = await getToken();
+          if (!freshToken) throw new Error("Sesión expirada (401)");
+          return fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/balance/ajusteManual/ajuste`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${freshToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(body),
+            }
+          );
+        }
+        return res;
+      };
 
-    onSuccess?.();
-    onClose();
+      const resp = await doPost();
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(txt || "No fue posible crear el ajuste");
+      }
+
+      onSuccess?.();
+      onClose();
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || "No fue posible crear el ajuste");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // 🔹 Total reactivo basado en el valor seleccionado (watch)

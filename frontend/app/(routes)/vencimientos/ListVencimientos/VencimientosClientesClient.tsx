@@ -9,6 +9,7 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Share2,
 } from "lucide-react";
 
 type Row = {
@@ -23,6 +24,8 @@ type Row = {
     nit?: string | null;
     nombre?: string;
     apellidos?: string;
+    telefono?: string | "";
+    email?: string | "";
   };
   diasRestantes?: number;
   estado?: string | null;
@@ -41,6 +44,65 @@ export function VencimientosClientesClient({
   );
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(0);
+  const buildReminderText = (f: Row) => {
+    const nombreCliente =
+      f.cliente?.rasonZocial ||
+      [f.cliente?.nombre, f.cliente?.apellidos].filter(Boolean).join(" ") ||
+      "Cliente";
+
+    const vence = fmtDateLocal(f.fechaVencimiento);
+    const emision = fmtDateLocal(f.fechaEmision);
+    const dias = typeof f.diasRestantes === "number" ? f.diasRestantes : 0;
+    const estaVencida = dias < 0;
+    const diasVencidos = Math.max(0, -dias);
+
+    const prioridad =
+      f.prioridadCobro === "ALTA"
+        ? "🔴 Alta prioridad"
+        : f.prioridadCobro === "MEDIA"
+        ? "🟠 Prioridad media"
+        : "🟢 Prioridad baja";
+
+    // 💌 Mensaje estilizado con Markdown de WhatsApp
+    return `
+*📄 Recordatorio de pago*
+
+👤 *Cliente:* ${nombreCliente}${
+      f.cliente?.nit ? ` • NIT: ${f.cliente.nit}` : ""
+    }
+💰 *Factura/Pedido:* ${f.numero}
+🗓️ *Emisión:* ${emision}
+⏰ *Vencimiento:* ${vence} ${
+      estaVencida
+        ? `(vencida hace ${diasVencidos} día${diasVencidos !== 1 ? "s" : ""})`
+        : `(faltan ${dias} día${dias !== 1 ? "s" : ""})`
+    }
+
+━━━━━━━━━━━━━━━
+💵 *Total:* ${fmtMoney(f.total)}
+🏦 *Saldo pendiente:* ${fmtMoney(f.saldo)}
+📊 *${prioridad}*
+━━━━━━━━━━━━━━━
+
+Estimado/a ${
+      nombreCliente.split(" ")[0] || ""
+    }, te contactamos para informarte sobre el saldo pendiente de esta factura.  
+Por favor, indícanos la fecha estimada de pago o si necesitas asistencia adicional. 🙏  
+¡Gracias por tu atención y preferencia, Si ya cancelaste omite este mensaje!
+`;
+  };
+
+  const isValidCoMobile = (phone?: string) => /^57[3]\d{9}$/.test(phone ?? "");
+  const openWhatsApp = (f: Row) => {
+    const text = encodeURIComponent(buildReminderText(f));
+    const telefono = f.cliente?.telefono || "";
+
+    const url = isValidCoMobile(telefono)
+      ? `https://api.whatsapp.com/send?phone=${telefono}&text=${text}`
+      : `https://api.whatsapp.com/send?text=${text}`; // fallback sin número
+
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   // sincroniza URL “bonito”
   useEffect(() => {
@@ -174,6 +236,9 @@ export function VencimientosClientesClient({
                       <th className="text-right px-4 py-3 font-medium">
                         Saldo
                       </th>
+                      <th className="text-right px-4 py-3 font-medium">
+                        Acción
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="[&>tr:nth-child(odd)]:bg-muted/20">
@@ -275,16 +340,39 @@ export function VencimientosClientesClient({
                               {prioridad}
                             </span>
                           </td>
-
                           <td className="py-3 text-right font-medium font-mono">
                             {fmtMoney(f.total)}
                           </td>
+
                           <td
                             className={`px-4 py-3 text-right font-semibold font-mono ${
                               vencida ? "text-red-700 dark:text-red-400" : ""
                             }`}
                           >
                             {fmtMoney(f.saldo)}
+                          </td>
+
+                          <td className="px-4 py-3 text-right">
+                            {(() => {
+                              const phoneOk = isValidCoMobile(
+                                f.cliente?.telefono
+                              );
+                              return (
+                                <button
+                                  onClick={() => openWhatsApp(f)}
+                                  disabled={!phoneOk}
+                                  className="inline-flex items-center gap-1 border rounded-md px-3 py-1.5 text-sm disabled:opacity-50 hover:bg-muted/50"
+                                  title={
+                                    phoneOk
+                                      ? "Enviar recordatorio por WhatsApp"
+                                      : "Sin número móvil válido (Colombia: 57 + 10 dígitos)"
+                                  }
+                                >
+                                  <Share2 className="w-4 h-4" />
+                                  Recordatorio
+                                </button>
+                              );
+                            })()}
                           </td>
                         </tr>
                       );

@@ -217,8 +217,8 @@ function flattenMovimientosForExport(items: MovimientoCliente[]) {
         rows.push({
           ...base,
           Pedido: d.pedidoId ? `#${d.pedidoId.slice(0, 6).toUpperCase()}` : "—",
-          Monto: -Math.abs(Number(d.valor || 0)),
-          Saldo: m.saldo, // o "—" si prefieres
+          Monto: Number(d.valor || 0), // ✅ respeta signo (+ reverso, - ajuste)
+          Saldo: m.saldo,
         });
       }
       continue;
@@ -613,9 +613,7 @@ function ClienteHistorial({
                                         const filas = ajusteDetalles?.length
                                           ? ajusteDetalles.map((d) => ({
                                               pedidoId: d.pedidoId,
-                                              valor: -Math.abs(
-                                                Number(d.valor || 0)
-                                              ), // ajustes como negativo
+                                              valor: Number(d.valor || 0), // ✅ respeta signo del backend
                                             }))
                                           : (
                                               (base as any)
@@ -736,17 +734,14 @@ function ClienteHistorial({
                                                         )?.valor
                                                       : undefined;
                                                     if (byId !== undefined)
-                                                      return -Math.abs(
-                                                        Number(byId)
-                                                      );
+                                                      return Number(byId); // ✅ respeta signo
                                                     const byIdx =
                                                       ajusteDetalles[idx]
                                                         ?.valor;
                                                     if (byIdx !== undefined)
-                                                      return -Math.abs(
-                                                        Number(byIdx)
-                                                      );
+                                                      return Number(byIdx); // ✅
                                                   }
+
                                                   return m.monto;
                                                 })()
                                               : m.monto;
@@ -866,14 +861,37 @@ function ClienteHistorial({
   );
 }
 
-// =============== Actions (ver detalles / historial) ===============
 function ClienteActions({ cliente }: { cliente: ClienteConSaldo }) {
   const [open, setOpen] = useState(false);
   const [openHistory, setOpenHistory] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [pending, setPending] = useState<null | "details" | "history">(null);
+  const justOpenedAt = React.useRef(0);
+
+  // Limpia overflow por si Radix lo dejó
+  useEffect(() => {
+    if (!open && !openHistory) {
+      document.documentElement.classList.remove("overflow-hidden");
+      document.body.classList.remove("overflow-hidden");
+    }
+  }, [open, openHistory]);
+
+  // Cuando el menú termine de cerrarse, abrimos el dialog pendiente
+  useEffect(() => {
+    if (!menuOpen && pending) {
+      const id = requestAnimationFrame(() => {
+        if (pending === "details") setOpen(true);
+        if (pending === "history") setOpenHistory(true);
+        justOpenedAt.current = performance.now(); // marca para “ignorar” outside
+        setPending(null);
+      });
+      return () => cancelAnimationFrame(id);
+    }
+  }, [menuOpen, pending]);
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-8 p-0">
             <span className="sr-only">Abrir menú</span>
@@ -882,17 +900,41 @@ function ClienteActions({ cliente }: { cliente: ClienteConSaldo }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => setOpen(true)}>
+
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setPending("details");
+              setMenuOpen(false);
+            }}
+          >
             <Eye className="mr-2 h-4 w-4" /> Ver detalles
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setOpenHistory(true)}>
+
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setPending("history");
+              setMenuOpen(false);
+            }}
+          >
             <Eye className="mr-2 h-4 w-4" /> Ver historial
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {/* Dialogs NO modales y sin autoFocus */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="max-w-3xl max-h-[90vh] overflow-y-auto z-[120]"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => {
+            // Ignora el primer pointerdown tras abrir (evita el “rebote”)
+            if (performance.now() - justOpenedAt.current < 200) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center">
               <Eye className="w-5 h-5 mr-2" /> Detalles del Cliente
@@ -906,7 +948,15 @@ function ClienteActions({ cliente }: { cliente: ClienteConSaldo }) {
       </Dialog>
 
       <Dialog open={openHistory} onOpenChange={setOpenHistory}>
-        <DialogContent className="max-w-5xl w-full">
+        <DialogContent
+          className="max-w-5xl w-full z-[120]"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => {
+            if (performance.now() - justOpenedAt.current < 200) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center">
               <Eye className="w-5 h-5 mr-2" /> Historial de movimientos

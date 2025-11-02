@@ -130,7 +130,7 @@ export function ListCartera({ cliente }: { cliente: ClienteCartera | null }) {
             id: balance.id,
             nombre: balance.nombre,
           }}
-          token={token}
+          //token={token}
           onSuccess={() => {
             setShowAjuste(false);
             fetchBalance(); // 🔄 Actualiza tras ajuste
