@@ -455,6 +455,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import React from "react";
 function ProveedorActions({ proveedor }: { proveedor: ProveedorConSaldo }) {
   const [open, setOpen] = useState(false);
   const [openHistory, setOpenHistory] = useState(false);
@@ -462,16 +463,40 @@ function ProveedorActions({ proveedor }: { proveedor: ProveedorConSaldo }) {
   const [loading, setLoading] = useState(false);
   const { getToken } = useAuth();
 
+  // 👇 NUEVO: controlamos el menú y aplazamos la apertura del diálogo
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [pending, setPending] = useState<null | "details" | "history">(null);
+  const justOpenedAt = React.useRef(0);
+
+  // Limpia posibles locks de overflow si ambos están cerrados
+  useEffect(() => {
+    if (!open && !openHistory) {
+      document.documentElement.classList.remove("overflow-hidden");
+      document.body.classList.remove("overflow-hidden");
+    }
+  }, [open, openHistory]);
+
+  // Cuando el menú termine de cerrarse, abrimos el diálogo pendiente
+  useEffect(() => {
+    if (!menuOpen && pending) {
+      const id = requestAnimationFrame(() => {
+        if (pending === "details") setOpen(true);
+        if (pending === "history") setOpenHistory(true);
+        justOpenedAt.current = performance.now(); // marca para ignorar outside “fantasma”
+        setPending(null);
+      });
+      return () => cancelAnimationFrame(id);
+    }
+  }, [menuOpen, pending]);
+
   const fetchMovimientos = async () => {
     try {
       setLoading(true);
-      const token = await getToken(); // ⚠️ si esta función es server-only, ver nota abajo
+      const token = await getToken();
       const url = `${process.env.NEXT_PUBLIC_API_URL}/facturas-proveedor/movimientos/${proveedor.idProveedor}`;
-
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!res.ok) {
         console.error(
           "Error fetching movimientos:",
@@ -480,7 +505,6 @@ function ProveedorActions({ proveedor }: { proveedor: ProveedorConSaldo }) {
         );
         return;
       }
-
       const data = await res.json();
       setMovimientos(data);
     } catch (e) {
@@ -490,76 +514,123 @@ function ProveedorActions({ proveedor }: { proveedor: ProveedorConSaldo }) {
     }
   };
 
-  // 🔥 dispara la carga sólo cuando abres el historial
+  // Carga movimientos solo cuando abre historial
   useEffect(() => {
-    if (openHistory) {
-      fetchMovimientos();
-    }
+    if (openHistory) fetchMovimientos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openHistory, proveedor.idProveedor]);
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-8 p-0">
             <span className="sr-only">Abrir menú</span>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuContent
+          align="end"
+          className="w-40"
+          onCloseAutoFocus={(e) => e.preventDefault()} // evita restore-focus al cerrar
+        >
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => setOpen(true)}>
+
+          {/* Cerramos el menú y dejamos “pendiente” abrir el diálogo */}
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setPending("details");
+              setMenuOpen(false);
+            }}
+          >
             <Eye className="mr-2 h-4 w-4" />
             Ver detalles
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setOpenHistory(true)}>
+
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setPending("history");
+              setMenuOpen(false);
+            }}
+          >
             <Eye className="mr-2 h-4 w-4" />
-            Ver Historial
+            Ver historial
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center">
-              <Eye className="w-5 h-5 mr-2" />
-              Detalles del Proveedor
-            </DialogTitle>
-            <DialogDescription>
-              Información de {proveedor.razonsocial}
-            </DialogDescription>
-          </DialogHeader>
-          <ProveedorDetalles
-            proveedor={proveedor}
-            onClose={() => setOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-      <Dialog open={openHistory} onOpenChange={setOpenHistory}>
-        <DialogContent className="max-w-5xl w-full">
-          <DialogHeader>
-            <DialogTitle className="flex items-center">
-              <Eye className="w-5 h-5 mr-2" />
-              Historial de pagos
-            </DialogTitle>
-            <DialogDescription>
-              Historial de pagos y Facturas {proveedor.razonsocial}
-            </DialogDescription>
-          </DialogHeader>
-          {loading ? (
-            <div className="p-6 text-sm text-muted-foreground">
-              Cargando movimientos…
-            </div>
-          ) : (
-            <ProveedorVerHistory
+      {/* Dialogs NO modales + bloqueamos el primer outside “fantasma” */}
+      {open && (
+        <Dialog open={open} onOpenChange={setOpen} modal={false}>
+          <DialogContent
+            className="max-w-3xl max-h-[90vh] overflow-y-auto z-[120]"
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            onPointerDownOutside={(e) => {
+              if (performance.now() - justOpenedAt.current < 200)
+                e.preventDefault();
+            }}
+            onInteractOutside={(e) => {
+              if (performance.now() - justOpenedAt.current < 200)
+                e.preventDefault();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="flex items-center">
+                <Eye className="w-5 h-5 mr-2" />
+                Detalles del Proveedor
+              </DialogTitle>
+              <DialogDescription>
+                Información de {proveedor.razonsocial}
+              </DialogDescription>
+            </DialogHeader>
+            <ProveedorDetalles
               proveedor={proveedor}
-              movimientos={movimientos}
-              onClose={() => setOpenHistory(false)}
+              onClose={() => setOpen(false)}
             />
-          )}
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {openHistory && (
+        <Dialog open={openHistory} onOpenChange={setOpenHistory} modal={false}>
+          <DialogContent
+            className="max-w-5xl w-full z-[120]"
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            onPointerDownOutside={(e) => {
+              if (performance.now() - justOpenedAt.current < 200)
+                e.preventDefault();
+            }}
+            onInteractOutside={(e) => {
+              if (performance.now() - justOpenedAt.current < 200)
+                e.preventDefault();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="flex items-center">
+                <Eye className="w-5 h-5 mr-2" />
+                Historial de pagos
+              </DialogTitle>
+              <DialogDescription>
+                Historial de pagos y Facturas {proveedor.razonsocial}
+              </DialogDescription>
+            </DialogHeader>
+
+            {loading ? (
+              <div className="p-6 text-sm text-muted-foreground">
+                Cargando movimientos…
+              </div>
+            ) : (
+              <ProveedorVerHistory
+                proveedor={proveedor}
+                movimientos={movimientos}
+                onClose={() => setOpenHistory(false)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

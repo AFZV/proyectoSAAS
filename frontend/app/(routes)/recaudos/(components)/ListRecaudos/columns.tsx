@@ -154,48 +154,90 @@ function RevisadoToggle({ recibo }: { recibo: ReciboConRelaciones }) {
 
 /** Acciones desplegable (opcionalmente podrías agregar aquí también el toggle) */
 function ReciboDropdownActions({ recibo }: { recibo: ReciboConRelaciones }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(recibo.id);
-    toast({ title: `Número copiado: ${recibo.id}`, duration: 1000 });
+  const pdfUrl = `https://files.bgacloudsaas.com/empresas/${recibo.empresaId}/recibos/recibo_${recibo.id}.pdf`;
+
+  const openDetallesSafely = () => {
+    // si hay algo más que cerrar, hazlo aquí antes
+    setTimeout(() => setOpen(true), 0); // o requestAnimationFrame(() => setOpen(true))
   };
 
-  const pdfUrl = `https://files.bgacloudsaas.com/empresas/${recibo.empresaId}/recibos/recibo_${recibo.id}.pdf`;
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(recibo.id);
+      toast({ title: `Número copiado: ${recibo.id}`, duration: 1000 });
+    } catch {
+      toast({
+        title: "No se pudo copiar",
+        variant: "destructive",
+        duration: 1200,
+      });
+    }
+  };
+
+  const handleDownload = () => {
+    const link = document.createElement("a");
+    link.href = `${pdfUrl}?v=${Date.now()}`;
+    link.download = `recibo-${recibo.id}.pdf`;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.click();
+  };
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-8 p-0">
             <span className="sr-only">Abrir menú</span>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+
+        <DropdownMenuContent
+          align="end"
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          className="w-44"
+        >
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setOpen(true)}>
+
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setMenuOpen(false);
+              openDetallesSafely();
+            }}
+          >
             Ver detalles
           </DropdownMenuItem>
+
           <DropdownMenuItem
-            onClick={() => {
-              const link = document.createElement("a");
-              link.href = `${pdfUrl}?v=${Date.now()}`;
-              link.download = `recibo-${recibo.id}.pdf`;
-              link.target = "_blank";
-              link.click();
+            onSelect={(e) => {
+              e.preventDefault();
+              setMenuOpen(false);
+              handleDownload();
             }}
           >
             Descargar PDF
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleCopy}>
-            Copiar Número
+
+          <DropdownMenuItem
+            onSelect={async (e) => {
+              e.preventDefault();
+              setMenuOpen(false);
+              await handleCopy();
+            }}
+          >
+            Copiar número
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {/* Si ReciboDetallesModal es Radix Dialog, esto ya evita la “pegada” */}
       <ReciboDetallesModal
         open={open}
         onClose={() => setOpen(false)}

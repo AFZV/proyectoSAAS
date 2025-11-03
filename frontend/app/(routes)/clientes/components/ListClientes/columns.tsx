@@ -179,22 +179,27 @@ function ClienteDetalles({
 // Componente de acciones para cada fila
 function ClienteActions({ cliente }: { cliente: Cliente }) {
   const { toast } = useToast();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [showDetalles, setShowDetalles] = useState(false);
   const [showEditar, setShowEditar] = useState(false);
 
-  const handleView = () => {
-    setShowDetalles(true);
+  const openDetallesSafely = () => {
+    // cierra cualquier otro modal por si acaso
+    setShowEditar(false);
+    // abre en el siguiente tick para que el Dropdown se desmonte primero
+    setTimeout(() => setShowDetalles(true), 0);
   };
 
-  const handleEdit = () => {
-    setShowEditar(true);
+  const openEditarSafely = () => {
+    setShowDetalles(false);
+    setTimeout(() => setShowEditar(true), 0);
   };
 
   const handleCopyNit = async () => {
     try {
       await navigator.clipboard.writeText(cliente.nit);
       toast({
-        title: "NIT Copiado",
+        title: "NIT copiado",
         description: `${cliente.nit} copiado al portapapeles`,
       });
     } catch (error) {
@@ -208,25 +213,49 @@ function ClienteActions({ cliente }: { cliente: Cliente }) {
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-8 p-0">
             <span className="sr-only">Abrir menú</span>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
+
         <DropdownMenuContent align="end" className="w-40">
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-          <DropdownMenuItem onClick={handleView}>
+
+          {/* Usar onSelect + preventDefault para controlar el orden */}
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setMenuOpen(false);
+              openDetallesSafely();
+            }}
+          >
             <Eye className="mr-2 h-4 w-4" />
             Ver detalles
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleEdit}>
+
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setMenuOpen(false);
+              openEditarSafely();
+            }}
+          >
             <Edit3 className="mr-2 h-4 w-4" />
             Editar
           </DropdownMenuItem>
+
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleCopyNit}>
+
+          <DropdownMenuItem
+            onSelect={async (e) => {
+              e.preventDefault();
+              setMenuOpen(false);
+              await handleCopyNit();
+            }}
+          >
             <Copy className="mr-2 h-4 w-4" />
             Copiar NIT
           </DropdownMenuItem>
@@ -234,8 +263,17 @@ function ClienteActions({ cliente }: { cliente: Cliente }) {
       </DropdownMenu>
 
       {/* Modal de Detalles */}
-      <Dialog open={showDetalles} onOpenChange={setShowDetalles}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <Dialog
+        open={showDetalles}
+        onOpenChange={(v) => {
+          if (!v) setShowDetalles(false);
+        }}
+      >
+        <DialogContent
+          className="max-w-4xl max-h-[90vh] overflow-y-auto"
+          // opcional: evitar auto-focus agresivo si tienes inputs
+          // onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center">
               <Eye className="w-5 h-5 mr-2" />
@@ -253,7 +291,12 @@ function ClienteActions({ cliente }: { cliente: Cliente }) {
       </Dialog>
 
       {/* Modal de Editar */}
-      <Dialog open={showEditar} onOpenChange={setShowEditar}>
+      <Dialog
+        open={showEditar}
+        onOpenChange={(v) => {
+          if (!v) setShowEditar(false);
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center">
