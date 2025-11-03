@@ -1285,4 +1285,27 @@ export class PedidosService {
     });
     return pedido;
   }
+
+  //asignar dias de credito
+  async actualizarDiasCredito(
+    pedidoId: string,
+    diasCredito: number,
+    usuario: UsuarioPayload
+  ) {
+    if (!usuario) throw new BadRequestException('El usuario es requerido');
+    const { empresaId, rol } = usuario; // Desestructurar rol del usuario
+    // Solo admin puede asignar dias de credito
+    if (rol !== 'admin') {
+      throw new UnauthorizedException('No está autorizado');
+    }
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id: pedidoId, empresaId },
+    });
+    if (!pedido) throw new NotFoundException('Pedido no encontrado');
+    const pedidoActualizado = await this.prisma.pedido.update({
+      where: { id: pedido.id },
+      data: { credito: diasCredito },
+    });
+    return pedidoActualizado;
+  }
 }

@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Req,
@@ -149,5 +150,20 @@ export class PedidosController {
       throw new BadRequestException('Usuario no autenticado');
     }
     return this.pedidosService.obtenerPedidoPorId(pedidoId, usuario);
+  }
+
+  @Roles('admin')
+  @Patch('credito/:pedidoId')
+  async actualizarDiasCredito(
+    @Param('pedidoId') pedidoId: string,
+    @Body('diasCredito', ParseIntPipe) diasCredito: number,
+    @Req() req: UsuarioRequest
+  ) {
+    const usuario = req.usuario;
+    return await this.pedidosService.actualizarDiasCredito(
+      pedidoId,
+      diasCredito,
+      usuario
+    );
   }
 }

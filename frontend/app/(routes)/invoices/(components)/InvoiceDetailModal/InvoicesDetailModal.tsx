@@ -84,6 +84,36 @@ export function InvoiceDetailModal({
     (comision.trim() === "" ? null : Number(comision)) !==
     (comisionActual ?? null);
 
+  // debajo de los estados de comisión:
+  const [diasCredito, setDiasCredito] = useState<string>("");
+  const [savingDiasCredito, setSavingDiasCredito] = useState(false);
+
+  const diasCreditoActual =
+    (pedido as any)?.diasCredito != null
+      ? Number((pedido as any).diasCredito)
+      : null;
+
+  const opcionesCredito = [
+    { label: "Contado", value: 1 },
+    { label: "Crédito 30 días", value: 30 },
+    { label: "Crédito 45 días", value: 45 },
+    { label: "Crédito 60 días", value: 60 },
+    { label: "Crédito 90 días", value: 90 },
+  ];
+
+  // ¿cambió el valor?
+  const diasCreditoChanged =
+    (diasCredito.trim() === "" ? null : Number(diasCredito)) !==
+    (diasCreditoActual ?? null);
+
+  // precarga cuando se abre/cambia el pedido (junto a tu useEffect de comisión)
+  useEffect(() => {
+    if (isOpen && pedido) {
+      const actual = (pedido as any)?.diasCredito ?? null;
+      setDiasCredito(actual != null ? String(actual) : "");
+    }
+  }, [isOpen, pedido]);
+
   // cuando se abre el modal o cambia el pedido: precarga comisión
   useEffect(() => {
     if (isOpen && pedido) {
@@ -332,6 +362,61 @@ export function InvoiceDetailModal({
       });
     } finally {
       setSavingComision(false);
+    }
+  };
+  const handleGuardarDiasCredito = async () => {
+    const valor = diasCredito.trim() === "" ? null : Number(diasCredito);
+    if (valor == null || Number.isNaN(valor) || valor < 1) {
+      toast({
+        title: "Dato inválido",
+        description: "Selecciona una opción válida (mínimo 1 día).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSavingDiasCredito(true);
+      const token = await getToken();
+      if (!token) {
+        toast({
+          title: "Error de autenticación",
+          description: "No se pudo obtener el token",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Endpoint sugerido (ajústalo a tu servicio real si usas invoicesService)
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/pedidos/credito/${pedido.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ diasCredito: valor }),
+        }
+      );
+
+      onUpdate({ ...pedido, diasCredito: valor } as any);
+
+      toast({
+        title: "✅ Días de crédito guardados",
+        description: `Se asignó ${
+          valor === 1 ? "Contado (1 día)" : `${valor} días`
+        }.`,
+      });
+    } catch (err: any) {
+      console.error("❌ Error al guardar días de crédito:", err);
+      toast({
+        title: "Error",
+        description: err?.message || "No se pudo guardar los días de crédito",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingDiasCredito(false);
     }
   };
 
@@ -751,7 +836,47 @@ export function InvoiceDetailModal({
                   </div>
                 </div>
               )}
+              {/*dias de credito*/}
+              {estadoActual !== "CANCELADO" && (
+                <div className="mt-2 grid grid-cols-2 gap-4 items-end">
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">
+                      DÍAS DE CRÉDITO
+                    </p>
+                    <select
+                      value={diasCredito}
+                      onChange={(e) => setDiasCredito(e.target.value)}
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
+                    >
+                      <option value="">Seleccionar...</option>
+                      {opcionesCredito.map((op) => (
+                        <option key={op.value} value={op.value}>
+                          {op.label}
+                        </option>
+                      ))}
+                    </select>
 
+                    {diasCreditoActual != null && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        Actual:{" "}
+                        {diasCreditoActual === 1
+                          ? "Contado (1 día)"
+                          : `${diasCreditoActual} días`}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleGuardarDiasCredito}
+                      disabled={savingDiasCredito || !diasCreditoChanged}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      {savingDiasCredito ? "Guardando..." : "Guardar crédito"}
+                    </Button>
+                  </div>
+                </div>
+              )}
               {pedido.observaciones && (
                 <div className="mt-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
@@ -842,7 +967,6 @@ export function InvoiceDetailModal({
                   })()}
                 </div>
               )}
-
               {/* ✨ Información de envío (EDITABLE) */}
               <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
