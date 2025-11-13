@@ -26,35 +26,8 @@ export class RecibosService {
   ) {}
 
   //helper para validar que el saldo a abonar o actualizar en un recibo no supere el saldo actual
-  private async validarSaldoPedido(pedidoId: string, valorAplicado: number) {
-    const pedido = await this.prisma.pedido.findUnique({
-      where: { id: pedidoId },
-      include: { detalleRecibo: true },
-    });
 
-    if (!pedido) {
-      throw new Error(`Pedido con ID ${pedidoId} no encontrado`);
-    }
-
-    const totalAbonado = pedido.detalleRecibo.reduce(
-      (sum, r) => sum + r.valorTotal,
-      0
-    );
-
-    const saldo = pedido.total - totalAbonado;
-
-    if (saldo <= 0) {
-      throw new Error(`El pedido ${pedidoId} ya fue abonado completamente.`);
-    }
-
-    if (valorAplicado > saldo) {
-      throw new Error(
-        `El valor aplicado (${valorAplicado}) supera el saldo restante (${saldo}) del pedido ${pedidoId}.`
-      );
-    }
-
-    return { saldoRestante: saldo };
-  }
+  // recibos.service.ts
 
   private async validarClienteVendedor(
     idCliente: string,
@@ -79,110 +52,274 @@ export class RecibosService {
       );
     return relacion;
   }
+  /** Devuelve true si algún AJUSTE_MANUAL de este recibo ya fue reversado */
+  private async existeReversoDeAjusteParaRecibo(
+    reciboId: string,
+    empresaId: string
+  ): Promise<boolean> {
+    const short = `#${reciboId.slice(0, 6).toLowerCase()}`;
+
+    // 1) Ubica los AJUSTE_MANUAL "originales" asociados al recibo:
+    //    - por idRecibo
+    //    - o por texto en observación (legado)
+    const originales = await this.prisma.movimientosCartera.findMany({
+      where: {
+        empresaId,
+        tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+        OR: [
+          { idRecibo: reciboId },
+          // legado: "Ajuste (flete/desc) desde recibo #36f96e"
+          { observacion: { contains: reciboId, mode: 'insensitive' } },
+          { observacion: { contains: short, mode: 'insensitive' } },
+        ],
+      },
+      select: { idMovimientoCartera: true, observacion: true },
+    });
+
+    if (!originales.length) return false;
+
+    const originalIds = originales.map((m) => m.idMovimientoCartera);
+    const orObservacion: any[] = [
+      { observacion: { contains: reciboId, mode: 'insensitive' } },
+      { observacion: { contains: short, mode: 'insensitive' } },
+    ];
+    for (const mid of originalIds) {
+      orObservacion.push({
+        observacion: { contains: String(mid), mode: 'insensitive' },
+      });
+    }
+
+    // 2) ¿Existe ALGÚN REVERSO que haga referencia a esos ids/recibo?
+    //    Convención esperada en reversos: "REVERSO_DE:{...}"
+    const reverso = await this.prisma.movimientosCartera.findFirst({
+      where: {
+        empresaId,
+        tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+        AND: [
+          { observacion: { startsWith: 'REVERSO_DE:', mode: 'insensitive' } },
+          { OR: orObservacion },
+        ],
+      },
+      select: { idMovimientoCartera: true },
+    });
+
+    return !!reverso;
+  }
 
   //crea un recibo y registra en detalle recibo y los movimientos te cartera correspondiente
   async crearRecibo(data: CrearReciboDto, usuario: UsuarioPayload) {
-    if (!usuario) {
-      throw new UnauthorizedException('Usuario no autorizado');
-    }
+    if (!usuario) throw new UnauthorizedException('Usuario no autorizado');
 
     const { clienteId, tipo, concepto, pedidos } = data;
+    const { empresaId } = usuario;
+
     const relacion = await this.validarClienteVendedor(clienteId, usuario);
 
-    if (!pedidos || pedidos.length === 0) {
+    if (!Array.isArray(pedidos) || pedidos.length === 0) {
       throw new BadRequestException(
         'Debe asociar al menos un pedido al recibo.'
       );
     }
 
-    const totalAbonado = pedidos.reduce((sum, p) => sum + p.valorAplicado, 0);
+    const totalAbonado = pedidos.reduce(
+      (sum, p) => sum + Number(p.valorAplicado || 0),
+      0
+    );
     if (totalAbonado <= 0) {
       throw new BadRequestException('El total aplicado debe ser mayor a 0.');
     }
 
-    const detalles: {
+    // ---- Normalización y validaciones de entrada ----
+    const ajustePorPedido = new Map<string, number>(); // flete+descuento
+    for (const p of pedidos) {
+      const f = Number(p.flete || 0);
+      const d = Number(p.descuento || 0);
+      if (f < 0 || d < 0) {
+        throw new BadRequestException(
+          'Flete/Descuento no pueden ser negativos.'
+        );
+      }
+      ajustePorPedido.set(p.pedidoId, f + d);
+    }
+
+    type DetalleCalculado = {
       idPedido: string;
       valorAplicado: number;
       saldoPendiente: number;
-      estado: string;
+      estado: 'completo' | 'parcial';
       totalPedido: number;
-    }[] = [];
+      ajusteAplicado: number; // flete+descuento del payload
+    };
 
-    for (const pedido of pedidos) {
+    const detalles: DetalleCalculado[] = [];
+
+    // ---- Calcular saldo actual y validar que no se exceda por pedido ----
+    for (const p of pedidos) {
+      const pedidoId = p.pedidoId;
+
+      // 1) Total del pedido
       const pedidoOriginal = await this.prisma.pedido.findUnique({
-        where: { id: pedido.pedidoId },
-        include: { detalleRecibo: true },
+        where: { id: pedidoId, empresaId },
+        select: { id: true, total: true },
+      });
+      if (!pedidoOriginal) {
+        throw new NotFoundException(`Pedido con ID ${pedidoId} no encontrado`);
+      }
+      const totalPedido = Number(pedidoOriginal.total || 0);
+
+      // 2) Abonos previos (suma de detalleRecibo.valorTotal del pedido)
+      const abonosPreviosAgg = await this.prisma.detalleRecibo.aggregate({
+        _sum: { valorTotal: true },
+        where: { idPedido: pedidoId },
+      });
+      const abonadoPrevio = Number(abonosPreviosAgg._sum.valorTotal || 0);
+
+      // 3) Ajustes previos por pedido (DetalleAjusteCartera + movimiento AJUSTE_MANUAL)
+      const ajustesRows = await this.prisma.detalleAjusteCartera.findMany({
+        where: {
+          idPedido: pedidoId,
+          movimiento: {
+            empresaId,
+            tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+          },
+        },
+        select: {
+          valor: true,
+          movimiento: { select: { observacion: true } },
+        },
       });
 
-      if (!pedidoOriginal) {
-        throw new NotFoundException(
-          `Pedido con ID ${pedido.pedidoId} no encontrado`
+      // Convención: ajuste normal REDUCE saldo (signo -), reverso SUMA (signo +)
+      let ajusteSigned = 0;
+      for (const row of ajustesRows) {
+        const v = Math.abs(Number(row.valor || 0));
+        const esReverso = /\bREVERSO_DE:\{/.test(
+          row.movimiento?.observacion || ''
         );
+        ajusteSigned += esReverso ? +v : -v;
       }
 
-      const totalAbonadoAnterior = pedidoOriginal.detalleRecibo.reduce(
-        (sum, r) => sum + r.valorTotal,
-        0
+      // 4) Saldo actual del pedido ANTES del nuevo recibo
+      // saldo = total - abonadoPrevio + ajusteSigned
+      const saldoActual = Math.max(
+        0,
+        totalPedido - abonadoPrevio + ajusteSigned
       );
 
-      const saldoRestante = pedidoOriginal.total - totalAbonadoAnterior;
-      const nuevoSaldo = saldoRestante - pedido.valorAplicado;
+      // 5) Validar contra lo que se quiere aplicar
+      const valorAplicado = Number(p.valorAplicado || 0);
+      const ajusteActual = Number(ajustePorPedido.get(pedidoId) || 0);
+      const aplicadoTotal = valorAplicado + ajusteActual;
 
-      if (pedido.valorAplicado > saldoRestante) {
+      if (aplicadoTotal - saldoActual > 0.000001) {
+        // margen para flotantes
         throw new BadRequestException(
-          `El valor aplicado (${pedido.valorAplicado}) supera el saldo pendiente (${saldoRestante}) para el pedido ${pedido.pedidoId}`
+          `El total aplicado (${aplicadoTotal.toLocaleString(
+            'es-CO'
+          )}) excede el saldo disponible (${saldoActual.toLocaleString(
+            'es-CO'
+          )}) en el pedido ${pedidoId}.`
         );
       }
 
+      // 6) Saldo luego de aplicar este recibo (abono + ajuste)
+      const saldoPost = Math.max(0, saldoActual - aplicadoTotal);
+
       detalles.push({
-        idPedido: pedido.pedidoId,
-        valorAplicado: pedido.valorAplicado,
-        saldoPendiente: Math.max(nuevoSaldo, 0),
-        estado: nuevoSaldo <= 0 ? 'completo' : 'parcial',
-        totalPedido: pedidoOriginal.total,
+        idPedido: pedidoId,
+        valorAplicado,
+        saldoPendiente: saldoPost,
+        estado: saldoPost <= 0 ? 'completo' : 'parcial',
+        totalPedido,
+        ajusteAplicado: ajusteActual,
       });
     }
 
+    // ---- Transacción: crear recibo, detalles y movimientos ----
     const recibo = await this.prisma.$transaction(async (tx) => {
+      // 1) Crear recibo
       const creado = await tx.recibo.create({
         data: {
           clienteId,
           usuarioId: relacion.usuarioId,
-          empresaId: usuario.empresaId,
+          empresaId,
           tipo,
           concepto,
         },
         include: { usuario: true, cliente: true, empresa: true },
       });
 
-      for (const detalle of detalles) {
+      // 2) Detalles + movimiento por ABONO (RECIBO)
+      for (const d of detalles) {
         await tx.detalleRecibo.create({
           data: {
             idRecibo: creado.id,
-            idPedido: detalle.idPedido,
-            valorTotal: detalle.valorAplicado,
-            estado: detalle.estado,
-            saldoPendiente: detalle.saldoPendiente,
+            idPedido: d.idPedido,
+            valorTotal: d.valorAplicado,
+            estado: d.estado,
+            saldoPendiente: d.saldoPendiente,
           },
-          include: { pedido: true },
         });
 
-        await tx.movimientosCartera.create({
+        if (d.valorAplicado > 0) {
+          await tx.movimientosCartera.create({
+            data: {
+              empresaId,
+              idCliente: clienteId,
+              idUsuario: relacion.usuarioId,
+              idRecibo: creado.id,
+              idPedido: d.idPedido,
+              valorMovimiento: d.valorAplicado,
+              observacion: `Abono generado desde recibo #${creado.id.slice(0, 6)}`,
+              tipoMovimientoOrigen: 'RECIBO',
+            },
+          });
+        }
+      }
+
+      // 3) Un (1) movimiento AJUSTE_MANUAL por el total de ajustes, con detalle por pedido
+      const totalAjuste = detalles.reduce(
+        (acc, d) => acc + (d.ajusteAplicado || 0),
+        0
+      );
+
+      if (totalAjuste > 0) {
+        const movAjuste = await tx.movimientosCartera.create({
           data: {
+            empresaId,
             idCliente: clienteId,
-            valorMovimiento: detalle.valorAplicado,
             idUsuario: relacion.usuarioId,
-            empresaId: usuario.empresaId,
             idRecibo: creado.id,
-            observacion: `Abono generado desde creación de recibo #${creado.id.slice(0, 6)}`,
-            tipoMovimientoOrigen: 'RECIBO',
+            valorMovimiento: totalAjuste, // si prefieres llevarlo solo en detalles, puedes poner 0 aquí
+            tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+            observacion: `Ajuste (flete/desc) desde recibo #${creado.id.slice(0, 6)}`,
           },
         });
+
+        const detallesAjuste = detalles
+          .filter((d) => (d.ajusteAplicado || 0) > 0)
+          .map((d) => ({
+            idMovimiento: movAjuste.idMovimientoCartera,
+            idPedido: d.idPedido,
+            valor: d.ajusteAplicado, // positivo: en el cálculo de saldo se interpreta como reducción (no reverso)
+          }));
+
+        if (detallesAjuste.length) {
+          const { count } = await tx.detalleAjusteCartera.createMany({
+            data: detallesAjuste,
+          });
+          if (count !== detallesAjuste.length) {
+            throw new Error(
+              'No se pudieron registrar todos los detalles del ajuste'
+            );
+          }
+        }
       }
 
       return creado;
     });
 
+    // ---- PDF/Envío (asincrónico, no bloquea la respuesta) ----
     setImmediate(() => {
       void (async () => {
         try {
@@ -208,8 +345,6 @@ export class RecibosService {
           });
 
           if (!empresa) throw new Error('no se encontro empresa');
-
-          //process.stdout.write('🔍 logo URL: ' + empresa.logoUrl + '\n');
 
           const resumenRecibo: ResumenReciboDto = {
             id: recibo.id,
@@ -244,57 +379,15 @@ export class RecibosService {
           if (!empresa || !usuarioDB) {
             throw new Error('Empresa o usuario no encontrados');
           }
-          const folder = `empresas/${recibo.empresaId}/recibos`;
 
+          const folder = `empresas/${recibo.empresaId}/recibos`;
           await this.hetznerStorageService.uploadFile(
             pdfResult.buffer,
             `recibo_${recibo.id}.pdf`,
             folder
           );
 
-          // const { url: publicUrl } = await this.cloudinaryService.uploadPdf({
-          //   buffer: pdfResult.buffer,
-          //   fileName: `recibo_${recibo.id}.pdf`,
-          //   empresaNit: empresa.nit,
-          //   empresaNombre: empresa.nombreComercial,
-          //   usuarioNombre: usuarioDB.nombre,
-          //   tipo: 'recibos',
-          // });
-
-          if (!recibo.cliente?.email) throw new Error('Error al obtener email');
-
-          // const numeroWhatsApp = `+57${recibo.usuario?.telefono?.replace(/\D/g, '')}`;
-
-          //         await this.resendService.enviarCorreo(
-          //           recibo.cliente.email,
-          //           'Confirmación de tu recibo',
-          //           `
-          // <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
-          //   <p>Hola <strong>${recibo.cliente.nombre}</strong>,</p>
-
-          //   <p>Tu Recibo ha sido <strong>Generado exitosamente</strong>. Adjuntamos el comprobante en PDF:</p>
-
-          //   <p style="margin: 16px 0;">
-          //     <a href="${url}" target="_blank"
-          //        style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
-          //       Ver Comprobante PDF
-          //     </a>
-          //   </p>
-
-          //   <p>¿Tienes alguna duda sobre tu pago? Contáctanos:</p>
-
-          //   <p>
-          //     <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
-          //        style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
-          //       💬 Contactar por WhatsApp
-          //     </a>
-          //   </p>
-
-          //   <p style="margin-top: 30px;">Gracias por tu pago,</p>
-          //   <p><strong>Equipo de Recaudos</strong></p>
-          // </div>
-          // `
-          //         );
+          // (correo/whatsapp opcional aquí)
         } catch (err) {
           console.error('❌ Error generando o subiendo PDF de recibo:', err);
         }
@@ -372,102 +465,334 @@ export class RecibosService {
       );
     }
 
-    const { clienteId } = data;
+    const { clienteId, tipo, concepto, pedidos } = data;
     if (!clienteId) throw new UnauthorizedException('Usuario no autorizado');
+
+    const { empresaId } = usuario;
+
+    // 0) Bloqueo si hay reverso registrado contra este recibo
+    const hayReverso = await this.existeReversoDeAjusteParaRecibo(
+      id,
+      empresaId
+    );
+    if (hayReverso) {
+      throw new BadRequestException(
+        'Este recibo no se puede editar porque sus ajustes ya fueron reversados en Cartera. ' +
+          'Para evitar inconsistencias de saldo, primero elimina el reverso correspondiente o crea un nuevo recibo.'
+      );
+    }
+
+    // 1) Verifica alcance (y obtiene usuarioId vendedor válido para este cliente)
     const relacion = await this.validarClienteVendedor(clienteId, usuario);
 
+    // 2) Asegura que el recibo exista (y para trazabilidad)
     const recibo = await this.prisma.recibo.findUnique({
       where: { id },
       include: { detalleRecibo: true, cliente: true, usuario: true },
     });
-
     if (!recibo) throw new NotFoundException('Recibo no encontrado');
-    if (usuario.rol !== 'admin') {
-      throw new UnauthorizedException(
-        'No tienes permiso para editar este recibo'
+
+    // 3) Si no envían pedidos, solo actualiza encabezado
+    if (!Array.isArray(pedidos) || pedidos.length === 0) {
+      const reciboActualizado = await this.prisma.recibo.update({
+        where: { id },
+        data: {
+          tipo,
+          concepto,
+          cliente: { connect: { id: clienteId } },
+        },
+      });
+
+      this.regenerarPdfReciboEnSegundoPlano(
+        id,
+        usuario,
+        reciboActualizado.Fechacrecion
       );
+      return {
+        mensaje: 'Recibo actualizado con éxito',
+        recibo: reciboActualizado,
+      };
     }
 
-    if (data.pedidos) {
-      for (const pedido of data.pedidos) {
-        const anterior = recibo.detalleRecibo.find(
-          (d) => d.idPedido === pedido.pedidoId
+    // 4) Normaliza/colapsa pedidos repetidos por si llegan duplicados
+    const pedidosColapsados = Object.values(
+      pedidos.reduce<
+        Record<
+          string,
+          { pedidoId: string; valorAplicado: number; descuento: number }
+        >
+      >((acc, p) => {
+        const pid = p.pedidoId;
+        if (!acc[pid])
+          acc[pid] = { pedidoId: pid, valorAplicado: 0, descuento: 0 };
+        acc[pid].valorAplicado += Number(p.valorAplicado || 0);
+        acc[pid].descuento += Number(p.descuento || 0);
+        return acc;
+      }, {})
+    );
+
+    // 5) Validaciones fuertes por pedido (edición segura: re-asignación)
+    type DetalleCalculado = {
+      idPedido: string;
+      valorAplicado: number;
+      descuento: number;
+      saldoPendiente: number;
+      estado: 'completo' | 'parcial';
+      totalPedido: number;
+    };
+
+    const detalles: DetalleCalculado[] = [];
+
+    for (const p of pedidosColapsados) {
+      const pedidoId = p.pedidoId;
+      const valorAplicado = Number(p.valorAplicado || 0);
+      const descuento = Number(p.descuento || 0);
+
+      if (valorAplicado < 0 || descuento < 0) {
+        throw new BadRequestException(
+          'valorAplicado y descuento deben ser ≥ 0.'
         );
-        const valorPrevio = anterior?.valorTotal || 0;
-        const diferencia = pedido.valorAplicado - valorPrevio;
-        if (diferencia > 0) {
-          await this.validarSaldoPedido(pedido.pedidoId, diferencia);
+      }
+
+      // 5.1) Total del pedido (mismo tenant)
+      const pedidoOriginal = await this.prisma.pedido.findUnique({
+        where: { id: pedidoId, empresaId },
+        select: { id: true, total: true },
+      });
+      if (!pedidoOriginal) {
+        throw new NotFoundException(`Pedido con ID ${pedidoId} no encontrado`);
+      }
+      const totalPedido = Number(pedidoOriginal.total || 0);
+
+      // 5.2) Abonos TOTALES (incluyendo lo de este recibo)
+      const abonadoAggTotal = await this.prisma.detalleRecibo.aggregate({
+        _sum: { valorTotal: true },
+        where: { idPedido: pedidoId },
+      });
+      const abonadoTotal = Number(abonadoAggTotal._sum.valorTotal || 0);
+
+      // 5.3) Ajustes TOTALES (incluyendo lo de este recibo), con signo:
+      //      - Ajuste normal (AJUSTE_MANUAL): reduce saldo → signo negativo
+      //      - Reverso: aumenta saldo → signo positivo (detectado por observación)
+      const ajustesRowsTot = await this.prisma.detalleAjusteCartera.findMany({
+        where: {
+          idPedido: pedidoId,
+          movimiento: { empresaId, tipoMovimientoOrigen: 'AJUSTE_MANUAL' },
+        },
+        select: {
+          valor: true,
+          movimiento: { select: { observacion: true, idRecibo: true } },
+        },
+      });
+
+      let ajusteSignedTotal = 0;
+      for (const row of ajustesRowsTot) {
+        const v = Math.abs(Number(row.valor || 0));
+        const esReverso = /\bREVERSO_DE:\{/.test(
+          row.movimiento?.observacion || ''
+        );
+        ajusteSignedTotal += esReverso ? +v : -v;
+      }
+
+      // 5.4) Saldo con TODO lo existente actualmente
+      const saldoConTodo = Math.max(
+        0,
+        totalPedido - abonadoTotal + ajusteSignedTotal
+      );
+
+      // 5.5) Aportes ANTERIORES de ESTE RECIBO para "liberar" antes de re-asignar
+      // Abono previo de este recibo
+      const abonadoAnteriorEste = await this.prisma.detalleRecibo.aggregate({
+        _sum: { valorTotal: true },
+        where: { idPedido: pedidoId, idRecibo: id },
+      });
+      const abonoAnterior = Number(abonadoAnteriorEste._sum.valorTotal || 0);
+
+      // Ajuste previo de este recibo (si versiones antiguas no ligaban idRecibo, esto dará 0)
+      const ajusteAnteriorRows =
+        await this.prisma.detalleAjusteCartera.findMany({
+          where: {
+            idPedido: pedidoId,
+            movimiento: {
+              empresaId,
+              tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+              idRecibo: id, // si tienes legado sin idRecibo, puedes añadir una heurística por "observacion"
+            },
+          },
+          select: { valor: true },
+        });
+      const ajusteAnterior = ajusteAnteriorRows.reduce(
+        (s, r) => s + Number(r.valor || 0),
+        0
+      );
+
+      // 5.6) Saldo disponible para la nueva edición
+      const saldoDisponible = saldoConTodo + abonoAnterior + ajusteAnterior;
+
+      // 5.7) Validación dura: (nuevo abono + nuevo descuento) <= saldoDisponible
+      const aplicadoTotal = valorAplicado + descuento;
+      if (aplicadoTotal - saldoDisponible > 0.000001) {
+        throw new BadRequestException(
+          `El total aplicado (${aplicadoTotal.toLocaleString('es-CO')}) ` +
+            `excede el saldo disponible para reasignar (${saldoDisponible.toLocaleString('es-CO')}) ` +
+            `en el pedido ${pedidoId}.`
+        );
+      }
+
+      // 5.8) Saldo visual post-edición
+      const saldoPost = Math.max(
+        0,
+        saldoConTodo - aplicadoTotal + abonoAnterior + ajusteAnterior
+      );
+
+      detalles.push({
+        idPedido: pedidoId,
+        valorAplicado,
+        descuento,
+        saldoPendiente: saldoPost,
+        estado: saldoPost <= 0 ? 'completo' : 'parcial',
+        totalPedido,
+      });
+    }
+
+    // 6) Transacción: limpiar y reconstruir
+    const reciboActualizado = await this.prisma.$transaction(async (tx) => {
+      // 6.1) Actualiza encabezado
+      const head = await tx.recibo.update({
+        where: { id },
+        data: {
+          tipo,
+          concepto,
+          cliente: { connect: { id: clienteId } },
+        },
+      });
+
+      // 6.2) Borrar ajustes previos ligados a ESTE recibo (detalles primero)
+      const movsAjustePrev = await tx.movimientosCartera.findMany({
+        where: {
+          empresaId,
+          idRecibo: id,
+          tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+        },
+        select: { idMovimientoCartera: true },
+      });
+      const movAjIds = movsAjustePrev.map((m) => m.idMovimientoCartera);
+      if (movAjIds.length) {
+        await tx.detalleAjusteCartera.deleteMany({
+          where: { idMovimiento: { in: movAjIds } },
+        });
+      }
+
+      // 6.3) Borrar detalles y TODOS los movimientos (RECIBO + AJUSTE_MANUAL) de este recibo
+      await tx.detalleRecibo.deleteMany({ where: { idRecibo: id } });
+      await tx.movimientosCartera.deleteMany({ where: { idRecibo: id } });
+
+      // 6.4) Recrear detalles y movimiento RECIBO por cada pedido
+      for (const d of detalles) {
+        await tx.detalleRecibo.create({
+          data: {
+            idRecibo: id,
+            idPedido: d.idPedido,
+            valorTotal: d.valorAplicado,
+            estado: d.estado,
+            saldoPendiente: d.saldoPendiente,
+          },
+        });
+
+        if (d.valorAplicado > 0) {
+          await tx.movimientosCartera.create({
+            data: {
+              empresaId,
+              idCliente: clienteId,
+              idUsuario: relacion.usuarioId,
+              idRecibo: id,
+              idPedido: d.idPedido, // opcional, trazabilidad
+              valorMovimiento: d.valorAplicado,
+              observacion: `Abono actualizado para recibo #${id.slice(0, 6)}`,
+              tipoMovimientoOrigen: 'RECIBO',
+            },
+          });
         }
       }
-    }
 
-    const reciboActualizado = await this.prisma.recibo.update({
-      where: { id },
-      data: {
-        tipo: data.tipo,
-        concepto: data.concepto,
-        cliente: { connect: { id: clienteId } },
-      },
-    });
-
-    // Eliminar detalleRecibo y movimientosCartera anteriores
-    await this.prisma.detalleRecibo.deleteMany({ where: { idRecibo: id } });
-    await this.prisma.movimientosCartera.deleteMany({
-      where: { idRecibo: id },
-    });
-
-    if (data.pedidos) {
-      for (const pedido of data.pedidos) {
-        const { saldoRestante } = await this.validarSaldoPedido(
-          pedido.pedidoId,
-          pedido.valorAplicado
-        );
-        const nuevoSaldo = saldoRestante - pedido.valorAplicado;
-
-        await this.prisma.detalleRecibo.create({
+      // 6.5) Crear 1 movimiento AJUSTE_MANUAL consolidado (si hay descuentos > 0)
+      const totalDescuento = detalles.reduce(
+        (s, d) => s + (d.descuento || 0),
+        0
+      );
+      if (totalDescuento > 0) {
+        const movAjuste = await tx.movimientosCartera.create({
           data: {
-            idRecibo: recibo.id,
-            idPedido: pedido.pedidoId,
-            valorTotal: pedido.valorAplicado,
-            estado: nuevoSaldo <= 0 ? 'completo' : 'parcial',
-            saldoPendiente: Math.max(nuevoSaldo, 0),
-          },
-        });
-
-        await this.prisma.movimientosCartera.create({
-          data: {
+            empresaId,
             idCliente: clienteId,
-            valorMovimiento: pedido.valorAplicado,
             idUsuario: relacion.usuarioId,
-            empresaId: usuario.empresaId,
-            idRecibo: recibo.id,
-            observacion: `Abono actualizado para recibo #${recibo.id}`,
-            tipoMovimientoOrigen: 'RECIBO',
+            idRecibo: id,
+            valorMovimiento: totalDescuento,
+            tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+            observacion: `Ajuste manual (descuentos) para recibo #${id.slice(0, 6)}`,
           },
+          select: { idMovimientoCartera: true },
         });
-      }
-    }
 
-    // Generar y subir nuevo PDF en segundo plano
+        const detallesAj = detalles
+          .filter((d) => (d.descuento || 0) > 0)
+          .map((d) => ({
+            idMovimiento: movAjuste.idMovimientoCartera,
+            idPedido: d.idPedido,
+            valor: d.descuento, // positivo => reduce saldo
+          }));
+
+        if (detallesAj.length) {
+          const { count } = await tx.detalleAjusteCartera.createMany({
+            data: detallesAj,
+          });
+          if (count !== detallesAj.length) {
+            throw new Error(
+              'No se pudieron registrar todos los detalles del ajuste'
+            );
+          }
+        }
+      }
+
+      return head;
+    });
+
+    // 7) Regenerar PDF en segundo plano
+    this.regenerarPdfReciboEnSegundoPlano(
+      id,
+      usuario,
+      reciboActualizado.Fechacrecion
+    );
+
+    return {
+      mensaje: 'Recibo actualizado con éxito',
+      recibo: reciboActualizado,
+    };
+  }
+
+  /**
+   * Regenera y sube el PDF del recibo de forma asíncrona, sin bloquear la respuesta.
+   */
+  private regenerarPdfReciboEnSegundoPlano(
+    idRecibo: string,
+    usuario: UsuarioPayload,
+    fechaCreacion: Date
+  ) {
     setImmediate(() => {
       void (async () => {
         try {
-          const cliente = await this.prisma.cliente.findUnique({
-            where: { id: clienteId },
-            select: {
-              nombre: true,
-              apellidos: true,
-              rasonZocial: true,
-              email: true,
-            },
-          });
-
+          // Datos del recibo recalculados
           const detallesActualizados = await this.prisma.detalleRecibo.findMany(
             {
-              where: { idRecibo: id },
+              where: { idRecibo },
               include: { pedido: true },
             }
           );
+
+          const rec = await this.prisma.recibo.findUnique({
+            where: { id: idRecibo },
+            include: { cliente: true },
+          });
 
           const empresa = await this.prisma.empresa.findUnique({
             where: { id: usuario.empresaId },
@@ -480,22 +805,22 @@ export class RecibosService {
             },
           });
 
-          if (!empresa) throw new Error('no se encontro empresa');
+          if (!rec || !empresa) throw new Error('Datos incompletos');
 
           const resumen: ResumenReciboDto = {
-            id,
+            id: idRecibo,
             cliente:
-              cliente?.rasonZocial ||
-              `${cliente?.nombre || ''} ${cliente?.apellidos || ''}`.trim(),
-            fecha: reciboActualizado.Fechacrecion,
+              rec.cliente?.rasonZocial ||
+              `${rec.cliente?.nombre || ''} ${rec.cliente?.apellidos || ''}`.trim(),
+            fecha: fechaCreacion,
             vendedor: usuario.nombre,
-            tipo: reciboActualizado.tipo,
-            concepto: reciboActualizado.concepto,
-            pedidos: detallesActualizados.map((detalle) => ({
-              id: detalle.idPedido,
-              total: detalle.pedido?.total ?? 0,
-              valorAplicado: detalle.valorTotal,
-              saldoPendiente: detalle.saldoPendiente ?? 0,
+            tipo: rec.tipo,
+            concepto: rec.concepto,
+            pedidos: detallesActualizados.map((d) => ({
+              id: d.idPedido,
+              total: d.pedido?.total ?? 0,
+              valorAplicado: d.valorTotal,
+              saldoPendiente: d.saldoPendiente ?? 0,
             })),
             totalPagado: detallesActualizados.reduce(
               (sum, d) => sum + d.valorTotal,
@@ -510,73 +835,19 @@ export class RecibosService {
           const pdfBuffer =
             await this.pdfUploaderService.generarReciboPDF(resumen);
 
-          const usuarioDb = await this.prisma.usuario.findUnique({
-            where: { id: usuario.id },
-            select: { nombre: true },
-          });
-
-          if (!empresa || !usuarioDb) throw new Error('Datos incompletos');
-
-          const folder = `empresas/${recibo.empresaId}/recibos`;
-
+          const folder = `empresas/${rec.empresaId}/recibos`;
           await this.hetznerStorageService.uploadFile(
             pdfBuffer.buffer,
-            `recibo_${recibo.id}.pdf`,
+            `recibo_${idRecibo}.pdf`,
             folder
           );
 
-          // await this.cloudinaryService.uploadPdf({
-          //   buffer: pdfBuffer.buffer,
-          //   fileName: `recibo_${id}.pdf`,
-          //   empresaNit: empresa.nit,
-          //   empresaNombre: empresa.nombreComercial,
-          //   usuarioNombre: usuarioDb.nombre,
-          //   tipo: 'recibos',
-          // });
-
-          if (!recibo.cliente?.email) throw new Error('Error al obtener email');
-
-          //         const numeroWhatsApp = `+57${recibo.usuario?.telefono?.replace(/\D/g, '')}`;
-          //         await this.resendService.enviarCorreo(
-          //           recibo.cliente.email,
-          //           'Actualizacion de tu recibo',
-          //           `
-          // <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
-          //   <p>Hola <strong>${recibo.cliente.nombre}</strong>,</p>
-
-          //   <p>Tu Recibo ha sido <strong>Generado exitosamente</strong>. Adjuntamos el comprobante en PDF:</p>
-
-          //   <p style="margin: 16px 0;">
-          //     <a href="${url}" target="_blank"
-          //        style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
-          //       Ver Comprobante PDF
-          //     </a>
-          //   </p>
-
-          //   <p>¿Tienes alguna duda sobre tu pago? Contáctanos:</p>
-
-          //   <p>
-          //     <a href="https://wa.me/${numeroWhatsApp}" target="_blank"
-          //        style="display: inline-block; padding: 8px 16px; background-color: #25D366; color: white; text-decoration: none; border-radius: 6px;">
-          //       💬 Contactar por WhatsApp
-          //     </a>
-          //   </p>
-
-          //   <p style="margin-top: 30px;">Gracias por tu pago,</p>
-          //   <p><strong>Equipo de Recaudos</strong></p>
-          // </div>
-          // `
-          //         );
+          // (Opcional) envío por correo reutilizando tu servicio de correo…
         } catch (err) {
           console.error('❌ Error al regenerar PDF actualizado:', err);
         }
       })();
     });
-
-    return {
-      mensaje: 'Recibo actualizado con éxito',
-      recibo: reciboActualizado,
-    };
   }
 
   async marcarRevisado(usuario: UsuarioPayload, id: string) {
@@ -652,7 +923,6 @@ export class RecibosService {
     if (!recibo) {
       throw new NotFoundException('Recibo no encontrado');
     }
-    console.log('recibo encontrado:', recibo);
 
     return recibo;
   }
@@ -909,6 +1179,7 @@ export class RecibosService {
         const ajusteManual = ajustesPorPedido[pedido.id] || 0;
 
         const saldoPendiente = pedido.total - totalAbonado - ajusteManual;
+        const flete = pedido.flete || 0;
 
         return saldoPendiente > 0
           ? {
@@ -916,11 +1187,49 @@ export class RecibosService {
               fecha: pedido.fechaPedido,
               saldoPendiente,
               valorOriginal: pedido.total,
+              flete,
             }
           : null;
       })
       .filter((p): p is NonNullable<typeof p> => p !== null);
 
     return pedidosConSaldo;
+  }
+
+  // recibos.service.ts
+  async getAjustesPorRecibo(reciboId: string, usuario: UsuarioPayload) {
+    if (!usuario) throw new UnauthorizedException();
+    const { empresaId } = usuario;
+
+    // Busca todos los movimientos de ajuste ligados al recibo (por si en el futuro hay más de uno)
+
+    const movs = await this.prisma.movimientosCartera.findMany({
+      where: {
+        idRecibo: reciboId,
+        empresaId: empresaId,
+        tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+      },
+      select: { idMovimientoCartera: true },
+    });
+
+    if (!movs.length) return [];
+
+    const movIds = movs.map((m) => m.idMovimientoCartera);
+
+    const detalles = await this.prisma.detalleAjusteCartera.findMany({
+      where: { idMovimiento: { in: movIds } },
+      select: { idPedido: true, valor: true },
+    });
+
+    // Agrupa por pedido
+    const map = new Map<string, number>();
+    for (const d of detalles) {
+      const k = d.idPedido!;
+      map.set(k, (map.get(k) ?? 0) + Number(d.valor || 0));
+    }
+
+    // Devuelve [{ idPedido, ajuste }]
+
+    return Array.from(map, ([idPedido, ajuste]) => ({ idPedido, ajuste }));
   }
 }

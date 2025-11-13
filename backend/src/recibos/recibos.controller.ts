@@ -61,7 +61,7 @@ export class RecibosController {
 
   /// endpoint para actualizar cualquier o todos los campos de un recibo
   @Roles('admin')
-  @Patch(':id')
+  @Patch('actualizar/:id')
   async actualizarRecibo(
     @Param('id') id: string,
     @Body() data: UpdateReciboDto,
@@ -97,5 +97,16 @@ export class RecibosController {
   @Delete(':id')
   deleteRecibo(@Param('id') id: string) {
     return this.recibosService.eliminarRecibo(id);
+  }
+  @Roles('admin', 'vendedor')
+  @Get('ajustesporrecibo/ajustes/:id')
+  async getAjustesPorRecibo(
+    @Param('id') id: string,
+    @Req() req: UsuarioRequest
+  ) {
+    const usuario = req.usuario;
+    if (!usuario) throw new UnauthorizedException('no esta autorizado');
+
+    return this.recibosService.getAjustesPorRecibo(id, usuario);
   }
 }

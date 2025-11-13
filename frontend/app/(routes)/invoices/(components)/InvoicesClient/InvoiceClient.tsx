@@ -411,6 +411,8 @@ export function InvoicesClient({
           {pedidosPaginados.map((pedido) => {
             const estadoActual = getEstadoActual(pedido);
             const nombreCliente = getNombreCliente(pedido);
+            const saldoPendiente = Number(pedido.saldoPendiente ?? 0);
+            const estaPagado = saldoPendiente === 0;
 
             return (
               <div
@@ -467,7 +469,7 @@ export function InvoicesClient({
                     )}
                   </div>
 
-                  {/* Estado */}
+                  {/* Estado + Saldo */}
                   <div className="col-span-2">
                     <div className="flex items-center space-x-1">
                       {getEstadoBadge(estadoActual)}
@@ -484,6 +486,18 @@ export function InvoicesClient({
                         }
                       )}
                     </div>
+
+                    {/* Indicador de saldo */}
+                    {estaPagado ? (
+                      <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full bg-green-50 text-[11px] font-medium text-green-700 border border-green-200">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Sin saldo pendiente
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-[11px] text-amber-700 bg-amber-50 inline-flex px-2 py-0.5 rounded-full border border-amber-200">
+                        Saldo: {formatValue(saldoPendiente)}
+                      </div>
+                    )}
                   </div>
 
                   {/* Acciones */}
@@ -512,9 +526,10 @@ export function InvoicesClient({
                           <Edit3 className="h-4 w-4" />
                         </Button>
                       )}
-                      {["admin", "vendedor"].includes(userType) &&
+                      {["admin", "vendedor", "CLIENTE"].includes(userType) &&
                         [
                           "GENERADO",
+                          "ACEPTADO",
                           "SEPARADO",
                           "FACTURADO",
                           "ENVIADO",
@@ -559,6 +574,10 @@ export function InvoicesClient({
         const nombreCliente = getNombreCliente(pedido);
         const nombreVendedor = getNombreVendedor(pedido);
 
+        // 👇 Nuevo: usamos el saldo que viene del backend
+        const saldoPendiente = Number(pedido.saldoPendiente ?? 0);
+        const estaPagado = saldoPendiente === 0;
+
         return (
           <div
             key={pedido.id}
@@ -571,10 +590,24 @@ export function InvoicesClient({
                   <span className="text-sm font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">
                     #{pedido.id.slice(0, 5).toUpperCase()}
                   </span>
-                  <div className="flex items-center space-x-2">
-                    {getEstadoBadge(estadoActual)}
-                    {estadoActual === "ENVIADO" && (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
+                  <div className="flex flex-col space-y-1">
+                    <div className="flex items-center space-x-2">
+                      {getEstadoBadge(estadoActual)}
+                      {estadoActual === "ENVIADO" && (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      )}
+                    </div>
+
+                    {/* 👇 Indicador de saldo igual que en las otras vistas */}
+                    {estaPagado ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-50 text-[11px] font-medium text-green-700 border border-green-200">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Sin saldo pendiente
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-[11px] font-medium text-amber-700 border border-amber-200">
+                        Saldo: {formatValue(saldoPendiente)}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -588,11 +621,6 @@ export function InvoicesClient({
                   }`}
                 >
                   {formatValue(pedido.total || 0)}
-                  {estadoActual === "ENVIADO" && (
-                    <span className="text-sm text-green-500 ml-2">
-                      ✓ Completado
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
@@ -718,7 +746,7 @@ export function InvoicesClient({
                     Editar
                   </Button>
                 )}
-                {["admin", "vendedor"].includes(userType) && (
+                {["admin", "vendedor", "CLIENTE"].includes(userType) && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -822,8 +850,8 @@ export function InvoicesClient({
                 </th>
               )}
               {visibleColumns.estado && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
-                  Estado
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[160px]">
+                  Estado / Saldo
                 </th>
               )}
               {visibleColumns.vendedor && (
@@ -858,6 +886,10 @@ export function InvoicesClient({
               const estadoActual = getEstadoActual(pedido);
               const nombreCliente = getNombreCliente(pedido);
               const nombreVendedor = getNombreVendedor(pedido);
+
+              // 👇 Nuevo: usar saldoPendiente para indicador visual
+              const saldoPendiente = Number(pedido.saldoPendiente ?? 0);
+              const estaPagado = saldoPendiente === 0;
 
               return (
                 <tr key={pedido.id} className="hover:bg-gray-50">
@@ -903,10 +935,24 @@ export function InvoicesClient({
                   )}
                   {visibleColumns.estado && (
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
-                        {getEstadoBadge(estadoActual)}
-                        {estadoActual === "ENVIADO" && (
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                      <div className="flex flex-col space-y-1">
+                        <div className="flex items-center space-x-2">
+                          {getEstadoBadge(estadoActual)}
+                          {estadoActual === "ENVIADO" && (
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          )}
+                        </div>
+
+                        {/* 👇 Indicador de saldo igual que en la vista compacta */}
+                        {estaPagado ? (
+                          <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full bg-green-50 text-[11px] font-medium text-green-700 border border-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Sin saldo pendiente
+                          </span>
+                        ) : (
+                          <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-[11px] font-medium text-amber-700 border border-amber-200">
+                            Saldo: {formatValue(saldoPendiente)}
+                          </span>
                         )}
                       </div>
                     </td>
@@ -989,7 +1035,7 @@ export function InvoicesClient({
                           </Button>
                         )}
                         {userType === "admin" &&
-                          ["FACTURADO", "ENVIADO"].includes(estadoActual) && ( // ✅ QUITADO ENTREGADO
+                          ["FACTURADO", "ENVIADO"].includes(estadoActual) && (
                             <Button
                               variant="ghost"
                               size="sm"

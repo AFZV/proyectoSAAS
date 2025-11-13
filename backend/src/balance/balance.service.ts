@@ -659,8 +659,8 @@ export class BalanceService {
     const scopePedido =
       rol === 'admin' ? { empresaId } : { empresaId, usuarioId: userId };
 
-    const scopeAjusteMovimiento =
-      rol === 'admin' ? { empresaId } : { empresaId, idUsuario: userId };
+    // const scopeAjusteMovimiento =
+    //   rol === 'admin' ? { empresaId } : { empresaId, idUsuario: userId };
 
     // Pedidos facturados con total > 0
     const pedidos = await this.prisma.pedido.findMany({
@@ -695,7 +695,7 @@ export class BalanceService {
         where: {
           idPedido: { not: null },
           movimiento: {
-            ...scopeAjusteMovimiento,
+            empresaId,
             tipoMovimientoOrigen: 'AJUSTE_MANUAL',
           },
         },
@@ -726,7 +726,7 @@ export class BalanceService {
         where: {
           idPedido: null,
           movimiento: {
-            ...scopeAjusteMovimiento,
+            empresaId,
             tipoMovimientoOrigen: 'AJUSTE_MANUAL',
           },
         },
@@ -1277,7 +1277,6 @@ export class BalanceService {
       pedidos, // [{ id, valor }]
       valorTotal, // suma de valores
     };
-    console.log('DTO ajuste por id:', dto);
 
     return dto;
   }

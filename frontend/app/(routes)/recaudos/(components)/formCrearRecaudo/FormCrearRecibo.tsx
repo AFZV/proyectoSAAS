@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Mail, MapPin, Phone } from "lucide-react";
+
 type Cliente = {
   id: string;
   nit?: string;
@@ -45,7 +46,9 @@ const formSchema = z.object({
     .array(
       z.object({
         pedidoId: z.string(),
-        valorAplicado: z.number().positive(),
+        valorAplicado: z.number().positive(), // el usuario lo escribe; debe ser > 0 al enviar
+        flete: z.number().min(0).default(0), // input arranca en 0
+        descuento: z.number().min(0).default(0), // input arranca en 0
       })
     )
     .optional(),
@@ -56,9 +59,10 @@ type PedidoConSaldo = {
   fecha: string;
   saldoPendiente: number;
   valorOriginal: number;
+  flete?: number; // <- solo informativo
 };
 
-// ===== Selector de clientes con modal (carga todos + filtro local) =====
+// ===== Selector de clientes =====
 function ClienteSelector({
   token,
   onSelect,
@@ -75,10 +79,8 @@ function ClienteSelector({
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputTriggerRef = useRef<HTMLInputElement>(null);
-  const [display, setDisplay] = useState(""); // texto visible en el trigger
-  const [displayValue, setDisplayValue] = useState<string>("");
+  const [display, setDisplay] = useState("");
 
-  // normaliza para buscar sin tildes
   const normalize = (s: string) =>
     (s || "")
       .normalize("NFD")
@@ -99,7 +101,6 @@ function ClienteSelector({
     );
   };
 
-  // cargar todos los clientes una sola vez
   useEffect(() => {
     if (!token) return;
     let mounted = true;
@@ -144,7 +145,6 @@ function ClienteSelector({
     let res = clientes.filter((c) =>
       isNit ? byNit(c) || byName(c) : byName(c)
     );
-    // ordenar con exactos NIT arriba
     if (isNit) {
       res = res.sort((a, b) => {
         const aExact = onlyDigits(a.nit || "") === qDigits ? 0 : 1;
@@ -342,20 +342,40 @@ export function FormCrearRecibo({
     name: "pedidos",
   });
 
+  // Mapas informativos
+  const saldoPorPedido = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of pedidosDisponibles) {
+      m.set(p.id, Number(p.saldoPendiente || 0));
+    }
+    return m;
+  }, [pedidosDisponibles]);
+
+  const fleteInfoPorPedido = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of pedidosDisponibles) {
+      m.set(p.id, Number(p.flete || 0));
+    }
+    return m;
+  }, [pedidosDisponibles]);
+
+  // Observa la lista de pedidos del form (solo para mostrar/validar; NO recalculamos nada)
+  useWatch({ control: form.control, name: "pedidos" });
+
+  const nf = new Intl.NumberFormat("es-CO");
+
   // Obtener token
   useEffect(() => {
-    const fetchToken = async () => {
+    (async () => {
       const t = await getToken();
       if (t) setToken(t);
-    };
-    fetchToken();
+    })();
   }, [getToken]);
 
   // Traer pedidos con saldo del cliente seleccionado
   useEffect(() => {
     if (!clienteInfo?.id || !token) return;
-
-    const fetchPedidos = async () => {
+    (async () => {
       try {
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/recibos/PedidosSaldoPendiente/${clienteInfo.id}`,
@@ -368,9 +388,7 @@ export function FormCrearRecibo({
         console.error("Error cargando pedidos:", error);
         setPedidosDisponibles([]);
       }
-    };
-
-    fetchPedidos();
+    })();
   }, [token, clienteInfo?.id]);
 
   const handleAgregarPedido = (pedido: PedidoConSaldo) => {
@@ -378,7 +396,14 @@ export function FormCrearRecibo({
       .getValues("pedidos")
       ?.some((p) => p.pedidoId === pedido.id);
     if (yaExiste) return;
-    append({ pedidoId: pedido.id, valorAplicado: pedido.saldoPendiente });
+
+    // Por defecto NO calculamos valorAplicado; dejamos que el usuario lo digite.
+    append({
+      pedidoId: pedido.id,
+      valorAplicado: 0, // el usuario decide cuánto abonar
+      flete: 0, // input arranca en 0 (no precargamos)
+      descuento: 0, // input arranca en 0
+    });
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -396,7 +421,7 @@ export function FormCrearRecibo({
           clienteId: values.id,
           tipo: values.tipo,
           concepto: values.concepto,
-          pedidos: values.pedidos,
+          pedidos: values.pedidos, // { pedidoId, valorAplicado, flete, descuento }
         }),
       });
 
@@ -416,20 +441,25 @@ export function FormCrearRecibo({
     }
   };
 
-  const [displayMoney, setDisplayMoney] = useState<Record<number, string>>({});
-  const nf = new Intl.NumberFormat("es-CO"); // para formato COP
-
+  // Máscara de dinero simple
+  const [displayMoney, setDisplayMoney] = useState<Record<string, string>>({});
   const handleMoneyChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    index: number
+    index: number,
+    fieldName: "valorAplicado" | "flete" | "descuento"
   ) => {
-    const raw = e.target.value.replace(/\D/g, ""); // solo números
+    const raw = e.target.value.replace(/\D/g, "");
     const n = raw ? parseInt(raw, 10) : 0;
 
-    form.setValue(`pedidos.${index}.valorAplicado`, n, {
+    form.setValue(`pedidos.${index}.${fieldName}`, n as any, {
       shouldValidate: true,
+      shouldDirty: true,
     });
-    setDisplayMoney((p) => ({ ...p, [index]: n ? `$ ${nf.format(n)}` : "" }));
+
+    setDisplayMoney((p) => ({
+      ...p,
+      [`${index}-${fieldName}`]: n ? `$ ${nf.format(n)}` : "",
+    }));
   };
 
   return (
@@ -437,7 +467,7 @@ export function FormCrearRecibo({
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {isSubmitting && <Loading title="Creando Recibo..." />}
 
-        {/* Selector de Cliente (reemplaza el campo NIT) */}
+        {/* Selector de Cliente */}
         <ClienteSelector
           token={token}
           onSelect={(c) => {
@@ -460,7 +490,6 @@ export function FormCrearRecibo({
             <h3 className="text-base font-semibold text-blue-900">
               {clienteInfo.nombre}
             </h3>
-
             <div className="text-sm text-blue-800 space-y-2">
               <p className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-blue-600" />
@@ -512,57 +541,52 @@ export function FormCrearRecibo({
         {pedidosDisponibles.length > 0 && (
           <div className="space-y-4">
             <div className="rounded-lg border border-blue-200 bg-blue-50/40">
-              {/* Header */}
               <div className="px-4 py-3 border-b border-blue-200 bg-blue-50">
                 <h3 className="text-sm font-semibold text-blue-900">
                   Pedidos con saldo pendiente
                 </h3>
                 <p className="text-xs text-blue-700/80 mt-1">
-                  Selecciona un pedido para aplicar el ajuste.
+                  Selecciona un pedido y luego escribe el valor a aplicar. El
+                  flete mostrado es informativo (no se aplica automáticamente).
                 </p>
               </div>
 
-              {/* Listado */}
               <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
-                {pedidosDisponibles.length === 0 ? (
-                  <div className="text-sm text-blue-700/80">
-                    No hay pedidos con saldo pendiente.
-                  </div>
-                ) : (
-                  pedidosDisponibles.map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center justify-between rounded-md border border-blue-200 bg-white px-3 py-2 hover:bg-blue-50 transition-colors"
-                    >
-                      <div className="space-y-1">
-                        <p className="text-sm font-semibold text-blue-900">
-                          Pedido #{p.id.slice(0, 6).toUpperCase()}
-                        </p>
-                        <p className="text-xs text-blue-700/80">
-                          Fecha: {new Date(p.fecha).toLocaleDateString("es-CO")}
-                        </p>
-
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-900">
-                            Valor: {p.valorOriginal.toLocaleString()}
-                          </span>
-                          <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800">
-                            Saldo: {p.saldoPendiente.toLocaleString()}
-                          </span>
-                        </div>
+                {pedidosDisponibles.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between rounded-md border border-blue-200 bg-white px-3 py-2 hover:bg-blue-50 transition-colors"
+                  >
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-blue-900">
+                        Pedido #{p.id.slice(0, 6).toUpperCase()}
+                      </p>
+                      <p className="text-xs text-blue-700/80">
+                        Fecha: {new Date(p.fecha).toLocaleDateString("es-CO")}
+                      </p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-900">
+                          Valor: {p.valorOriginal.toLocaleString()}
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800">
+                          Saldo: {p.saldoPendiente.toLocaleString()}
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          Flete (info): {(p.flete || 0).toLocaleString()}
+                        </span>
                       </div>
-
-                      <Button
-                        type="button"
-                        onClick={() => handleAgregarPedido(p)}
-                        size="sm"
-                        className="shrink-0 bg-blue-600 hover:bg-blue-700"
-                      >
-                        Seleccionar
-                      </Button>
                     </div>
-                  ))
-                )}
+
+                    <Button
+                      type="button"
+                      onClick={() => handleAgregarPedido(p)}
+                      size="sm"
+                      className="shrink-0 bg-blue-600 hover:bg-blue-700"
+                    >
+                      Seleccionar
+                    </Button>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -571,58 +595,135 @@ export function FormCrearRecibo({
         {fields.length > 0 && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">Pedidos a abonar:</p>
-            {fields.map((field, index) => (
-              <div
-                key={field.id.slice(0, 5)}
-                className="grid grid-cols-3 gap-4"
-              >
-                <FormField
-                  control={form.control}
-                  name={`pedidos.${index}.pedidoId`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ID Pedido</FormLabel>
-                      <FormControl>
-                        <Input {...field} disabled />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name={`pedidos.${index}.valorAplicado`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Valor a aplicar</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="$ 0"
-                          value={
-                            displayMoney[index] ??
-                            (field.value ? `$ ${nf.format(field.value)}` : "")
-                          }
-                          onChange={(e) => handleMoneyChange(e, index)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            {fields.map((field, index) => {
+              const pid = form.getValues(`pedidos.${index}.pedidoId`);
+              const saldo = saldoPorPedido.get(pid);
+              const fleteInfo = fleteInfoPorPedido.get(pid) || 0;
 
-                <div className="flex items-end">
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => remove(index)}
-                  >
-                    Quitar
-                  </Button>
+              return (
+                <div key={field.id} className="grid grid-cols-5 gap-4">
+                  {/* ID Pedido */}
+                  <FormField
+                    control={form.control}
+                    name={`pedidos.${index}.pedidoId`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>ID Pedido</FormLabel>
+                        <FormControl>
+                          <Input {...field} disabled />
+                        </FormControl>
+                        <FormMessage />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Saldo actual:{" "}
+                          {typeof saldo === "number"
+                            ? saldo.toLocaleString("es-CO")
+                            : "—"}
+                        </p>
+                        <p className="text-xs text-amber-700 mt-0.5">
+                          Flete del pedido (informativo):{" "}
+                          {fleteInfo.toLocaleString("es-CO")}
+                        </p>
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Valor aplicado (libre) */}
+                  <FormField
+                    control={form.control}
+                    name={`pedidos.${index}.valorAplicado`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Valor a aplicar</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="$ 0"
+                            value={
+                              displayMoney[`${index}-valorAplicado`] ??
+                              (field.value ? `$ ${nf.format(field.value)}` : "")
+                            }
+                            onChange={(e) =>
+                              handleMoneyChange(e, index, "valorAplicado")
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Flete (usuario lo digita, arranca en 0) */}
+                  <FormField
+                    control={form.control}
+                    name={`pedidos.${index}.flete`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Flete (opcional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="$ 0"
+                            value={
+                              displayMoney[`${index}-flete`] ??
+                              (typeof field.value === "number" &&
+                              field.value >= 0
+                                ? `$ ${nf.format(field.value)}`
+                                : "")
+                            }
+                            onChange={(e) =>
+                              handleMoneyChange(e, index, "flete")
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Descuento (usuario lo digita, arranca en 0) */}
+                  <FormField
+                    control={form.control}
+                    name={`pedidos.${index}.descuento`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Descuento (opcional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="$ 0"
+                            value={
+                              displayMoney[`${index}-descuento`] ??
+                              (typeof field.value === "number" &&
+                              field.value >= 0
+                                ? `$ ${nf.format(field.value)}`
+                                : "")
+                            }
+                            onChange={(e) =>
+                              handleMoneyChange(e, index, "descuento")
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Quitar */}
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => remove(index)}
+                    >
+                      Quitar
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

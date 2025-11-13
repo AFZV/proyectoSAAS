@@ -2,7 +2,13 @@
 
 export interface EstadoPedido {
   id: string;
-  estado: "GENERADO" | "ACEPTADO" | "SEPARADO" | "FACTURADO" | "ENVIADO" | "CANCELADO"; // ✅ AGREGADO ACEPTADO
+  estado:
+    | "GENERADO"
+    | "ACEPTADO"
+    | "SEPARADO"
+    | "FACTURADO"
+    | "ENVIADO"
+    | "CANCELADO"; // ✅ AGREGADO ACEPTADO
   fechaEstado: string;
   pedidoId: string;
 }
@@ -58,6 +64,7 @@ export interface Pedido {
   pdfUrl?: string; // ✅ URL del PDF del pedido
   correo?: string;
   comision?: number; // % de comisión del vendedor
+  saldoPendiente?: number; // ✅ Nuevo campo para saldo pendiente
 
   // ✅ Relaciones opcionales
   cliente?: Cliente;
@@ -86,7 +93,13 @@ export interface CreatePedidoDto {
 // ✅ DTO con ACEPTADO
 export interface UpdateEstadoPedidoDto {
   pedidoId: string;
-  estado: "GENERADO" | "ACEPTADO" | "SEPARADO" | "FACTURADO" | "ENVIADO" | "CANCELADO"; // ✅ AGREGADO ACEPTADO
+  estado:
+    | "GENERADO"
+    | "ACEPTADO"
+    | "SEPARADO"
+    | "FACTURADO"
+    | "ENVIADO"
+    | "CANCELADO"; // ✅ AGREGADO ACEPTADO
   guiaTransporte?: string;
   flete?: number;
   motivoCancelacion?: string;
@@ -95,12 +108,12 @@ export interface UpdateEstadoPedidoDto {
 export interface FilterPedidoOptions {
   filtro: string;
   tipoFiltro:
-  | "id"
-  | "clienteId"
-  | "usuarioId"
-  | "total"
-  | "empresaId"
-  | "fechaPedido";
+    | "id"
+    | "clienteId"
+    | "usuarioId"
+    | "total"
+    | "empresaId"
+    | "fechaPedido";
 }
 
 // ✅ ESTADOS CON ACEPTADO - ENVIADO ES FINAL
@@ -110,7 +123,7 @@ export const ESTADOS_PEDIDO = {
     color: "bg-blue-100 text-blue-800",
     icon: "📝",
     description: "Pedido creado y registrado",
-    siguientes: ["ACEPTADO"], // ✅ Solo puede ir a ACEPTADO
+    siguientes: ["ACEPTADO", "CANCELADO"], // ✅ Solo puede ir a ACEPTADO
   },
   ACEPTADO: {
     label: "Aceptado",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +22,9 @@ import { Input } from "@/components/ui/input";
 import { RefreshCw, Edit3, Plus, X, ShoppingCart } from "lucide-react";
 import { Loading } from "@/components/Loading";
 
+/* =======================
+ *  Schemas
+ * ======================= */
 const searchSchema = z.object({
   idRecibo: z.string().uuid("ID inválido"),
 });
@@ -34,7 +37,9 @@ const formSchema = z.object({
     .array(
       z.object({
         pedidoId: z.string().uuid(),
-        valorAplicado: z.number().positive(),
+        // Ambos campos son editables. Permitimos undefined durante escritura.
+        valorAplicado: z.number().nonnegative().optional(),
+        ajuste: z.number().min(0).optional(),
       })
     )
     .min(1),
@@ -48,19 +53,29 @@ type PedidoPendiente = {
   valorOriginal: number;
 };
 
+type AjusteItem = { idPedido: string; ajuste: number };
+
+/* =======================
+ *  Componente
+ * ======================= */
 export function FormUpdateRecibo({
   setOpenModalUpdate,
 }: {
   setOpenModalUpdate: (v: boolean) => void;
 }) {
   const [step, setStep] = useState<"search" | "edit">("search");
-  const [reciboActual, setReciboActual] = useState<ReciboEditable | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+
   const [pedidosDisponibles, setPedidosDisponibles] = useState<
     PedidoPendiente[]
   >([]);
   const [mostrarPedidos, setMostrarPedidos] = useState(false);
+
+  // Mapas auxiliares (saldo/flete sólo informativos)
+
+  // para no recalcular inicial más de una vez
+  const inicializadoRef = useRef(false);
 
   const { getToken } = useAuth();
   const router = useRouter();
@@ -75,43 +90,71 @@ export function FormUpdateRecibo({
     mode: "onChange",
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, update } = useFieldArray({
     control: editForm.control,
     name: "pedidos",
   });
 
+  /* -----------------------
+   * Buscar recibo
+   * ----------------------- */
   const onSearch = async (values: z.infer<typeof searchSchema>) => {
     setIsSearching(true);
+    inicializadoRef.current = false;
     try {
       const token = await getToken();
+
+      // 1) Recibo base
       const res = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/recibos/getById/${values.idRecibo}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = res.data;
 
+      // 2) Ajustes por pedido (si existen)
+      let ajustesMap: Record<string, number> = {};
+      try {
+        const aj = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/recibos/ajustesporrecibo/ajustes/${values.idRecibo}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        (aj.data as AjusteItem[]).forEach((a) => {
+          ajustesMap[a.idPedido] = Number(a.ajuste || 0);
+        });
+      } catch {
+        ajustesMap = {};
+      }
+
+      // 3) Form editable (sin auto-recalcular al cambiar ajuste)
       const reciboEditable: ReciboEditable = {
         clienteId: data.clienteId,
         tipo: String(data.tipo).toLowerCase() as ReciboEditable["tipo"],
         concepto: data.concepto,
-        pedidos: data.detalleRecibo.map((d: any) => ({
+        pedidos: (data.detalleRecibo || []).map((d: any) => ({
           pedidoId: d.idPedido,
-          valorAplicado: Number(d.valorTotal),
+          valorAplicado: Number(d.valorTotal), // inicial
+          ajuste: ajustesMap[d.idPedido] ?? 0, // inicial
         })),
       };
 
       editForm.reset(reciboEditable);
-      setReciboActual(reciboEditable);
-      editForm.reset(reciboEditable);
       setStep("edit");
       toast({ title: "Recibo encontrado", duration: 1500 });
 
-      // Cargar pedidos pendientes del cliente
+      // 4) Pedidos con saldo (para mostrar saldo/flete y, UNA sola vez, ajustar valorAplicado inicial si quieres)
       const pendientes = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/recibos/PedidosSaldoPendiente/${data.clienteId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setPedidosDisponibles(pendientes.data);
+      const arr: PedidoPendiente[] = pendientes.data || [];
+      setPedidosDisponibles(arr);
+
+      // 5) Mapas saldo/flete
+
+      // 7) (Opcional) Ajuste inicial único: valorAplicado := max(0, saldo - ajuste)
+      //    Sólo al cargar, para que no salte luego al editar.
+
+      inicializadoRef.current = true;
     } catch (error) {
       toast({ title: "Recibo no encontrado", variant: "destructive" });
     } finally {
@@ -119,24 +162,54 @@ export function FormUpdateRecibo({
     }
   };
 
+  /* -----------------------
+   * Actualizar recibo
+   * ----------------------- */
   const onUpdate = async (values: z.infer<typeof formSchema>) => {
-    if (!searchForm.getValues("idRecibo")) return;
+    const idRecibo = searchForm.getValues("idRecibo");
+    if (!idRecibo) return;
     setIsUpdating(true);
     try {
       const token = await getToken();
 
+      // 👇 Normaliza y mapea a 'descuento' (NO 'ajuste')
+      const pedidosPayload = (values.pedidos ?? []).map((p) => ({
+        pedidoId: p.pedidoId,
+        valorAplicado: Number.isFinite(p.valorAplicado as number)
+          ? Number(p.valorAplicado)
+          : 0,
+        descuento: Number.isFinite((p as any).ajuste) // por si tu form aún usa "ajuste"
+          ? Number((p as any).ajuste)
+          : Number((p as any).descuento) || 0,
+      }));
+
+      const payload = {
+        clienteId: values.clienteId, // asegúrate que esté seteado al cargar el recibo
+        tipo: values.tipo,
+        concepto: values.concepto,
+        pedidos: pedidosPayload,
+      };
+
       await axios.patch(
-        `${process.env.NEXT_PUBLIC_API_URL}/recibos/${searchForm.getValues(
-          "idRecibo"
-        )}`,
-        values,
+        `${process.env.NEXT_PUBLIC_API_URL}/recibos/actualizar/${idRecibo}`,
+        payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
       toast({ title: "Recibo actualizado correctamente" });
       setOpenModalUpdate(false);
       router.refresh();
-    } catch (error) {
-      toast({ title: "Error al actualizar recibo", variant: "destructive" });
+    } catch (error: any) {
+      // ayuda para depurar si vuelve a fallar
+      console.error("Update error:", error?.response?.data || error);
+      toast({
+        title: "Error al actualizar recibo",
+        description:
+          error?.response?.data?.message ||
+          error?.response?.data ||
+          "Bad Request",
+        variant: "destructive",
+      });
     } finally {
       setIsUpdating(false);
     }
@@ -144,11 +217,16 @@ export function FormUpdateRecibo({
 
   const volverABuscar = () => {
     setStep("search");
-    setReciboActual(null);
     searchForm.reset();
     editForm.reset();
+    setPedidosDisponibles([]);
+
+    inicializadoRef.current = false;
   };
 
+  /* -----------------------
+   * Render
+   * ----------------------- */
   if (isUpdating) return <Loading title="Actualizando recibo..." />;
 
   return (
@@ -175,15 +253,15 @@ export function FormUpdateRecibo({
             <Button
               type="submit"
               disabled={isSearching}
-              className={`
-    w-full
-    bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700
-    hover:from-blue-600 hover:to-blue-800
-    text-white font-semibold
-    shadow-md hover:shadow-lg
-    disabled:opacity-50 disabled:pointer-events-none
-    transition-all duration-200
-  `}
+              className="
+                w-full
+                bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700
+                hover:from-blue-600 hover:to-blue-800
+                text-white font-semibold
+                shadow-md hover:shadow-lg
+                disabled:opacity-50 disabled:pointer-events-none
+                transition-all duration-200
+              "
             >
               {isSearching ? (
                 <>
@@ -205,6 +283,7 @@ export function FormUpdateRecibo({
             onSubmit={editForm.handleSubmit(onUpdate)}
             className="space-y-4"
           >
+            {/* Tipo */}
             <FormField
               control={editForm.control}
               name="tipo"
@@ -216,12 +295,10 @@ export function FormUpdateRecibo({
                       className="w-full border p-2 rounded-md"
                       name={field.name}
                       ref={field.ref}
-                      value={field.value ?? ""} // asegura que siempre haya value
+                      value={field.value ?? ""}
                       onBlur={field.onBlur}
                       onChange={(e) => {
-                        const v = e.target.value as ReciboEditable["tipo"];
-                        // fuerza a RHF a registrar el cambio
-                        editForm.setValue("tipo", v, {
+                        editForm.setValue("tipo", e.target.value as any, {
                           shouldDirty: true,
                           shouldTouch: true,
                           shouldValidate: true,
@@ -237,6 +314,7 @@ export function FormUpdateRecibo({
               )}
             />
 
+            {/* Concepto */}
             <FormField
               control={editForm.control}
               name="concepto"
@@ -251,50 +329,147 @@ export function FormUpdateRecibo({
               )}
             />
 
-            {fields.map((field, index) => (
-              <div key={field.id} className="grid grid-cols-3 gap-4 items-end">
-                <FormField
-                  control={editForm.control}
-                  name={`pedidos.${index}.pedidoId`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ID del Pedido</FormLabel>
-                      <FormControl>
-                        <Input {...field} disabled className="bg-muted" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name={`pedidos.${index}.valorAplicado`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Valor Aplicado</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          onChange={(e) =>
-                            field.onChange(e.target.valueAsNumber || 0)
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => remove(index)}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
+            {/* Pedidos */}
+            {fields.map((field, index) => {
+              const pid = editForm.watch(`pedidos.${index}.pedidoId`);
 
+              return (
+                <div
+                  key={field.id}
+                  className="grid grid-cols-4 gap-4 items-end border rounded-md p-3"
+                >
+                  {/* Pedido */}
+                  <FormField
+                    control={editForm.control}
+                    name={`pedidos.${index}.pedidoId`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Pedido</FormLabel>
+                        <FormControl>
+                          <Input {...field} disabled className="bg-muted" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Ajuste (editable) */}
+                  <FormField
+                    control={editForm.control}
+                    name={`pedidos.${index}.ajuste`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Ajuste</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            value={
+                              field.value === undefined || field.value === null
+                                ? ""
+                                : field.value
+                            }
+                            onChange={(e) => {
+                              // permitir vacío sin forzar 0
+                              if (e.target.value === "") {
+                                editForm.setValue(
+                                  `pedidos.${index}.ajuste`,
+                                  undefined as any,
+                                  {
+                                    shouldDirty: true,
+                                    shouldValidate: false,
+                                  }
+                                );
+                                return;
+                              }
+                              const n = Number(e.target.value);
+                              editForm.setValue(
+                                `pedidos.${index}.ajuste`,
+                                Number.isFinite(n) && n >= 0 ? n : 0,
+                                { shouldDirty: true, shouldValidate: true }
+                              );
+                              // IMPORTANTE: NO recalculamos valorAplicado aquí.
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === "") {
+                                editForm.setValue(
+                                  `pedidos.${index}.ajuste`,
+                                  0,
+                                  { shouldDirty: true, shouldValidate: true }
+                                );
+                              }
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Valor aplicado (editable, sin sobrescribir) */}
+                  <FormField
+                    control={editForm.control}
+                    name={`pedidos.${index}.valorAplicado`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Valor aplicado</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            value={
+                              field.value === undefined || field.value === null
+                                ? ""
+                                : field.value
+                            }
+                            onChange={(e) => {
+                              if (e.target.value === "") {
+                                editForm.setValue(
+                                  `pedidos.${index}.valorAplicado`,
+                                  undefined as any,
+                                  {
+                                    shouldDirty: true,
+                                    shouldValidate: false,
+                                  }
+                                );
+                                return;
+                              }
+                              const n = Number(e.target.value);
+                              editForm.setValue(
+                                `pedidos.${index}.valorAplicado`,
+                                Number.isFinite(n) && n >= 0 ? n : 0,
+                                { shouldDirty: true, shouldValidate: true }
+                              );
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === "") {
+                                editForm.setValue(
+                                  `pedidos.${index}.valorAplicado`,
+                                  0,
+                                  { shouldDirty: true, shouldValidate: true }
+                                );
+                              }
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Quitar */}
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => remove(index)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Otros pedidos disponibles del cliente */}
             {pedidosDisponibles.length > 0 && (
               <>
                 <Button
@@ -306,6 +481,7 @@ export function FormUpdateRecibo({
                     ? "Ocultar Pedidos Disponibles"
                     : "Ver Otros Pedidos Disponibles"}
                 </Button>
+
                 {mostrarPedidos && (
                   <div className="space-y-2 border rounded-md p-3 bg-muted">
                     {pedidosDisponibles.map((p) => (
@@ -317,20 +493,12 @@ export function FormUpdateRecibo({
                           <p className="text-sm font-medium">
                             Pedido: #{p.id.slice(0, 6)}
                           </p>
-                          <p className="text-sm font-medium">
-                            Fecha:
+                          <p className="text-sm">
+                            Fecha:{" "}
                             {new Date(p.fecha).toLocaleDateString("es-CO")}
                           </p>
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              Valor Pedido:{" "}
-                              {p.valorOriginal.toLocaleString("es-CO")}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Saldo: {p.saldoPendiente.toLocaleString("es-CO")}
-                            </p>
-                          </div>
                         </div>
+
                         <Button
                           type="button"
                           size="sm"
@@ -341,7 +509,9 @@ export function FormUpdateRecibo({
                             if (!yaExiste) {
                               append({
                                 pedidoId: p.id,
+                                // inicial: el usuario lo puede cambiar
                                 valorAplicado: p.saldoPendiente,
+                                ajuste: 0,
                               });
                             }
                           }}
@@ -355,6 +525,7 @@ export function FormUpdateRecibo({
               </>
             )}
 
+            {/* Botones */}
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={volverABuscar}>
                 Buscar Otro

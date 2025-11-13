@@ -45,7 +45,7 @@ interface InvoiceDetailModalProps {
 
 // ✅ ESTADOS SIGUIENTES CON ACEPTADO
 const ESTADOS_SIGUIENTES = {
-  GENERADO: ["ACEPTADO"],
+  GENERADO: ["ACEPTADO", "CANCELADO"],
   ACEPTADO: ["SEPARADO", "CANCELADO"],
   SEPARADO: ["FACTURADO", "CANCELADO"],
   FACTURADO: ["ENVIADO", "CANCELADO"], // ✅ Puede ir a ENVIADO o CANCELADO
@@ -89,9 +89,7 @@ export function InvoiceDetailModal({
   const [savingDiasCredito, setSavingDiasCredito] = useState(false);
 
   const diasCreditoActual =
-    (pedido as any)?.diasCredito != null
-      ? Number((pedido as any).diasCredito)
-      : null;
+    (pedido as any)?.credito != null ? Number((pedido as any).credito) : null;
 
   const opcionesCredito = [
     { label: "Contado", value: 1 },
@@ -109,7 +107,7 @@ export function InvoiceDetailModal({
   // precarga cuando se abre/cambia el pedido (junto a tu useEffect de comisión)
   useEffect(() => {
     if (isOpen && pedido) {
-      const actual = (pedido as any)?.diasCredito ?? null;
+      const actual = (pedido as any)?.credito ?? null;
       setDiasCredito(actual != null ? String(actual) : "");
     }
   }, [isOpen, pedido]);
@@ -165,8 +163,8 @@ export function InvoiceDetailModal({
   const estadoActual = getEstadoActual(pedido);
   const estadosSiguientes = getEstadosSiguientes(estadoActual as any) || [];
 
-  const mostrarComision =
-    estadosSiguientes.includes("FACTURADO") || estadoActual === "FACTURADO";
+  const mostrarComision = true;
+  // estadosSiguientes.includes("GENERADO") || estadoActual === "FACTURADO";
 
   const handleCambiarEstado = async () => {
     if (nuevoEstado !== "ACEPTADO" && pedido) {
@@ -340,13 +338,35 @@ export function InvoiceDetailModal({
         return;
       }
 
-      // ⬇️ Llama a tu endpoint para guardar la comisión del pedido
-      const actualizarComision = fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/pedidos/comision/${pedido.id}/${comision}`,
-        { headers: { Authorization: `Bearer ${token}` }, method: "PATCH" }
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/pedidos/comision/${pedido.id}/${valor}`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
 
-      // actualiza el pedido localmente para reflejar el cambio inmediato
+      // ⛔ Si backend responde error, lanzar mensaje
+      if (!res.ok) {
+        let errorMsg = "No se pudo guardar la comisión";
+
+        try {
+          const data = await res.json();
+          if (Array.isArray(data?.message)) {
+            errorMsg = data.message.join(" · ");
+          } else if (data?.message) {
+            errorMsg = data.message;
+          } else if (data?.error) {
+            errorMsg = data.error;
+          }
+        } catch {
+          errorMsg = `Error ${res.status}: ${res.statusText}`;
+        }
+
+        throw new Error(errorMsg);
+      }
+
+      // ✔ Solo actualizar el front si el backend SI aceptó los datos
       onUpdate({ ...pedido, comision: valor });
 
       toast({
@@ -364,6 +384,7 @@ export function InvoiceDetailModal({
       setSavingComision(false);
     }
   };
+
   const handleGuardarDiasCredito = async () => {
     const valor = diasCredito.trim() === "" ? null : Number(diasCredito);
     if (valor == null || Number.isNaN(valor) || valor < 1) {
@@ -387,8 +408,7 @@ export function InvoiceDetailModal({
         return;
       }
 
-      // Endpoint sugerido (ajústalo a tu servicio real si usas invoicesService)
-      await fetch(
+      const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/pedidos/credito/${pedido.id}`,
         {
           method: "PATCH",
@@ -400,19 +420,47 @@ export function InvoiceDetailModal({
         }
       );
 
+      // 👇 Revisar si el backend respondió con error (403, 400, 500, etc.)
+      if (!res.ok) {
+        let errorMsg = "No se pudo guardar los días de crédito";
+
+        try {
+          const data = await res.json();
+          // Nest suele mandar { statusCode, message, error }
+          if (Array.isArray(data?.message)) {
+            errorMsg = data.message.join(" · ");
+          } else if (data?.message) {
+            errorMsg = data.message;
+          } else if (data?.error) {
+            errorMsg = data.error;
+          }
+        } catch {
+          // si falla el parse del JSON, usamos el status
+          errorMsg = `Error ${res.status}: ${
+            res.statusText || "Solicitud fallida"
+          }`;
+        }
+
+        throw new Error(errorMsg);
+      }
+
+      // 👉 Sólo si el backend respondió OK, actualizamos estado local y mostramos éxito
       onUpdate({ ...pedido, diasCredito: valor } as any);
 
       toast({
         title: "✅ Días de crédito guardados",
-        description: `Se asignó ${
-          valor === 1 ? "Contado (1 día)" : `${valor} días`
-        }.`,
+        description:
+          valor === 1
+            ? "Se asignó Contado (1 día)."
+            : `Se asignaron ${valor} días.`,
       });
     } catch (err: any) {
       console.error("❌ Error al guardar días de crédito:", err);
       toast({
         title: "Error",
-        description: err?.message || "No se pudo guardar los días de crédito",
+        description:
+          err?.message ||
+          "No se pudo guardar los días de crédito. Verifica tus permisos.",
         variant: "destructive",
       });
     } finally {
@@ -804,19 +852,28 @@ export function InvoiceDetailModal({
                   </p>
                 </div>
               </div>
+              {/* COMISIÓN */}
               {mostrarComision && (
                 <div className="mt-2 grid grid-cols-2 gap-4 items-end">
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">
                       COMISIÓN
                     </p>
+
                     <Input
                       type="number"
                       inputMode="decimal"
                       placeholder="0"
                       value={comision}
                       onChange={(e) => setComision(e.target.value)}
+                      disabled={userType === "CLIENTE"} // 👈 DESACTIVADO PARA CLIENTE
+                      className={
+                        userType === "CLIENTE"
+                          ? "bg-gray-100 cursor-not-allowed"
+                          : ""
+                      }
                     />
+
                     {comisionAsignada && (
                       <p className="text-xs text-green-600 mt-1">
                         Comisión registrada:{" "}
@@ -825,28 +882,39 @@ export function InvoiceDetailModal({
                     )}
                   </div>
 
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={handleGuardarComision}
-                      // ✅ desactiva si ya existe o no cambió
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                    >
-                      {savingComision ? "Guardando..." : "Guardar comisión"}
-                    </Button>
-                  </div>
+                  {/* BOTÓN SOLO SI NO ES CLIENTE */}
+                  {userType !== "CLIENTE" && (
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={handleGuardarComision}
+                        disabled={savingComision}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        {savingComision ? "Guardando..." : "Guardar comisión"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
+
               {/*dias de credito*/}
+              {/* DÍAS DE CRÉDITO */}
               {estadoActual !== "CANCELADO" && (
                 <div className="mt-2 grid grid-cols-2 gap-4 items-end">
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">
                       DÍAS DE CRÉDITO
                     </p>
+
                     <select
                       value={diasCredito}
                       onChange={(e) => setDiasCredito(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
+                      disabled={userType === "CLIENTE"} // 👈 DESHABILITADO PARA CLIENTE
+                      className={`w-full mt-1 px-3 py-2 border border-gray-300 rounded-md ${
+                        userType === "CLIENTE"
+                          ? "bg-gray-100 cursor-not-allowed"
+                          : ""
+                      }`}
                     >
                       <option value="">Seleccionar...</option>
                       {opcionesCredito.map((op) => (
@@ -866,17 +934,21 @@ export function InvoiceDetailModal({
                     )}
                   </div>
 
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={handleGuardarDiasCredito}
-                      disabled={savingDiasCredito || !diasCreditoChanged}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                    >
-                      {savingDiasCredito ? "Guardando..." : "Guardar crédito"}
-                    </Button>
-                  </div>
+                  {/* BOTÓN SOLO SI NO ES CLIENTE */}
+                  {userType !== "CLIENTE" && (
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={handleGuardarDiasCredito}
+                        disabled={savingDiasCredito || !diasCreditoChanged}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                      >
+                        {savingDiasCredito ? "Guardando..." : "Guardar crédito"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
+
               {pedido.observaciones && (
                 <div className="mt-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">

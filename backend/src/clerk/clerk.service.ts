@@ -87,7 +87,6 @@ export class ClerkService {
     try {
       await this.clerkClient.users.deleteUser(clerkUserId);
       if (process.env.NODE_ENV === 'development') {
-        console.log(`✅ Usuario ${clerkUserId} eliminado de Clerk (rollback)`);
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {

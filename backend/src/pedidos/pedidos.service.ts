@@ -651,6 +651,7 @@ export class PedidosService {
           include: {
             producto: true, // ✅ Incluir información del producto
           },
+
           orderBy: { producto: { nombre: 'asc' } },
         },
         estados: {
@@ -663,10 +664,72 @@ export class PedidosService {
         fechaPedido: 'desc', // ✅ Ordenar pedidos por fecha más reciente
       },
     });
+    if (!pedidos.length) return [];
+
+    const pedidoIds = pedidos.map((p) => p.id);
+    // 1) Abonos previos por pedido (detalleRecibo)
+    const abonosPrevios = await this.prisma.detalleRecibo.groupBy({
+      by: ['idPedido'],
+      where: {
+        idPedido: { in: pedidoIds },
+      },
+      _sum: { valorTotal: true },
+    });
+
+    const mapaAbonos = new Map<string, number>();
+    for (const r of abonosPrevios) {
+      mapaAbonos.set(r.idPedido, Number(r._sum.valorTotal || 0));
+    }
+
+    // 2) Ajustes (AJUSTE_MANUAL) por pedido
+    // ⚠️ IMPORTANTE: aquí NO filtramos por idUsuario para que el saldo
+    // que ve el vendedor incluya ajustes hechos por admin/otros.
+    const ajustesRows = await this.prisma.detalleAjusteCartera.findMany({
+      where: {
+        idPedido: { in: pedidoIds },
+        movimiento: {
+          empresaId,
+          tipoMovimientoOrigen: 'AJUSTE_MANUAL',
+        },
+      },
+      select: {
+        idPedido: true,
+        valor: true,
+        movimiento: { select: { observacion: true } },
+      },
+    });
+
+    const ajustesPorPedido = new Map<string, number>();
+    for (const a of ajustesRows) {
+      if (!a.idPedido) continue;
+      const v = Math.abs(Number(a.valor || 0));
+      const obs = a.movimiento?.observacion || '';
+      const esReverso = /\bREVERSO_DE:\{/.test(obs);
+      const signed = esReverso ? +v : -v; // reverso suma saldo, ajuste normal resta
+
+      ajustesPorPedido.set(
+        a.idPedido,
+        (ajustesPorPedido.get(a.idPedido) ?? 0) + signed
+      );
+    }
+
+    // 3) Construir pedidos con saldoPendiente
+    const pedidosConSaldo = pedidos.map((p) => {
+      const total = Number(p.total || 0);
+      const abonado = mapaAbonos.get(p.id) ?? 0;
+      const ajusteSigned = ajustesPorPedido.get(p.id) ?? 0;
+
+      const saldoPendiente = Math.max(0, total - abonado + ajusteSigned);
+
+      return {
+        ...p,
+        saldoPendiente, // 👈 NUEVO CAMPO PARA EL FRONT
+      };
+    });
 
     // ✅ Agregar log para verificar datos
-
-    return pedidos;
+    console.log('ejemplo de pedido obtenido:', pedidosConSaldo[0]);
+    return pedidosConSaldo;
   }
 
   ////////////////////////////////////////////////////////////////
