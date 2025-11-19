@@ -33,6 +33,8 @@ interface ProductDetailModalProps {
   cantidadEnCarrito?: number;
   observacion?: string;
   onChangeObservacion?: (texto: string) => void;
+  tipoPrecio: "mayor" | "mostrador";
+  getPrecioConTipo: (precio: number) => number;
 }
 
 export function ProductDetailModal({
@@ -44,6 +46,8 @@ export function ProductDetailModal({
   cantidadEnCarrito = 0,
   observacion,
   onChangeObservacion,
+  tipoPrecio,
+  getPrecioConTipo,
 }: ProductDetailModalProps) {
   const [cantidad, setCantidad] = useState(1);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -63,7 +67,7 @@ export function ProductDetailModal({
   const decrementar = () => setCantidad((prev) => Math.max(1, prev - 1));
 
   const isOutOfStock = producto.stock === 0;
-  const subtotal = producto.precio * cantidad;
+  const subtotal = getPrecioConTipo(producto.precio) * cantidad;
 
   return (
     <>
@@ -164,7 +168,7 @@ export function ProductDetailModal({
                       Precio:
                     </span>
                     <span className="text-xl font-bold bg-transparent">
-                      {formatValue(producto.precio)}
+                      {formatValue(getPrecioConTipo(producto.precio))}
                     </span>
                   </div>
                   <Package className="w-5 h-5 text-blue-600" />

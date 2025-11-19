@@ -10,6 +10,8 @@ export interface ProductCardProps {
   isSelectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelection?: () => void;
+  tipoPrecio: "mayor" | "mostrador";
+  getPrecioConTipo: (precio: number) => number;
 }
 
 export interface AddToCartModalProps {
@@ -19,4 +21,6 @@ export interface AddToCartModalProps {
   onConfirm: (cantidad: number) => void;
   observacion?: string;
   onChangeObservacion?: (texto: string) => void;
+  tipoPrecio: "mayor" | "mostrador";
+  getPrecioConTipo: (precio: number) => number;
 }

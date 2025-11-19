@@ -3,7 +3,6 @@
 import { getToken } from "@/lib/getToken";
 import { catalogService } from "./services/catalog.services";
 import { CatalogClient } from "./(components)/CatalogClient";
-import { HeaderCatalog } from "./(components)/HeaderCatalog/HeaderCatalog";
 import { ErrorReload } from "./(components)";
 
 export default async function CatalogPage() {

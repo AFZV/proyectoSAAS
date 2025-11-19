@@ -36,6 +36,8 @@ function AddToCartModal({
   onConfirm,
   observacion, // <- NUEVO
   onChangeObservacion, // <- NUEVO
+  getPrecioConTipo,
+  tipoPrecio,
 }: AddToCartModalProps) {
   const [cantidad, setCantidad] = useState(1);
 
@@ -78,7 +80,7 @@ function AddToCartModal({
                 {producto.categoria}
               </Badge>
               <p className="text-lg font-bold text-green-600 mt-2">
-                {formatValue(producto.precio)}
+                {formatValue(getPrecioConTipo(producto.precio))}
               </p>
             </div>
           </div>
@@ -144,7 +146,7 @@ function AddToCartModal({
             <div className="flex justify-between items-center">
               <span className="font-medium text-blue-900">Subtotal:</span>
               <span className="text-lg font-bold text-blue-600">
-                {formatValue(producto.precio * cantidad)}
+                {formatValue(getPrecioConTipo(producto.precio * cantidad))}
               </span>
             </div>
           </div>
@@ -183,6 +185,8 @@ export function ProductCard({
   isSelectionMode = false,
   isSelected = false,
   onToggleSelection,
+  getPrecioConTipo,
+  tipoPrecio,
 }: ProductCardProps & { onVerDetalles?: (producto: any) => void } & {
   onDescargarImagen?: (producto: any) => void;
 }) {
@@ -333,7 +337,7 @@ export function ProductCard({
 
             <div className="flex items-center justify-between mb-2">
               <span className="text-lg font-bold text-green-600">
-                {formatValue(producto.precio)}
+                {formatValue(getPrecioConTipo(producto.precio))}
               </span>
             </div>
 
@@ -395,6 +399,8 @@ export function ProductCard({
         onConfirm={handleModalAdd}
         observacion={observacion}
         onChangeObservacion={onChangeObservacion}
+        tipoPrecio={tipoPrecio}
+        getPrecioConTipo={getPrecioConTipo}
       />
     </>
   );

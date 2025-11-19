@@ -28,16 +28,24 @@ interface CartItemProps {
   item: CarritoItem;
   onUpdateCantidad: (productoId: string, nuevaCantidad: number) => void;
   onRemoveItem: (productoId: string) => void;
+  tipoPrecio: "mayor" | "mostrador";
+  getPrecioConTipo: (precio: number) => number;
 }
 
 // Componente para item individual del carrito
-function CartItem({ item, onUpdateCantidad, onRemoveItem }: CartItemProps) {
+function CartItem({
+  item,
+  onUpdateCantidad,
+  onRemoveItem,
+  getPrecioConTipo,
+  tipoPrecio,
+}: CartItemProps) {
   const incrementar = () => onUpdateCantidad(item.id, item.cantidad + 1);
   const decrementar = () =>
     onUpdateCantidad(item.id, Math.max(1, item.cantidad - 1));
   const eliminar = () => onRemoveItem(item.id);
 
-  const subtotal = item.precio * item.cantidad;
+  const subtotal = getPrecioConTipo(item.precio) * item.cantidad;
 
   return (
     <div className="flex items-start space-x-3 p-3 border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">
@@ -57,7 +65,7 @@ function CartItem({ item, onUpdateCantidad, onRemoveItem }: CartItemProps) {
         </h4>
         <p className="text-xs text-muted-foreground mt-1">{item.categoria}</p>
         <p className="text-sm font-semibold text-green-600 mt-1">
-          {formatValue(item.precio)} c/u
+          {formatValue(getPrecioConTipo(item.precio))} c/u
         </p>
       </div>
 
@@ -65,7 +73,9 @@ function CartItem({ item, onUpdateCantidad, onRemoveItem }: CartItemProps) {
       <div className="flex flex-col items-end space-y-2">
         {/* Subtotal */}
         <div className="text-right">
-          <p className="font-bold text-sm text-blue-600">{formatValue(subtotal)}</p>
+          <p className="font-bold text-sm text-blue-600">
+            {formatValue(subtotal)}
+          </p>
         </div>
 
         {/* Controles de cantidad */}
@@ -116,6 +126,8 @@ interface CartSidebarProps {
   onClearCart: () => void;
   onCheckout: () => void;
   isLoading?: boolean;
+  tipoPrecio: "mayor" | "mostrador";
+  getPrecioConTipo: (precio: number) => number;
 }
 
 export function CartSidebar({
@@ -127,11 +139,17 @@ export function CartSidebar({
   onClearCart,
   onCheckout,
   isLoading = false,
+  tipoPrecio,
+  getPrecioConTipo,
 }: CartSidebarProps) {
   const totalItems = carrito.reduce((sum, item) => sum + item.cantidad, 0);
-  const totalPrecio = carrito.reduce(
-    (sum, item) => sum + item.precio * item.cantidad,
-    0
+  const totalPrecio = React.useMemo(
+    () =>
+      carrito.reduce(
+        (sum, item) => sum + getPrecioConTipo(item.precio) * item.cantidad,
+        0
+      ),
+    [carrito, getPrecioConTipo]
   );
 
   return (
@@ -141,9 +159,7 @@ export function CartSidebar({
           <ShoppingCart className="w-4 h-4 mr-2" />
           Carrito
           {totalItems > 0 && (
-            <Badge
-              className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-red-500 text-white"
-            >
+            <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-red-500 text-white">
               {totalItems > 99 ? "99+" : totalItems}
             </Badge>
           )}
@@ -164,7 +180,9 @@ export function CartSidebar({
           <SheetDescription>
             {carrito.length === 0
               ? "Tu carrito está vacío"
-              : `${carrito.length} producto${carrito.length === 1 ? "" : "s"} en tu carrito`}
+              : `${carrito.length} producto${
+                  carrito.length === 1 ? "" : "s"
+                } en tu carrito`}
           </SheetDescription>
         </SheetHeader>
 
@@ -198,7 +216,9 @@ export function CartSidebar({
             <>
               {/* Header con botón limpiar */}
               <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-medium text-blue-700">Productos</span>
+                <span className="text-sm font-medium text-blue-700">
+                  Productos
+                </span>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -218,6 +238,8 @@ export function CartSidebar({
                     item={item}
                     onUpdateCantidad={onUpdateCantidad}
                     onRemoveItem={onRemoveItem}
+                    tipoPrecio={tipoPrecio}
+                    getPrecioConTipo={getPrecioConTipo}
                   />
                 ))}
               </div>
@@ -228,7 +250,9 @@ export function CartSidebar({
                 <div className="space-y-2 bg-blue-50 p-3 rounded-lg">
                   <div className="flex justify-between text-sm">
                     <span>Subtotal ({totalItems} items):</span>
-                    <span className="font-medium">{formatValue(totalPrecio)}</span>
+                    <span className="font-medium">
+                      {formatValue(totalPrecio)}
+                    </span>
                   </div>
                   <Separator />
                   <div className="flex justify-between font-bold text-lg">

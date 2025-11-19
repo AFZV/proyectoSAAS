@@ -57,6 +57,7 @@ export function CatalogClient({
     Record<string, string>
   >({});
   const [observacionGeneral, setObservacionGeneral] = useState<string>("");
+  const [tipoPrecio, setTipoPrecio] = useState<"mayor" | "mostrador">("mayor");
 
   // Flags de hidratación independientes para evitar “carreras”
   const [cartHydrated, setCartHydrated] = React.useState(false);
@@ -74,6 +75,10 @@ export function CatalogClient({
       return "default";
     }
   });
+  //helper tipo de precio
+  const getPrecioConTipo = (precio: number) => {
+    return tipoPrecio === "mostrador" ? precio * 1.5 : precio;
+  };
 
   // deviceId: generar/leer sincrónicamente al primer render
   const [deviceId] = React.useState<string>(() => {
@@ -477,7 +482,7 @@ export function CatalogClient({
           <div>
             <div style="font-size:16px; color:#374151; margin-bottom:8px;">Precio de venta</div>
             <div style="font-size:32px; font-weight:800; color:#065f46;">
-              ${formatValue(producto.precio)}
+              ${formatValue(getPrecioConTipo(producto.precio))}
             </div>
           </div>
           <div>
@@ -644,6 +649,25 @@ export function CatalogClient({
               </span>
             </span>
           </div>
+          <div className="flex items-center justify-end gap-4">
+            <label
+              htmlFor="tipoPrecio"
+              className="text-sm font-medium text-blue-800"
+            >
+              Tipo de precio:
+            </label>
+            <select
+              id="tipoPrecio"
+              value={tipoPrecio}
+              onChange={(e) =>
+                setTipoPrecio(e.target.value as "mayor" | "mostrador")
+              }
+              className="border border-blue-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="mayor">Por mayor</option>
+              <option value="mostrador">Mostrador</option>
+            </select>
+          </div>
 
           {userType !== "admin" && (
             <div className="hidden sm:flex items-center gap-6">
@@ -685,6 +709,8 @@ export function CatalogClient({
             onClearCart={limpiarCarrito}
             onCheckout={handleCheckout}
             isLoading={isLoading}
+            tipoPrecio={tipoPrecio}
+            getPrecioConTipo={getPrecioConTipo}
           />
         </div>
       </div>
@@ -761,6 +787,8 @@ export function CatalogClient({
                     onChangeObservacion={(texto) =>
                       setObservacionProducto(producto.id, texto)
                     }
+                    tipoPrecio={tipoPrecio}
+                    getPrecioConTipo={getPrecioConTipo}
                     isSelectionMode={isSelectionMode}
                     isSelected={selectedProductIds.has(producto.id)}
                     onToggleSelection={() =>
@@ -854,7 +882,8 @@ export function CatalogClient({
                               {item.nombre}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {item.cantidad}x {formatValue(item.precio)}
+                              {item.cantidad}x{" "}
+                              {formatValue(getPrecioConTipo(item.precio))}
                             </p>
                           </div>
                         </div>
@@ -886,6 +915,8 @@ export function CatalogClient({
         onClearCart={limpiarCarrito}
         onCheckout={handleCheckout}
         isLoading={isLoading}
+        tipoPrecio={tipoPrecio}
+        getPrecioConTipo={getPrecioConTipo}
       />
 
       {/* Modal de checkout */}
@@ -917,6 +948,8 @@ export function CatalogClient({
           if (selectedProduct)
             setObservacionProducto(selectedProduct.id, texto);
         }}
+        tipoPrecio={tipoPrecio}
+        getPrecioConTipo={getPrecioConTipo}
       />
     </div>
   );
