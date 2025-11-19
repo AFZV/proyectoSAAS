@@ -929,6 +929,8 @@ export function CatalogClient({
         onNotesChange={(nuevoTexto) => setObservacionGeneral(nuevoTexto)}
         userType={userType}
         clienteId={clienteId}
+        getPrecioConTipo={getPrecioConTipo}
+        tipoPrecio={tipoPrecio}
       />
 
       {/* Modal de detalles */}

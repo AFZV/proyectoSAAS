@@ -368,6 +368,8 @@ interface CheckoutModalProps {
   onNotesChange?: (texto: string) => void;
   userType?: string; // Rol del usuario (CLIENTE, admin, vendedor, etc.)
   clienteId?: string | null; // ID del cliente si el usuario es CLIENTE
+  tipoPrecio: "mayor" | "mostrador";
+  getPrecioConTipo: (precio: number) => number;
 }
 
 export function CheckoutModal({
@@ -379,6 +381,8 @@ export function CheckoutModal({
   onNotesChange,
   userType,
   clienteId,
+  tipoPrecio,
+  getPrecioConTipo,
 }: CheckoutModalProps) {
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [observaciones, setObservaciones] = useState("");
@@ -473,11 +477,14 @@ export function CheckoutModal({
   }, [isOnline]);
 
   const totalItems = carrito.reduce((sum, item) => sum + item.cantidad, 0);
-  const totalPrecio = carrito.reduce(
-    (sum, item) => sum + item.precio * item.cantidad,
-    0
+  const totalPrecio = React.useMemo(
+    () =>
+      carrito.reduce(
+        (sum, item) => sum + getPrecioConTipo(item.precio) * item.cantidad,
+        0
+      ),
+    [carrito, getPrecioConTipo]
   );
-
   const handleClienteSeleccionado = (clienteData: Cliente) => {
     setCliente(clienteData);
   };
@@ -498,7 +505,7 @@ export function CheckoutModal({
         productos: carrito.map((item) => ({
           id: item.id,
           cantidad: item.cantidad,
-          precio: item.precio,
+          precio: getPrecioConTipo(item.precio),
         })),
         observaciones: notes,
         total: totalPrecio,
@@ -561,7 +568,7 @@ export function CheckoutModal({
       productos: carrito.map((item) => ({
         id: item.id,
         cantidad: item.cantidad,
-        precio: item.precio,
+        precio: getPrecioConTipo(item.precio),
       })),
       observaciones: notes,
       total: totalPrecio,
@@ -728,32 +735,37 @@ export function CheckoutModal({
               </CardHeader>
               <CardContent>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {carrito.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center space-x-3 p-3 border rounded-lg"
-                    >
-                      <img
-                        src={item.imagenUrl || "/placeholder-product.png"}
-                        alt={item.nombre}
-                        className="w-12 h-12 object-cover rounded-md"
-                      />
-                      <div className="flex-1">
-                        <h4 className="font-medium text-sm">{item.nombre}</h4>
-                        <p className="text-xs text-muted-foreground">
-                          {item.categoria}
-                        </p>
-                        <div className="flex justify-between mt-1 text-sm">
-                          <span>
-                            {item.cantidad} × {formatValue(item.precio)}
-                          </span>
-                          <span className="font-semibold">
-                            {formatValue(item.precio * item.cantidad)}
-                          </span>
+                  {carrito.map((item) => {
+                    const precioUnit = getPrecioConTipo(item.precio);
+                    const subtotal = precioUnit * item.cantidad;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center space-x-3 p-3 border rounded-lg"
+                      >
+                        <img
+                          src={item.imagenUrl || "/placeholder-product.png"}
+                          alt={item.nombre}
+                          className="w-12 h-12 object-cover rounded-md"
+                        />
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm">{item.nombre}</h4>
+                          <p className="text-xs text-muted-foreground">
+                            {item.categoria}
+                          </p>
+                          <div className="flex justify-between mt-1 text-sm">
+                            <span>
+                              {item.cantidad} × {formatValue(precioUnit)}
+                            </span>
+                            <span className="font-semibold">
+                              {formatValue(subtotal)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <Separator className="my-4" />
                 <div className="flex justify-between font-bold text-lg">
