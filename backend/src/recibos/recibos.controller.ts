@@ -10,9 +10,11 @@ import {
   UseGuards,
   Patch,
   BadRequestException,
+  Res,
 
   //Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 //import { parseISO } from 'date-fns';
 //import * as XLSX from 'xlsx';
 import { CrearReciboDto } from './dto/create-recibo.dto';
@@ -22,6 +24,7 @@ import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { ExportRecaudosDto } from './dto/export-recibo.dto';
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('recibos')
@@ -108,5 +111,26 @@ export class RecibosController {
     if (!usuario) throw new UnauthorizedException('no esta autorizado');
 
     return this.recibosService.getAjustesPorRecibo(id, usuario);
+  }
+  @Roles('admin', 'vendedor')
+  @Post('exportar/excel')
+  async exportarRecaudosExcel(
+    @Body() dto: ExportRecaudosDto,
+    @Req() req: UsuarioRequest,
+    @Res() res: Response
+  ) {
+    const usuario = req.usuario;
+    const buffer = await this.recibosService.exportarRecibosExcel(dto, usuario);
+
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="recaudos_${dto.fechaInicio}_${dto.fechaFin}.xlsx"`
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+
+    return res.end(buffer);
   }
 }

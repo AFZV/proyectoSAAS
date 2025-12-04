@@ -14,6 +14,8 @@ import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import { ResumenReciboDto } from 'src/pdf-uploader/dto/resumen-recibo.dto';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
+import { ExportRecaudosDto } from './dto/export-recibo.dto';
+import * as ExcelJS from 'exceljs';
 
 @Injectable()
 export class RecibosService {
@@ -104,6 +106,12 @@ export class RecibosService {
     });
 
     return !!reverso;
+  }
+  private normalizarRango(inicioStr: string, finStr: string) {
+    const inicio = new Date(`${inicioStr}T00:00:00-05:00`);
+    const fin = new Date(`${finStr}T23:59:59-05:00`);
+
+    return { inicio, fin };
   }
 
   //crea un recibo y registra en detalle recibo y los movimientos te cartera correspondiente
@@ -1231,5 +1239,117 @@ export class RecibosService {
     // Devuelve [{ idPedido, ajuste }]
 
     return Array.from(map, ([idPedido, ajuste]) => ({ idPedido, ajuste }));
+  }
+
+  async exportarRecibosExcel(body: ExportRecaudosDto, usuario: UsuarioPayload) {
+    if (!usuario) throw new UnauthorizedException('Usuario no autenticado');
+
+    const { empresaId, id: vendedorId } = usuario;
+    if (!empresaId) {
+      throw new BadRequestException('empresaId requerido');
+    }
+
+    const { fechaInicio, fechaFin } = body;
+
+    if (!fechaInicio || !fechaFin) {
+      throw new BadRequestException(
+        'fechaInicio y fechaFin son obligatorias para exportar recaudos'
+      );
+    }
+
+    // ✅ Normalizar fechas al día completo (mismo helper que ya usas)
+    const { inicio, fin } = this.normalizarRango(fechaInicio, fechaFin);
+
+    // ✅ Traer recibos del vendedor logueado, en el rango
+    const recibos = await this.prisma.recibo.findMany({
+      where: {
+        empresaId,
+        Fechacrecion: { gte: inicio, lte: fin },
+        usuarioId: vendedorId, // 👈 vendedor = usuario logueado
+      },
+      include: {
+        detalleRecibo: {
+          select: {
+            valorTotal: true,
+            pedido: {
+              select: {
+                comisionVendedor: true,
+              },
+            },
+          },
+        },
+        usuario: { select: { nombre: true, apellidos: true } },
+        cliente: {
+          select: { nombre: true, apellidos: true, rasonZocial: true },
+        },
+      },
+    });
+
+    // ✅ Mapeo idéntico al de reporteRecaudoVendedor
+    const rows = recibos.map((r) => {
+      const totalRecaudo = r.detalleRecibo.reduce(
+        (s, d) => s + Number(d.valorTotal || 0),
+        0
+      );
+
+      const comisionLiquidada = r.detalleRecibo.reduce((s, d) => {
+        const pct = d.pedido?.comisionVendedor ?? 0;
+        return s + (Number(d.valorTotal || 0) * pct) / 100;
+      }, 0);
+
+      return {
+        reciboId: r.id.slice(0, 5),
+        fecha: r.Fechacrecion,
+        tipo: r.tipo,
+        cliente: `${r.cliente.nombre} ${r.cliente.apellidos}`.trim(),
+        rasonZocial: r.cliente.rasonZocial,
+        valor: totalRecaudo,
+        vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
+        concepto: r.concepto,
+        estado: r.revisado ? 'revisado' : 'pendiente',
+        comisionLiquidada,
+      };
+    });
+
+    // 👉 Si no quieres generar Excel aquí y ya tienes un servicio genérico,
+    // podrías hacer simplemente:
+    // return this.excelService.generarExcelRecaudos(rows);
+
+    // ✅ Generar Excel directamente con exceljs
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Recaudos');
+
+    // Encabezados
+    sheet.columns = [
+      { header: 'ID Recibo', key: 'reciboId', width: 12 },
+      { header: 'Fecha', key: 'fecha', width: 16 },
+      { header: 'Tipo', key: 'tipo', width: 12 },
+      { header: 'Cliente', key: 'cliente', width: 32 },
+      { header: 'Razón Social', key: 'rasonZocial', width: 32 },
+      { header: 'Valor Recaudo', key: 'valor', width: 16 },
+      { header: 'Vendedor', key: 'vendedor', width: 24 },
+      { header: 'Concepto', key: 'concepto', width: 32 },
+      { header: 'Estado', key: 'estado', width: 12 },
+      { header: 'Comisión Liquidada', key: 'comisionLiquidada', width: 18 },
+    ];
+
+    // Filita por cada recibo
+    rows.forEach((r) => {
+      sheet.addRow({
+        ...r,
+        fecha: r.fecha ? new Date(r.fecha) : null,
+      });
+    });
+
+    // Formato de fecha y moneda rápido
+    sheet.getColumn('fecha').numFmt = 'yyyy-mm-dd';
+    sheet.getColumn('valor').numFmt = '#,##0.00';
+    sheet.getColumn('comisionLiquidada').numFmt = '#,##0.00';
+
+    // Encabezado en negrita
+    sheet.getRow(1).font = { bold: true };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer;
   }
 }

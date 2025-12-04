@@ -728,7 +728,7 @@ export class PedidosService {
     });
 
     // ✅ Agregar log para verificar datos
-    console.log('ejemplo de pedido obtenido:', pedidosConSaldo[0]);
+
     return pedidosConSaldo;
   }
 

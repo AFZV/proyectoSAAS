@@ -14,6 +14,7 @@ import axios, { AxiosResponse } from 'axios';
 import { ResumenPedidoDto } from './dto/resumen-pedido.dto';
 import { ResumenReciboDto } from './dto/resumen-recibo.dto';
 import { ResumenCompraDto } from 'src/compras/dto/resumen-compra.dto';
+import * as sharp from 'sharp';
 
 type CatalogoProducto = {
   nombre: string;
@@ -50,6 +51,44 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     catalogo: join(process.cwd(), 'src', 'templates', 'catalogo.ejs'),
     compra: join(process.cwd(), 'src', 'templates', 'compra.ejs'), // ⬅️ nuevo
   };
+  private async optimizarImagenesCatalogo(
+    productos: CatalogoProducto[]
+  ): Promise<CatalogoProducto[]> {
+    const resultados = await Promise.all(
+      productos.map(async (p) => {
+        if (!p.imagenUrl || p.imagenUrl.startsWith('data:')) return p;
+
+        try {
+          const resp = await axios.get<ArrayBuffer>(p.imagenUrl, {
+            responseType: 'arraybuffer',
+            timeout: 30_000,
+          });
+
+          const jpegBuffer = await sharp(Buffer.from(resp.data))
+            .jpeg({ quality: 75 })
+            .toBuffer();
+
+          const dataUrl = `data:image/jpeg;base64,${jpegBuffer.toString(
+            'base64'
+          )}`;
+
+          return {
+            ...p,
+            imagenUrl: dataUrl,
+          };
+        } catch (err) {
+          this.logger.warn(
+            `⚠️ No se pudo optimizar imagen de "${p.nombre}": ${
+              (err as Error).message
+            }`
+          );
+          return p;
+        }
+      })
+    );
+
+    return resultados;
+  }
 
   async onModuleInit(): Promise<void> {
     await Promise.all([this.initializeBrowser(), this.compileTemplates()]);
@@ -112,8 +151,10 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   async generarCatalogoPDF(
     productos: CatalogoProducto[]
   ): Promise<{ buffer: Buffer; path: string }> {
+    const productosOptim = await this.optimizarImagenesCatalogo(productos);
+
     return this.generarPDF({
-      data: { productos },
+      data: { productos: productosOptim },
       fileName: `catalogo_productos.pdf`,
       tipo: 'catalogo',
     });
@@ -264,7 +305,9 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     productos: CatalogoProducto[],
     fileName = 'catalogo_productos.pdf'
   ): Promise<{ path: string }> {
-    const html = this.renderTemplate('catalogo', { productos });
+    const productosOptim = await this.optimizarImagenesCatalogo(productos);
+    const html = this.renderTemplate('catalogo', { productos: productosOptim });
+
     const page = await this.createPage();
     try {
       await this.loadContent(page, html);
