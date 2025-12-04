@@ -54,40 +54,58 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   private async optimizarImagenesCatalogo(
     productos: CatalogoProducto[]
   ): Promise<CatalogoProducto[]> {
-    const resultados = await Promise.all(
-      productos.map(async (p) => {
-        if (!p.imagenUrl || p.imagenUrl.startsWith('data:')) return p;
+    // Tamaño del lote (ajustable). 20–30 va bien para empezar.
+    const CHUNK_SIZE = 20;
+    const optimizados: CatalogoProducto[] = [];
 
-        try {
-          const resp = await axios.get<ArrayBuffer>(p.imagenUrl, {
-            responseType: 'arraybuffer',
-            timeout: 30_000,
-          });
+    for (let i = 0; i < productos.length; i += CHUNK_SIZE) {
+      const slice = productos.slice(i, i + CHUNK_SIZE);
 
-          const jpegBuffer = await sharp(Buffer.from(resp.data))
-            .jpeg({ quality: 75 })
-            .toBuffer();
+      const procesados = await Promise.all(
+        slice.map(async (p) => {
+          if (!p.imagenUrl || p.imagenUrl.startsWith('data:')) {
+            return p;
+          }
 
-          const dataUrl = `data:image/jpeg;base64,${jpegBuffer.toString(
-            'base64'
-          )}`;
+          try {
+            const resp = await axios.get<ArrayBuffer>(p.imagenUrl, {
+              responseType: 'arraybuffer',
+              timeout: 10_000, // ⬅️ más corto, si no carga rápido, seguimos
+            });
 
-          return {
-            ...p,
-            imagenUrl: dataUrl,
-          };
-        } catch (err) {
-          this.logger.warn(
-            `⚠️ No se pudo optimizar imagen de "${p.nombre}": ${
-              (err as Error).message
-            }`
-          );
-          return p;
-        }
-      })
-    );
+            // ⬇️ Redimensionamos y bajamos calidad para catálogos
+            const jpegBuffer = await sharp(Buffer.from(resp.data))
+              .resize({
+                width: 800, // ancho máximo (no agranda si es menor)
+                withoutEnlargement: true,
+              })
+              .jpeg({ quality: 70 }) // calidad agresiva pero se ve bien en PDF
+              .toBuffer();
 
-    return resultados;
+            const dataUrl = `data:image/jpeg;base64,${jpegBuffer.toString(
+              'base64'
+            )}`;
+
+            return {
+              ...p,
+              imagenUrl: dataUrl,
+            };
+          } catch (err) {
+            this.logger.warn(
+              `⚠️ No se pudo optimizar imagen de "${p.nombre}": ${
+                (err as Error).message
+              }`
+            );
+            // Si falla, devolvemos el producto con la URL original
+            return p;
+          }
+        })
+      );
+
+      optimizados.push(...procesados);
+    }
+
+    return optimizados;
   }
 
   async onModuleInit(): Promise<void> {
