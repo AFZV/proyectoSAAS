@@ -228,8 +228,29 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     return template(data as unknown as Record<string, unknown>);
   }
 
+  // private async initializeBrowser(): Promise<void> {
+  //   try {
+  //     this.browser = await launch({
+  //       headless: true,
+  //       args: [
+  //         '--no-sandbox',
+  //         '--disable-setuid-sandbox',
+  //         '--disable-dev-shm-usage',
+  //         '--disable-gpu',
+  //         '--disable-extensions',
+  //         '--no-first-run',
+  //         '--disable-default-apps',
+  //       ],
+  //     });
+  //     this.logger.log('🧭 Browser initialized');
+  //   } catch (error) {
+  //     this.logger.error('❌ Error launching browser', error);
+  //     throw error;
+  //   }
+  // }
   private async initializeBrowser(): Promise<void> {
     try {
+      this.logger.log('🧭 Lanzando browser...');
       this.browser = await launch({
         headless: true,
         args: [
@@ -240,26 +261,74 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
           '--disable-extensions',
           '--no-first-run',
           '--disable-default-apps',
+          '--disable-web-security',
+          '--disable-features=IsolateOrigins,site-per-process',
         ],
       });
-      this.logger.log('🧭 Browser initialized');
+
+      // 🔥 Cuando Chromium se caiga, marcamos browser=null
+      this.browser.on('disconnected', () => {
+        this.logger.warn('⚠️ Browser desconectado — se marcará como null.');
+        this.browser = null;
+      });
+
+      this.logger.log('🧭 Browser inicializado OK');
     } catch (error) {
       this.logger.error('❌ Error launching browser', error);
       throw error;
     }
   }
 
+  // private async createPage(): Promise<Page> {
+  //   if (!this.browser) throw new Error('Browser no inicializado');
+  //   const page = await this.browser.newPage();
+
+  //   // Aumenta timeouts por defecto del Page
+  //   page.setDefaultTimeout(180_000); // 3 min (interacciones)
+  //   page.setDefaultNavigationTimeout(180_000); // 3 min (navegación)
+
+  //   await page.setViewport({ width: 794, height: 1123 }); // A4
+  //   await page.emulateMediaType('screen'); // por si tu CSS difiere
+  //   return page;
+  // }
   private async createPage(): Promise<Page> {
-    if (!this.browser) throw new Error('Browser no inicializado');
-    const page = await this.browser.newPage();
+    try {
+      if (!this.browser) {
+        await this.initializeBrowser();
+      }
 
-    // Aumenta timeouts por defecto del Page
-    page.setDefaultTimeout(180_000); // 3 min (interacciones)
-    page.setDefaultNavigationTimeout(180_000); // 3 min (navegación)
+      try {
+        const page = await this.browser!.newPage();
+        page.setDefaultTimeout(180_000);
+        page.setDefaultNavigationTimeout(180_000);
+        await page.setViewport({ width: 794, height: 1123 });
+        await page.emulateMediaType('screen');
+        return page;
+      } catch (err: any) {
+        const msg = err?.message || '';
 
-    await page.setViewport({ width: 794, height: 1123 }); // A4
-    await page.emulateMediaType('screen'); // por si tu CSS difiere
-    return page;
+        // 🧨 Si el browser está muerto → lo relanzamos
+        if (
+          msg.includes('Connection closed') ||
+          msg.includes('Browser has been closed') ||
+          msg.includes('Target closed')
+        ) {
+          this.logger.warn(`⚠️ Browser muerto ("${msg}") → relanzando...`);
+          await this.initializeBrowser();
+          const page = await this.browser!.newPage();
+          page.setDefaultTimeout(180_000);
+          page.setDefaultNavigationTimeout(180_000);
+          await page.setViewport({ width: 794, height: 1123 });
+          await page.emulateMediaType('screen');
+          return page;
+        }
+
+        throw err;
+      }
+    } catch (err) {
+      this.logger.error(`❌ createPage fatal: ${err}`);
+      throw err;
+    }
   }
 
   private async generatePdfBuffer(page: Page): Promise<Buffer> {
