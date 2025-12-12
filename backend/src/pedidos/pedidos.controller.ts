@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -22,6 +23,7 @@ import { UpdatePedidoDto } from './dto/update-pedido.dto';
 import { FilterPedidoDto } from './dto/filter-pedido.dto';
 import { UpdateEnvioDto } from './dto/update-envio-pedido.dto';
 import { Response } from 'express';
+import { GetPedidosPaginadosDto } from './dto/get-pedidos-paginados.dto';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('pedidos')
 export class PedidosController {
@@ -54,6 +56,16 @@ export class PedidosController {
   obtenerPedidos(@Req() req: UsuarioRequest) {
     const usuario = req.usuario;
     return this.pedidosService.obtenerPedidos(usuario);
+  }
+  // pedidos.controller.ts
+  @Roles('admin', 'vendedor', 'bodega', 'CLIENTE')
+  @Get('new/paginado')
+  async getPedidosPaginados(
+    @Req() req: UsuarioRequest, // tu decorador actual
+    @Query() query: GetPedidosPaginadosDto
+  ) {
+    const usuario = req.usuario;
+    return this.pedidosService.obtenerPedidosPaginados(usuario, query);
   }
 
   @Roles('admin', 'bodega')

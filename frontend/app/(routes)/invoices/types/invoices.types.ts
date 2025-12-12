@@ -311,3 +311,16 @@ export const getSiguientePasoRecomendado = (
       return "Acción no definida";
   }
 };
+
+//nuevos para paginacion de pedidos optimizados
+export interface MetaPaginacion {
+  totalItems: number;
+  totalPages: number;
+  currentPage: number;
+  pageSize: number;
+}
+
+export interface PedidosPaginadosResponse {
+  data: Pedido[];
+  meta: MetaPaginacion;
+}

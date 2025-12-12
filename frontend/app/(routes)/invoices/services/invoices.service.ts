@@ -5,6 +5,7 @@ import type {
   CreatePedidoDto,
   FilterPedidoOptions,
   EstadisticasPedidos,
+  PedidosPaginadosResponse,
 } from "../types/invoices.types";
 
 export class InvoicesService {
@@ -465,6 +466,35 @@ export class InvoicesService {
       default:
         return ["Estado no reconocido"];
     }
+  }
+
+  //nuevo metodo obtener pedidos paginados
+  async obtenerPedidosPaginados(
+    token: string,
+    opciones?: {
+      pagina?: number;
+      limite?: number;
+      estado?: string;
+      q?: string;
+    }
+  ): Promise<PedidosPaginadosResponse> {
+    const params = new URLSearchParams();
+
+    if (opciones?.pagina) params.set("pagina", String(opciones.pagina));
+    if (opciones?.limite) params.set("limite", String(opciones.limite));
+    if (opciones?.estado && opciones.estado !== "todos")
+      params.set("estado", opciones.estado);
+    if (opciones?.q && opciones.q.trim() !== "")
+      params.set("q", opciones.q.trim());
+
+    const qs = params.toString();
+    const endpoint = qs
+      ? `/pedidos/new/paginado?${qs}`
+      : "/pedidos/new/paginado";
+
+    return this.makeRequest<PedidosPaginadosResponse>(endpoint, token, {
+      method: "GET",
+    });
   }
 }
 

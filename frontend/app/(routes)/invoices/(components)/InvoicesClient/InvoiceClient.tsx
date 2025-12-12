@@ -2,31 +2,17 @@
 
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   FileText,
   Search,
   Plus,
-  MoreHorizontal,
-  Edit3,
-  Eye,
-  Truck,
-  Phone,
-  MapPin,
-  Calendar,
-  User,
-  Building,
-  DollarSign,
   Grid3X3,
   List,
-  Maximize2,
-  ArrowLeft,
-  ArrowRight,
   RefreshCw,
   AlertCircle,
-  Columns,
   CheckCircle,
   XCircle,
   BadgeCheck,
@@ -36,19 +22,14 @@ import {
 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
-import { formatValue } from "@/utils/FormartValue";
+
 import { ESTADOS_PEDIDO } from "../../types/invoices.types";
 import { invoicesService } from "../../services/invoices.service";
 import { InvoiceDetailModal } from "../InvoiceDetailModal";
 import { EditPedidoModal } from "../EditPedidoModal";
-import type { Pedido } from "../../types/invoices.types";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import type { Pedido, MetaPaginacion } from "../../types/invoices.types";
+import { RenderCompactView } from "../RenderCompactView";
+import { RenderCardsView } from "../RenderCardsView";
 
 interface InvoicesClientProps {
   pedidos: Pedido[];
@@ -77,34 +58,66 @@ export function InvoicesClient({
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [meta, setMeta] = useState<MetaPaginacion | null>(null);
 
-  // Estados de filtros
-  const [searchTerm, setSearchTerm] = useState("");
+  // Filtros
   const [estadoFiltro, setEstadoFiltro] = useState<string>("todos");
+  const [rawSearch, setRawSearch] = useState(""); // texto crudo
+  const [searchTerm, setSearchTerm] = useState(""); // texto debounced
 
-  // Paginación
+  // Paginación server-side
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(10);
 
-  // Vista de tabla
   const [viewMode, setViewMode] = useState<ViewMode>("compact");
-
-  // Columnas visibles (para vista completa)
-  const [visibleColumns, setVisibleColumns] = useState({
-    id: true,
-    cliente: true,
-    contacto: false,
-    total: true,
-    estado: true,
-    vendedor: false,
-    fecha: false,
-    flete: false,
-    guiaTransporte: false,
-    acciones: true,
-  });
 
   const { getToken } = useAuth();
   const { toast } = useToast();
+
+  // 🔁 Debounce del texto de búsqueda
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setSearchTerm(rawSearch);
+    }, 200);
+    return () => clearTimeout(id);
+  }, [rawSearch]);
+
+  // 🔄 Fetch central con paginación + filtros
+  const fetchPedidos = useCallback(
+    async (page: number = 1) => {
+      try {
+        setIsRefreshing(true);
+        const token = await getToken();
+        if (!token) return;
+
+        const resp = await invoicesService.obtenerPedidosPaginados(token, {
+          pagina: page,
+          limite: itemsPerPage,
+          estado: estadoFiltro,
+          q: searchTerm,
+        });
+
+        setPedidos(resp.data);
+        setMeta(resp.meta);
+        setCurrentPage(resp.meta.currentPage);
+      } catch (error) {
+        console.error("Error al obtener pedidos paginados:", error);
+        toast({
+          title: "Error al cargar pedidos",
+          description: "No se pudieron obtener los pedidos paginados",
+          variant: "destructive",
+        });
+      } finally {
+        setIsRefreshing(false);
+      }
+    },
+    [getToken, itemsPerPage, estadoFiltro, searchTerm, toast]
+  );
+
+  // ▶️ Cargar al montar y cuando cambian filtros/búsqueda (debounced)
+  useEffect(() => {
+    fetchPedidos(1);
+  }, [fetchPedidos]);
 
   const STAT_ICONS: Record<
     string,
@@ -168,7 +181,7 @@ export function InvoicesClient({
     );
   }
 
-  // Funciones helper
+  // Helpers
   const getEstadoActual = (pedido: Pedido): string => {
     if (!pedido.estados || pedido.estados.length === 0) {
       return "GENERADO";
@@ -191,11 +204,9 @@ export function InvoicesClient({
     }`.trim();
 
     if (razon && nombreCompleto) {
-      // Muestra ambas: razón social y abajo nombre completo
       return `${razon}\n${nombreCompleto}`;
     }
 
-    // Si solo hay una de las dos, muestra la disponible
     return (
       razon || nombreCompleto || `Cliente ID: ${pedido.clienteId.slice(0, 5)}`
     );
@@ -210,46 +221,6 @@ export function InvoicesClient({
     }`.trim();
   };
 
-  // Filtrar pedidos
-  const pedidosFiltrados = useMemo(() => {
-    let filtered = pedidos;
-
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter((pedido) => {
-        const nombreCliente = getNombreCliente(pedido).toLowerCase();
-        const nombreVendedor = getNombreVendedor(pedido).toLowerCase();
-        const idPedido = pedido.id.toLowerCase();
-
-        return (
-          idPedido.includes(term) ||
-          nombreCliente.includes(term) ||
-          nombreVendedor.includes(term) ||
-          (pedido.cliente?.correo || "").toLowerCase().includes(term) ||
-          (pedido.cliente?.telefono || "").includes(term) ||
-          (pedido.cliente?.nit || "").toLowerCase().includes(term)
-        );
-      });
-    }
-
-    if (estadoFiltro !== "todos") {
-      filtered = filtered.filter((pedido) => {
-        const estadoActual = getEstadoActual(pedido);
-        return estadoActual === estadoFiltro;
-      });
-    }
-
-    return filtered.sort(
-      (a, b) =>
-        new Date(b.fechaPedido).getTime() - new Date(a.fechaPedido).getTime()
-    );
-  }, [pedidos, searchTerm, estadoFiltro]);
-
-  // Paginación
-  const totalPages = Math.ceil(pedidosFiltrados.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const pedidosPaginados = pedidosFiltrados.slice(startIndex, endIndex);
   const getEstadoBadge = (estado: string) => {
     const estadoInfo = ESTADOS_PEDIDO[estado as keyof typeof ESTADOS_PEDIDO];
     let badgeClass =
@@ -260,7 +231,7 @@ export function InvoicesClient({
         badgeClass += " bg-blue-100 text-blue-800";
         break;
       case "ACEPTADO":
-        badgeClass += " bg-gray-100 text-gray-800"; // 👈 ahora gris
+        badgeClass += " bg-gray-100 text-gray-800";
         break;
       case "SEPARADO":
         badgeClass += " bg-yellow-100 text-yellow-800";
@@ -291,24 +262,22 @@ export function InvoicesClient({
       setSelectedPedido(pedido);
       setIsEditModalOpen(true);
     }
-    return;
   };
 
   const handleDescargarPdf = async (pedido: Pedido) => {
     try {
       const urlConTimestamp = `${pedido.pdfUrl}?t=${Date.now()}`;
 
-      // Descarga el archivo como blob para evitar que el navegador lo abra
       const response = await fetch(urlConTimestamp);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
 
       const a = document.createElement("a");
       a.href = url;
-      a.download = `pedido_${pedido.id.slice(0, 5)}.pdf`; // ✅ Nombre del archivo descargado
+      a.download = `pedido_${pedido.id.slice(0, 5)}.pdf`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url); // ✅ Limpieza
+      window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
       toast({
@@ -325,31 +294,14 @@ export function InvoicesClient({
     }
   };
 
-  // Función para refrescar datos
   const refreshPedidos = async () => {
-    try {
-      setIsRefreshing(true);
-      const token = await getToken();
-      const pedidosActualizados = await invoicesService.obtenerPedidos(token!);
-      setPedidos(pedidosActualizados);
-
-      toast({
-        title: "Datos actualizados",
-        description: "La lista de pedidos se ha actualizado correctamente",
-      });
-    } catch (error) {
-      console.error("Error al refrescar pedidos:", error);
-      toast({
-        title: "Error al actualizar",
-        description: "No se pudieron actualizar los datos",
-        variant: "destructive",
-      });
-    } finally {
-      setIsRefreshing(false);
-    }
+    await fetchPedidos(currentPage);
+    toast({
+      title: "Datos actualizados",
+      description: "La lista de pedidos se ha actualizado correctamente",
+    });
   };
 
-  // Manejar actualización de pedido
   const handleUpdatePedido = async (pedidoActualizado: Pedido) => {
     setPedidos((prev) =>
       prev.map((p) => (p.id === pedidoActualizado.id ? pedidoActualizado : p))
@@ -361,9 +313,6 @@ export function InvoicesClient({
     }, 1000);
   };
 
-  //helpers
-  // Devuelve la fecha (ISO string) del primer/último estado FACTURADO.
-  // Puedes elegir "primero" (el más viejo) o "último" (el más reciente).
   const getFechaEstado = (
     pedido: Pedido,
     estadoBuscado: string,
@@ -374,7 +323,8 @@ export function InvoicesClient({
       .filter((e) => e.estado === estadoBuscado && e.fechaEstado)
       .sort(
         (a, b) =>
-          new Date(a.fechaEstado).getTime() - new Date(b.fechaEstado).getTime()
+          new Date(a.fechaEstado).getTime() - // 👈 corregido
+          new Date(b.fechaEstado).getTime()
       ); // asc
 
     if (coincidencias.length === 0) return null;
@@ -383,682 +333,12 @@ export function InvoicesClient({
       : coincidencias[coincidencias.length - 1].fechaEstado;
   };
 
-  // Fecha que quieres mostrar bajo el badge de estado:
-  // - Si existe FACTURADO → usa esa fecha
-  // - Si no, cae a fechaPedido
   const getFechaParaMostrar = (pedido: Pedido): string => {
     const fFacturado = getFechaEstado(pedido, "FACTURADO", "ultimo");
     return (fFacturado ?? pedido.fechaPedido) as string;
   };
 
-  // VISTA COMPACTA - Solo información esencial
-  const renderCompactView = () => (
-    <div className="overflow-hidden">
-      <div className="min-w-full">
-        {/* Header fijo */}
-        <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
-          <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
-            <div className="col-span-2">ID</div>
-            <div className="col-span-4">Cliente</div>
-            <div className="col-span-2">Total</div>
-            <div className="col-span-2">Estado</div>
-            <div className="col-span-2">Acciones</div>
-          </div>
-        </div>
-
-        {/* Filas */}
-        <div className="divide-y divide-gray-200">
-          {pedidosPaginados.map((pedido) => {
-            const estadoActual = getEstadoActual(pedido);
-            const nombreCliente = getNombreCliente(pedido);
-            const saldoPendiente = Number(pedido.saldoPendiente ?? 0);
-            const estaPagado = saldoPendiente === 0;
-
-            return (
-              <div
-                key={pedido.id}
-                className="px-4 py-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                onClick={() => handleVerDetalle(pedido)}
-              >
-                <div className="grid grid-cols-12 gap-2 items-center">
-                  {/* ID */}
-                  <div className="col-span-2">
-                    <span className="text-sm font-mono text-blue-600 font-medium">
-                      #{pedido.id.slice(0, 5).toUpperCase()}
-                    </span>
-                  </div>
-
-                  {/* Cliente */}
-                  <div className="col-span-4 min-w-0">
-                    <div className="truncate">
-                      <div className="text-sm font-medium text-gray-900 break-words">
-                        {pedido.cliente?.rasonZocial}
-                      </div>
-                      <div className="text-sm text-gray-700 -mt-0.5 break-words">
-                        {(pedido.cliente?.nombre ?? "") +
-                          " " +
-                          (pedido.cliente?.apellidos ?? "")}
-                      </div>
-                      <div className="flex items-center space-x-2 mt-1">
-                        {pedido.cliente?.telefono && (
-                          <span className="text-xs text-gray-500 flex items-center">
-                            <Phone className="h-3 w-3 mr-1" />
-                            {pedido.cliente.telefono}
-                          </span>
-                        )}
-                        {pedido.cliente?.ciudad && (
-                          <span className="text-xs text-gray-500 flex items-center">
-                            <MapPin className="h-3 w-3 mr-1" />
-                            {pedido.cliente.ciudad}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Total */}
-                  <div className="col-span-2">
-                    <div className="text-sm font-medium text-gray-900">
-                      {formatValue(pedido.total || 0)}
-                    </div>
-                    {pedido.flete && (
-                      <div className="text-xs text-orange-600 flex items-center mt-1">
-                        <Truck className="h-3 w-3 mr-1" />+
-                        {formatValue(pedido.flete)}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Estado + Saldo */}
-                  <div className="col-span-2">
-                    <div className="flex items-center space-x-1">
-                      {getEstadoBadge(estadoActual)}
-                      {estadoActual === "ENVIADO" && (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {new Date(getFechaParaMostrar(pedido)).toLocaleDateString(
-                        "es-CO",
-                        {
-                          day: "2-digit",
-                          month: "2-digit",
-                        }
-                      )}
-                    </div>
-
-                    {/* Indicador de saldo */}
-                    {estaPagado ? (
-                      <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full bg-green-50 text-[11px] font-medium text-green-700 border border-green-200">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Sin saldo pendiente
-                      </div>
-                    ) : (
-                      <div className="mt-1 text-[11px] text-amber-700 bg-amber-50 inline-flex px-2 py-0.5 rounded-full border border-amber-200">
-                        Saldo: {formatValue(saldoPendiente)}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Acciones */}
-                  <div className="col-span-2">
-                    <div className="flex space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleVerDetalle(pedido);
-                        }}
-                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      {(userType === "admin" || userType === "bodega") && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditarPedido(pedido);
-                          }}
-                        >
-                          <Edit3 className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {["admin", "vendedor", "CLIENTE"].includes(userType) &&
-                        [
-                          "GENERADO",
-                          "ACEPTADO",
-                          "SEPARADO",
-                          "FACTURADO",
-                          "ENVIADO",
-                        ].includes(estadoActual) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDescargarPdf(pedido);
-                            }}
-                            className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1"
-                            title="Descargar comprobante PDF"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </Button>
-                        )}
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-gray-600 hover:text-gray-700 hover:bg-gray-50 p-1"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-
-  // VISTA DE TARJETAS
-  const renderCardsView = () => (
-    <div className="grid gap-4 p-4">
-      {pedidosPaginados.map((pedido) => {
-        const estadoActual = getEstadoActual(pedido);
-        const nombreCliente = getNombreCliente(pedido);
-        const nombreVendedor = getNombreVendedor(pedido);
-
-        // 👇 Nuevo: usamos el saldo que viene del backend
-        const saldoPendiente = Number(pedido.saldoPendiente ?? 0);
-        const estaPagado = saldoPendiente === 0;
-
-        return (
-          <div
-            key={pedido.id}
-            className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow"
-          >
-            {/* Header de la tarjeta */}
-            <div className="p-4 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <span className="text-sm font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                    #{pedido.id.slice(0, 5).toUpperCase()}
-                  </span>
-                  <div className="flex flex-col space-y-1">
-                    <div className="flex items-center space-x-2">
-                      {getEstadoBadge(estadoActual)}
-                      {estadoActual === "ENVIADO" && (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      )}
-                    </div>
-
-                    {/* 👇 Indicador de saldo igual que en las otras vistas */}
-                    {estaPagado ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-50 text-[11px] font-medium text-green-700 border border-green-200">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Sin saldo pendiente
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-[11px] font-medium text-amber-700 border border-amber-200">
-                        Saldo: {formatValue(saldoPendiente)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div
-                  className={`text-lg font-bold ${
-                    estadoActual === "ENVIADO"
-                      ? "text-green-600"
-                      : estadoActual === "CANCELADO"
-                      ? "text-red-600"
-                      : "text-gray-900"
-                  }`}
-                >
-                  {formatValue(pedido.total || 0)}
-                </div>
-              </div>
-            </div>
-
-            {/* Contenido principal */}
-            <div className="p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Columna izquierda - Información del cliente */}
-                <div className="space-y-3">
-                  <div>
-                    <div className="text-sm font-medium text-gray-900 break-words">
-                      {pedido.cliente?.rasonZocial}
-                    </div>
-                    <div className="text-sm text-gray-700 -mt-0.5 break-words">
-                      {(pedido.cliente?.nombre ?? "") +
-                        " " +
-                        (pedido.cliente?.apellidos ?? "")}
-                    </div>
-                    {pedido.cliente?.nit && (
-                      <p className="text-sm text-gray-500">
-                        NIT: {pedido.cliente.nit}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    {pedido.cliente?.telefono && (
-                      <div className="flex items-center space-x-2">
-                        <Phone className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-600">
-                          {pedido.cliente.telefono}
-                        </span>
-                      </div>
-                    )}
-                    {pedido.cliente?.ciudad && (
-                      <div className="flex items-center space-x-2">
-                        <MapPin className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-600">
-                          {pedido.cliente.ciudad}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Columna derecha - Información del pedido */}
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <User className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">
-                      {nombreVendedor}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">
-                      {new Date(getFechaParaMostrar(pedido)).toLocaleDateString(
-                        "es-CO"
-                      )}
-                    </span>
-                  </div>
-
-                  {(pedido.flete || pedido.guiaTransporte) && (
-                    <div className="space-y-1">
-                      {pedido.flete && (
-                        <div className="flex items-center space-x-2">
-                          <Truck
-                            className={`h-4 w-4 ${
-                              estadoActual === "ENVIADO"
-                                ? "text-green-500"
-                                : "text-orange-500"
-                            }`}
-                          />
-                          <span
-                            className={`text-sm font-medium ${
-                              estadoActual === "ENVIADO"
-                                ? "text-green-600"
-                                : "text-orange-600"
-                            }`}
-                          >
-                            Flete: {formatValue(pedido.flete)}
-                          </span>
-                        </div>
-                      )}
-                      {pedido.guiaTransporte && (
-                        <p className="text-sm text-gray-600">
-                          Guía:{" "}
-                          <span className="font-mono">
-                            {pedido.guiaTransporte}
-                          </span>
-                          {estadoActual === "ENVIADO" && (
-                            <span className="text-green-600 ml-2">✓</span>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Footer con acciones */}
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 rounded-b-lg">
-              <div className="flex justify-end space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleVerDetalle(pedido)}
-                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                >
-                  <Eye className="h-4 w-4 mr-1" />
-                  Ver Detalles
-                </Button>
-                {userType === "admin" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEditarPedido(pedido)}
-                    className="text-gray-600 hover:bg-gray-50"
-                  >
-                    <Edit3 className="h-4 w-4 mr-1" />
-                    Editar
-                  </Button>
-                )}
-                {["admin", "vendedor", "CLIENTE"].includes(userType) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDescargarPdf(pedido);
-                    }}
-                    className="text-green-600 hover:text-green-700 hover:bg-green-50 p-1"
-                    title="Descargar comprobante PDF"
-                  >
-                    <FileText className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  // TABLA COMPLETA con scroll horizontal optimizado
-  const renderFullTableView = () => (
-    <div className="relative">
-      {/* Indicadores de scroll */}
-      <div className="flex items-center justify-between mb-2 text-xs text-gray-500">
-        <span className="flex items-center">
-          <ArrowLeft className="h-3 w-3 mr-1" />
-          Desliza horizontalmente para ver más columnas
-          <ArrowRight className="h-3 w-3 ml-1" />
-        </span>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Columns className="h-4 w-4 mr-2" />
-              Configurar Columnas
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Seleccionar Columnas Visibles</DialogTitle>
-            </DialogHeader>
-            <div className="grid grid-cols-2 gap-4 py-4">
-              {Object.entries(visibleColumns).map(([key, visible]) => (
-                <div key={key} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id={key}
-                    checked={visible}
-                    onChange={(e) =>
-                      setVisibleColumns((prev) => ({
-                        ...prev,
-                        [key]: e.target.checked,
-                      }))
-                    }
-                    className="rounded border-gray-300"
-                  />
-                  <label
-                    htmlFor={key}
-                    className="text-sm font-medium capitalize"
-                  >
-                    {key === "id"
-                      ? "ID"
-                      : key === "contacto"
-                      ? "Contacto"
-                      : key}
-                  </label>
-                </div>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Tabla con scroll horizontal suave */}
-      <div className="overflow-x-auto">
-        <table
-          className="min-w-full divide-y divide-gray-200"
-          style={{ minWidth: "800px" }}
-        >
-          <thead className="bg-gray-50">
-            <tr>
-              {visibleColumns.id && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
-                  ID
-                </th>
-              )}
-              {visibleColumns.cliente && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
-                  Cliente
-                </th>
-              )}
-              {visibleColumns.contacto && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
-                  Contacto
-                </th>
-              )}
-              {visibleColumns.total && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
-                  Total
-                </th>
-              )}
-              {visibleColumns.estado && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[160px]">
-                  Estado / Saldo
-                </th>
-              )}
-              {visibleColumns.vendedor && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
-                  Vendedor
-                </th>
-              )}
-              {visibleColumns.fecha && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
-                  Fecha
-                </th>
-              )}
-              {visibleColumns.flete && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
-                  Flete
-                </th>
-              )}
-              {visibleColumns.guiaTransporte && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
-                  Guía
-                </th>
-              )}
-              {visibleColumns.acciones && (
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px] sticky right-0 bg-gray-50">
-                  Acciones
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {pedidosPaginados.map((pedido) => {
-              const estadoActual = getEstadoActual(pedido);
-              const nombreCliente = getNombreCliente(pedido);
-              const nombreVendedor = getNombreVendedor(pedido);
-
-              // 👇 Nuevo: usar saldoPendiente para indicador visual
-              const saldoPendiente = Number(pedido.saldoPendiente ?? 0);
-              const estaPagado = saldoPendiente === 0;
-
-              return (
-                <tr key={pedido.id} className="hover:bg-gray-50">
-                  {visibleColumns.id && (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600">
-                      #{pedido.id.slice(0, 5).toUpperCase()}
-                    </td>
-                  )}
-                  {visibleColumns.cliente && (
-                    <td className="px-6 py-4">
-                      <div className="max-w-[200px]">
-                        <div className="text-sm font-medium text-gray-900 break-words">
-                          {pedido.cliente?.rasonZocial}
-                        </div>
-                        <div className="text-sm text-gray-700 -mt-0.5 break-words">
-                          {(pedido.cliente?.nombre ?? "") +
-                            " " +
-                            (pedido.cliente?.apellidos ?? "")}
-                        </div>
-
-                        <div className="text-sm text-gray-500 truncate mt-0.5">
-                          {pedido.cliente?.nit
-                            ? `NIT: ${pedido.cliente.nit}`
-                            : "Sin NIT"}
-                        </div>
-                      </div>
-                    </td>
-                  )}
-                  {visibleColumns.contacto && (
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {pedido.cliente?.telefono || "Sin teléfono"}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {pedido.cliente?.ciudad || "Sin ciudad"}
-                      </div>
-                    </td>
-                  )}
-                  {visibleColumns.total && (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {formatValue(pedido.total || 0)}
-                    </td>
-                  )}
-                  {visibleColumns.estado && (
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center space-x-2">
-                          {getEstadoBadge(estadoActual)}
-                          {estadoActual === "ENVIADO" && (
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          )}
-                        </div>
-
-                        {/* 👇 Indicador de saldo igual que en la vista compacta */}
-                        {estaPagado ? (
-                          <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full bg-green-50 text-[11px] font-medium text-green-700 border border-green-200">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Sin saldo pendiente
-                          </span>
-                        ) : (
-                          <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-[11px] font-medium text-amber-700 border border-amber-200">
-                            Saldo: {formatValue(saldoPendiente)}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                  {visibleColumns.vendedor && (
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
-                          <span className="text-xs font-medium text-blue-600">
-                            {(pedido.usuario?.nombre || "U")
-                              .charAt(0)
-                              .toUpperCase()}
-                          </span>
-                        </div>
-                        <span className="text-sm text-gray-900 truncate max-w-[100px]">
-                          {nombreVendedor}
-                        </span>
-                      </div>
-                    </td>
-                  )}
-                  {visibleColumns.fecha && (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(getFechaParaMostrar(pedido)).toLocaleDateString(
-                        "es-CO"
-                      )}
-                    </td>
-                  )}
-                  {visibleColumns.flete && (
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {pedido.flete ? (
-                        <span
-                          className={`text-sm font-medium ${
-                            estadoActual === "ENVIADO"
-                              ? "text-green-600"
-                              : "text-orange-600"
-                          }`}
-                        >
-                          {formatValue(pedido.flete)}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-gray-400">-</span>
-                      )}
-                    </td>
-                  )}
-                  {visibleColumns.guiaTransporte && (
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {pedido.guiaTransporte ? (
-                        <div className="flex items-center space-x-1">
-                          <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
-                            {pedido.guiaTransporte}
-                          </span>
-                          {estadoActual === "ENVIADO" && (
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">-</span>
-                      )}
-                    </td>
-                  )}
-                  {visibleColumns.acciones && (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 sticky right-0 bg-white">
-                      <div className="flex space-x-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleVerDetalle(pedido)}
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {userType === "admin" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditarPedido(pedido)}
-                            className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {userType === "admin" &&
-                          ["FACTURADO", "ENVIADO"].includes(estadoActual) && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDescargarPdf(pedido)}
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                              title="Descargar comprobante PDF"
-                            >
-                              <FileText className="h-4 w-4" />
-                            </Button>
-                          )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  // ✅ Calcular estadísticas sin ENTREGADO
+  // Stats: backend o calculados
   const stats = useMemo(() => {
     if (estadisticas) {
       return {
@@ -1074,9 +354,9 @@ export function InvoicesClient({
                 "FACTURADO",
                 "ACEPTADO",
               ].includes(estado)
-          ) // ✅ ENVIADO ya no es activo
+          )
           .reduce((sum, [, count]) => sum + count, 0),
-        pedidosCompletados: estadisticas.pedidosPorEstado.ENVIADO || 0, // ✅ ENVIADO = completados
+        pedidosCompletados: estadisticas.pedidosPorEstado.ENVIADO || 0,
         pedidosCancelados: estadisticas.pedidosPorEstado.CANCELADO || 0,
         pedidosSeparados: estadisticas.pedidosPorEstado.SEPARADO || 0,
         pedidosGenerados: estadisticas.pedidosPorEstado.GENERADO || 0,
@@ -1085,28 +365,23 @@ export function InvoicesClient({
       };
     }
 
-    const totalPedidos = pedidosFiltrados.length;
-    const pedidosGenerados = pedidosFiltrados.filter((p) => {
-      const estado = getEstadoActual(p);
-      return estado === "GENERADO";
-    }).length;
-    const pedidosCompletados = pedidosFiltrados.filter((p) => {
-      const estado = getEstadoActual(p);
-      return estado === "ENVIADO"; // ✅ ENVIADO = completados
-    }).length;
-    const pedidosCancelados = pedidosFiltrados.filter((p) => {
-      const estado = getEstadoActual(p);
-      return estado === "CANCELADO";
-    }).length;
-    const pedidosSeparados = pedidosFiltrados.filter((p) => {
-      const estado = getEstadoActual(p);
-      return estado === "SEPARADO";
-    }).length;
-    const pedidosFacturados = pedidosFiltrados.filter((p) => {
-      const estado = getEstadoActual(p);
-      return estado === "FACTURADO";
-    }).length;
-    const pedidosAceptados = pedidosFiltrados.filter(
+    const totalPedidos = pedidos.length;
+    const pedidosGenerados = pedidos.filter(
+      (p) => getEstadoActual(p) === "GENERADO"
+    ).length;
+    const pedidosCompletados = pedidos.filter(
+      (p) => getEstadoActual(p) === "ENVIADO"
+    ).length;
+    const pedidosCancelados = pedidos.filter(
+      (p) => getEstadoActual(p) === "CANCELADO"
+    ).length;
+    const pedidosSeparados = pedidos.filter(
+      (p) => getEstadoActual(p) === "SEPARADO"
+    ).length;
+    const pedidosFacturados = pedidos.filter(
+      (p) => getEstadoActual(p) === "FACTURADO"
+    ).length;
+    const pedidosAceptados = pedidos.filter(
       (p) => getEstadoActual(p) === "ACEPTADO"
     ).length;
 
@@ -1119,11 +394,22 @@ export function InvoicesClient({
       pedidosSeparados,
       pedidosAceptados,
     };
-  }, [pedidosFiltrados, estadisticas]);
+  }, [pedidos, estadisticas]);
+
+  // Paginación desde backend
+  const totalItems = meta?.totalItems ?? pedidos.length;
+  const totalPages = meta?.totalPages ?? 1;
+  const pageSize = meta?.pageSize ?? itemsPerPage;
+
+  const rangeStart = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const rangeEnd = Math.min(currentPage * pageSize, totalItems);
+
+  // Los pedidos YA vienen paginados desde el backend
+  const pedidosPaginaActual = pedidos;
 
   return (
     <div className="p-4 lg:p-6">
-      {/* Header - Responsive optimizado */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl lg:rounded-2xl p-4 lg:p-8 mb-6 lg:mb-8 shadow-lg">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-3 lg:space-y-0">
           <div className="flex items-center space-x-3 lg:space-x-4">
@@ -1166,8 +452,7 @@ export function InvoicesClient({
         </div>
       </div>
 
-      {/* ✅ Stats Cards actualizadas - Responsive mejorado */}
-
+      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6 mb-6 lg:mb-8">
         <StatCard
           label="Total"
@@ -1206,7 +491,7 @@ export function InvoicesClient({
         />
       </div>
 
-      {/* Sección de pedidos */}
+      {/* Contenedor principal */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="p-4 lg:p-6 border-b border-gray-200">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
@@ -1220,15 +505,14 @@ export function InvoicesClient({
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
                   placeholder="Buscar pedidos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={rawSearch}
+                  onChange={(e) => setRawSearch(e.target.value)}
                   className="pl-10 w-full lg:w-64"
                 />
               </div>
 
-              {/* Fila inferior en móviles: Filtro + Vista */}
               <div className="flex space-x-3">
-                {/* Filtro de estado */}
+                {/* Filtro estado */}
                 <select
                   value={estadoFiltro}
                   onChange={(e) => setEstadoFiltro(e.target.value)}
@@ -1242,7 +526,7 @@ export function InvoicesClient({
                   ))}
                 </select>
 
-                {/* Selector de vista - Responsive optimizado */}
+                {/* Vista */}
                 <div className="flex bg-gray-100 rounded-lg p-1 shrink-0">
                   <Button
                     variant={viewMode === "compact" ? "default" : "ghost"}
@@ -1268,33 +552,21 @@ export function InvoicesClient({
                       Tarjetas
                     </span>
                   </Button>
-                  <Button
-                    variant={viewMode === "full-table" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setViewMode("full-table")}
-                    className="rounded-l-none px-2 lg:px-3"
-                    title="Vista Completa"
-                  >
-                    <Maximize2 className="h-4 w-4" />
-                    <span className="ml-1 hidden md:inline lg:inline">
-                      Completa
-                    </span>
-                  </Button>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Contenido según la vista seleccionada */}
-        {pedidosPaginados.length === 0 ? (
+        {/* Contenido según vista */}
+        {pedidosPaginaActual.length === 0 ? (
           <div className="p-12 text-center">
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               No hay pedidos
             </h3>
             <p className="text-gray-500 mb-4">
-              {pedidos.length === 0
+              {totalItems === 0
                 ? "Aún no se han creado pedidos."
                 : "No se encontraron pedidos con los filtros aplicados."}
             </p>
@@ -1308,28 +580,43 @@ export function InvoicesClient({
           </div>
         ) : (
           <>
-            {viewMode === "compact" && renderCompactView()}
-            {viewMode === "cards" && renderCardsView()}
-            {viewMode === "full-table" && renderFullTableView()}
+            {viewMode === "compact" && (
+              <RenderCompactView
+                pedidos={pedidosPaginaActual}
+                userType={userType}
+                getEstadoActual={getEstadoActual}
+                getFechaParaMostrar={getFechaParaMostrar}
+                getEstadoBadge={getEstadoBadge}
+                onVerDetalle={handleVerDetalle}
+                onEditarPedido={handleEditarPedido}
+                onDescargarPdf={handleDescargarPdf}
+              />
+            )}
+
+            {viewMode === "cards" && (
+              <RenderCardsView
+                pedidos={pedidosPaginaActual}
+                userType={userType}
+                getEstadoActual={getEstadoActual}
+                getFechaParaMostrar={getFechaParaMostrar}
+                getNombreVendedor={getNombreVendedor}
+                getEstadoBadge={getEstadoBadge}
+                onVerDetalle={handleVerDetalle}
+                onEditarPedido={handleEditarPedido}
+                onDescargarPdf={handleDescargarPdf}
+              />
+            )}
           </>
         )}
 
-        {/* Paginación - Responsive mejorada */}
-        {pedidosFiltrados.length > 0 && (
+        {/* Paginación */}
+        {totalItems > 0 && (
           <div className="bg-white px-3 lg:px-6 py-4 border-t border-gray-200">
             <div className="flex flex-col space-y-3 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
               <div className="text-xs lg:text-sm text-gray-700 text-center lg:text-left">
-                <span className="hidden lg:inline">Mostrando </span>
-                <span className="font-medium">{startIndex + 1}</span>
-                <span className="hidden lg:inline"> a </span>
-                <span className="lg:hidden">-</span>
-                <span className="font-medium">
-                  {Math.min(endIndex, pedidosFiltrados.length)}
-                </span>
-                <span className="hidden lg:inline"> de </span>
-                <span className="lg:hidden">/</span>
-                <span className="font-medium">{pedidosFiltrados.length}</span>
-                <span className="hidden lg:inline"> elementos</span>
+                Mostrando <span className="font-medium">{rangeStart}</span> a{" "}
+                <span className="font-medium">{rangeEnd}</span> de{" "}
+                <span className="font-medium">{totalItems}</span> elementos
               </div>
 
               <div className="flex items-center justify-center space-x-1 lg:space-x-2">
@@ -1337,7 +624,7 @@ export function InvoicesClient({
                   variant="outline"
                   size="sm"
                   disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(currentPage - 1)}
+                  onClick={() => fetchPedidos(currentPage - 1)}
                   className="px-2 lg:px-3"
                 >
                   <span className="hidden lg:inline">Anterior</span>
@@ -1353,7 +640,7 @@ export function InvoicesClient({
                     return (
                       <button
                         key={pageNumber}
-                        onClick={() => setCurrentPage(pageNumber)}
+                        onClick={() => fetchPedidos(pageNumber)}
                         className={`px-2 lg:px-3 py-1 rounded text-xs lg:text-sm ${
                           currentPage === pageNumber
                             ? "bg-blue-600 text-white"
@@ -1370,7 +657,7 @@ export function InvoicesClient({
                   variant="outline"
                   size="sm"
                   disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(currentPage + 1)}
+                  onClick={() => fetchPedidos(currentPage + 1)}
                   className="px-2 lg:px-3"
                 >
                   <span className="hidden lg:inline">Siguiente</span>
@@ -1382,7 +669,7 @@ export function InvoicesClient({
         )}
       </div>
 
-      {/* ✅ Información actualizada - Responsive */}
+      {/* Info flujo */}
       <div className="mt-6 p-3 lg:p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <div className="flex">
           <AlertCircle className="h-4 w-4 lg:h-5 lg:w-5 text-blue-400 mr-2 flex-shrink-0 mt-0.5" />
@@ -1391,7 +678,7 @@ export function InvoicesClient({
               Información - Flujo sin ENTREGADO
             </h3>
             <div className="text-xs lg:text-sm text-blue-700 space-y-1">
-              <p>• **ENVIADO es ahora el estado final exitoso** ✓</p>
+              <p>• ENVIADO es ahora el estado final exitoso ✓</p>
               <p>• Solo se puede editar en GENERADO o SEPARADO</p>
               <p className="hidden lg:block">
                 • El botón PDF aparece desde FACTURADO y ENVIADO
