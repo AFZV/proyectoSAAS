@@ -237,6 +237,37 @@ export class ReportesService {
     );
   }
 
+  /**
+   * Genera reporte de ventas por producto
+   */
+  static async generarPedidosVentasProducto(data: {
+    formato: "excel" | "pdf";
+    fechaInicio: string;
+    fechaFin: string;
+    productoId?: string;
+  }) {
+    const headers = await this.getHeaders();
+
+    const response = await fetch(
+      // 👉 Ajusta esta ruta a como la tengas en tu backend
+      `${BACKEND_URL}/reportes/pedidos-ventas-producto/${data.formato}`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          fechaInicio: new Date(data.fechaInicio).toISOString(),
+          fechaFin: new Date(data.fechaFin).toISOString(),
+          productId: data.productoId || null,
+        }),
+      }
+    );
+
+    await this.handleDownload(
+      response,
+      `ventas-por-producto.${data.formato === "excel" ? "xlsx" : "pdf"}`
+    );
+  }
+
   // ========== REPORTES DE CARTERA ==========
 
   /**

@@ -42,6 +42,7 @@ const formatoBaseSchema = z.object({
   ciudad: z.string().optional(),
   vendedorId: z.string().optional(),
   palabraClave: z.string().optional(),
+  productoId: z.string().optional(),
 });
 
 const inventarioGeneralSchema = formatoBaseSchema;
@@ -69,6 +70,11 @@ const pedidosVendedorSchema = formatoBaseSchema.extend({
   fechaInicio: z.string().min(1, "Fecha inicial requerida"),
   fechaFin: z.string().min(1, "Fecha final requerida"),
   vendedorId: z.string().min(1, "Vendedor requerido"),
+});
+const pedidosVentasProductoSchema = formatoBaseSchema.extend({
+  fechaInicio: z.string().min(1, "Fecha inicial requerida"),
+  fechaFin: z.string().min(1, "Fecha final requerida"),
+  productoId: z.string().min(1, "Producto requerido"),
 });
 
 const carteraConFechasSchema = formatoBaseSchema.extend({
@@ -99,11 +105,18 @@ const fletesRangoSchema = formatoBaseSchema.extend({
   fechaFin: z.string().min(1, "Fecha final requerida"),
 });
 const balanceGeneralSchema = formatoBaseSchema;
+type Producto = {
+  id: string;
+  nombre: string;
+  precioCompra: string;
+};
 
 export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [loadingVendedores, setLoadingVendedores] = useState(false);
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [loadingProductos, setLoadingProductos] = useState(false);
   const { toast } = useToast();
   const { getToken } = useAuth();
 
@@ -113,6 +126,11 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       obtenerVendedores();
     }
   }, [opcion]);
+  useEffect(() => {
+    if (tipo === "pedidos" && opcion === "ventasProducto") {
+      obtenerProductos();
+    }
+  }, [tipo, opcion]);
 
   const obtenerVendedores = async () => {
     try {
@@ -166,6 +184,42 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
     }
   };
 
+  const obtenerProductos = async () => {
+    try {
+      setLoadingProductos(true);
+      const token = await getToken();
+      const BACKEND_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+      const resp = await fetch(`${BACKEND_URL}/productos/empresa`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!resp.ok) {
+        throw new Error("Error al obtener productos");
+      }
+
+      const data = await resp.json();
+      console.log("Productos cargados:", data);
+
+      const lista = Array.isArray(data) ? data : data.productos;
+
+      setProductos(lista || []);
+    } catch (error) {
+      console.error("Error al cargar productos:", error);
+      toast({
+        title: "⚠️ Error al cargar productos",
+        description:
+          "No fue posible cargar la lista de productos. Intenta de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingProductos(false);
+    }
+  };
+
   // ✅ FUNCIÓN PARA MANEJAR CLIC EN PDF
   const handlePdfClick = () => {
     toast({
@@ -192,6 +246,7 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
     if (tipo === "pedidos") {
       if (opcion === "todos") return pedidosConFechasSchema;
       if (opcion === "vendedor") return pedidosVendedorSchema;
+      if (opcion === "ventasProducto") return pedidosVentasProductoSchema;
     }
 
     if (tipo === "cartera") {
@@ -222,6 +277,7 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       ciudad: "",
       vendedorId: "",
       palabraClave: "",
+      productoId: "",
     },
   });
 
@@ -271,6 +327,14 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
         body = {
           fechaInicio: data.fechaInicio,
           fechaFin: data.fechaFin,
+        };
+      } else if (tipo === "pedidos" && opcion === "ventasProducto") {
+        endpoint = `/reportes/pedidos/ventas-producto/${data.formato}`; // 👈 así
+        method = "POST";
+        body = {
+          fechaInicio: data.fechaInicio,
+          fechaFin: data.fechaFin,
+          productoId: data.productoId,
         };
       } else if (opcion === "vendedor") {
         endpoint = `/reportes/pedidos/${data.formato}/${data.vendedorId}`;
@@ -513,6 +577,78 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
                   ) : (
                     <SelectItem value="no-vendedores" disabled>
                       No hay vendedores disponibles
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      );
+    }
+    if (tipo === "pedidos" && opcion === "ventasProducto") {
+      return (
+        <FormField
+          control={form.control}
+          name="productoId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Producto</FormLabel>
+              <Select
+                onValueChange={field.onChange}
+                value={field.value}
+                disabled={loadingProductos}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        loadingProductos
+                          ? "Cargando productos..."
+                          : "Selecciona un producto"
+                      }
+                    />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {loadingProductos ? (
+                    <SelectItem value="loading" disabled>
+                      <div className="flex items-center gap-2">
+                        <LoaderCircle className="w-4 h-4 animate-spin" />
+                        Cargando...
+                      </div>
+                    </SelectItem>
+                  ) : productos.length > 0 ? (
+                    productos.map((producto: any) => {
+                      const inv = producto.inventario?.[0];
+                      const stockActual = inv?.stockActual ?? 0;
+                      const valorCompra = producto.precioCompra ?? 0;
+
+                      return (
+                        <SelectItem key={producto.id} value={producto.id}>
+                          <div className="flex flex-col">
+                            {/* 👇 Nombre del producto */}
+                            <span className="font-medium">
+                              {producto.nombre}
+                            </span>
+
+                            {/* 👇 Stock + valor compra */}
+                            <span className="text-xs text-muted-foreground">
+                              Stock: {stockActual} | Valor compra:{" "}
+                              {valorCompra.toLocaleString("es-CO", {
+                                style: "currency",
+                                currency: "COP",
+                                maximumFractionDigits: 0,
+                              })}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })
+                  ) : (
+                    <SelectItem value="no-productos" disabled>
+                      No hay productos disponibles
                     </SelectItem>
                   )}
                 </SelectContent>

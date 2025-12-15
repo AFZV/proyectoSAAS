@@ -59,7 +59,7 @@ export class ProductosService {
 
   async findAllforEmpresa(usuario: UsuarioPayload) {
     try {
-      return await this.prisma.producto.findMany({
+      const productos = await this.prisma.producto.findMany({
         where: {
           empresaId: usuario.empresaId,
         },
@@ -74,6 +74,10 @@ export class ProductosService {
           },
         },
       });
+      const productosOrdenados = productos.sort((a, b) =>
+        a.nombre.localeCompare(b.nombre)
+      );
+      return productosOrdenados;
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       throw new InternalServerErrorException('Error al obtener los productos');

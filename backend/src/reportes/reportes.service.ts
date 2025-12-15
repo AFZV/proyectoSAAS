@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CrearReporteInvDto } from './dto/crear-reporte-inventario.dto';
 import { CrearReporteClienteCiudadDto } from './dto/crear-reporte-clientciudad-dto';
+import { CrearReporteVentasProductoDto } from './dto/crear-reporte-ventas-producto.dto';
 
 @Injectable()
 export class ReportesService {
@@ -711,5 +712,111 @@ export class ReportesService {
       .filter((x) => x.saldoPendiente > 0);
 
     return rows;
+  }
+  /** ✅ Reporte de ventas por producto */
+  async pedidosVentasPorProducto(
+    usuario: UsuarioPayload,
+    dto: CrearReporteVentasProductoDto
+  ) {
+    const { empresaId } = usuario;
+    if (!empresaId) throw new BadRequestException('empresaId requerido');
+
+    const { inicio, fin } = this.normalizarRango(dto.fechaInicio, dto.fechaFin);
+
+    // 👇 Ajusta nombres de modelo/campos si tu Prisma cambia:
+    const detalles = await this.prisma.detallePedido.findMany({
+      where: {
+        productoId: dto.productoId,
+        pedido: {
+          empresaId,
+          total: { gt: 0 },
+          estados: {
+            some: {
+              estado: 'FACTURADO',
+              fechaEstado: { gte: inicio, lte: fin },
+            },
+          },
+        },
+      },
+      include: {
+        pedido: {
+          select: {
+            id: true,
+            fechaPedido: true,
+            estados: {
+              where: { estado: 'FACTURADO' },
+              orderBy: { fechaEstado: 'desc' },
+              take: 1,
+              select: { fechaEstado: true },
+            },
+            cliente: {
+              select: {
+                nombre: true,
+                apellidos: true,
+                rasonZocial: true,
+              },
+            },
+            usuario: {
+              select: {
+                nombre: true,
+                apellidos: true,
+              },
+            },
+          },
+        },
+        producto: {
+          select: {
+            nombre: true,
+            codigo: true,
+            precioCompra: true,
+            precioVenta: true,
+          },
+        },
+      },
+    });
+
+    // Ordenar por fecha de facturación (o fechaPedido si no hay estado)
+    detalles.sort((a, b) => {
+      const fa =
+        a.pedido.estados[0]?.fechaEstado ?? a.pedido.fechaPedido ?? new Date(0);
+      const fb =
+        b.pedido.estados[0]?.fechaEstado ?? b.pedido.fechaPedido ?? new Date(0);
+      return fa.getTime() - fb.getTime();
+    });
+
+    // Mapear a filas para Excel
+    return detalles.map((d) => {
+      const cantidad = Number(d.cantidad || 0); // 👈 ajusta si tu campo se llama diferente
+      const precioCompra = Number(d.producto?.precioCompra ?? 0);
+      const precioVenta =
+        d.precio !== undefined
+          ? Number(d.precio)
+          : Number(d.producto?.precioVenta ?? 0);
+
+      const totalLinea = cantidad * precioVenta;
+      const utilidad = (precioVenta - precioCompra) * cantidad;
+
+      const fecha =
+        d.pedido.estados[0]?.fechaEstado ?? d.pedido.fechaPedido ?? null;
+
+      return {
+        // 🔑 Claves que usará el controller en columns[]
+        fecha,
+        pedidoId: d.pedido.id.slice(0, 6),
+        cliente:
+          `${d.pedido.cliente.nombre} ${d.pedido.cliente.apellidos}`.trim(),
+        rasonZocial: d.pedido.cliente.rasonZocial,
+        vendedor: `${d.pedido.usuario?.nombre || ''} ${
+          d.pedido.usuario?.apellidos || ''
+        }`.trim(),
+        codigoProducto: d.producto?.codigo,
+        nombreProducto: d.producto?.nombre,
+        cantidad,
+        precioCompra,
+        precioVenta,
+        totalLinea,
+        utilidad,
+      };
+    });
   }
 }

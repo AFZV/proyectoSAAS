@@ -1273,6 +1273,7 @@ export class RecibosService {
             valorTotal: true,
             pedido: {
               select: {
+                id: true,
                 comisionVendedor: true,
               },
             },
@@ -1296,6 +1297,10 @@ export class RecibosService {
         const pct = d.pedido?.comisionVendedor ?? 0;
         return s + (Number(d.valorTotal || 0) * pct) / 100;
       }, 0);
+      const pedidosAfectados = r.detalleRecibo
+        .map((d) => d.pedido?.id?.slice(0, 5))
+        .filter(Boolean)
+        .join(', ');
 
       return {
         reciboId: r.id.slice(0, 5),
@@ -1308,6 +1313,7 @@ export class RecibosService {
         concepto: r.concepto,
         estado: r.revisado ? 'revisado' : 'pendiente',
         comisionLiquidada,
+        pedidosAfectados,
       };
     });
 
@@ -1327,12 +1333,15 @@ export class RecibosService {
       { header: 'Cliente', key: 'cliente', width: 32 },
       { header: 'Razón Social', key: 'rasonZocial', width: 32 },
       { header: 'Valor Recaudo', key: 'valor', width: 16 },
+      { header: 'Pedidos Afectados', key: 'pedidosAfectados', width: 28 },
       { header: 'Vendedor', key: 'vendedor', width: 24 },
       { header: 'Concepto', key: 'concepto', width: 32 },
       { header: 'Estado', key: 'estado', width: 12 },
       { header: 'Comisión Liquidada', key: 'comisionLiquidada', width: 18 },
     ];
-
+    rows.sort(
+      (a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+    );
     // Filita por cada recibo
     rows.forEach((r) => {
       sheet.addRow({
@@ -1345,6 +1354,10 @@ export class RecibosService {
     sheet.getColumn('fecha').numFmt = 'yyyy-mm-dd';
     sheet.getColumn('valor').numFmt = '#,##0.00';
     sheet.getColumn('comisionLiquidada').numFmt = '#,##0.00';
+    sheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: sheet.columns.length },
+    };
 
     // Encabezado en negrita
     sheet.getRow(1).font = { bold: true };

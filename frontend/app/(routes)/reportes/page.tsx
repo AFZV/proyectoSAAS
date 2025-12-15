@@ -90,6 +90,12 @@ const REPORTES_DATA: ReporteCardData[] = [
         label: "Por Vendedor",
         description: "Pedidos generados por cada vendedor específico",
       },
+      {
+        id: "ventasProducto",
+        label: "Ventas por Producto",
+        description:
+          "Unidades y valor vendido por producto en un rango de fechas",
+      },
     ],
   },
   {

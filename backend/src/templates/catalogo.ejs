@@ -7,6 +7,11 @@
   <style>
     * { box-sizing: border-box; }
 
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
     body {
       font-family: Arial, sans-serif;
       margin: 0;
@@ -18,7 +23,7 @@
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       grid-template-rows: repeat(3, 1fr);
-      gap: 14px 18px; /* un poco más de espacio */
+      gap: 14px 18px;
       height: 100vh;
       page-break-after: always;
     }
@@ -26,45 +31,65 @@
     .producto {
       border: 1px solid #ccc;
       border-radius: 8px;
-      padding: 10px; /* más espacio */
+      padding: 8px 10px;
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
-      text-align: center;
       background-color: #fafafa;
-    }
-
-    .producto img {
-      width: 100%;
-      max-height: 160px; /* MÁS GRANDE */
-      object-fit: contain;
-      margin-bottom: 8px;
-    }
-
-    .producto h3 {
-      font-size: 13px; /* más grande */
-      color: #007bff;
-      margin: 4px 0 6px 0; /* más espacio */
-      line-height: 1.2;
-      max-height: 36px;
       overflow: hidden;
     }
 
+    /* IMAGEN */
+    .producto img {
+      width: 100%;
+      height: 140px;
+      object-fit: contain;
+      margin-bottom: 6px;
+      flex-shrink: 0;
+    }
+
+    /* CONTENIDO */
+    .contenido {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start; /* evita huecos grandes */
+      text-align: center;
+    }
+
+    /* NOMBRE */
+    .producto h3 {
+      font-size: 11px;
+      color: #007bff;
+      margin: 2px 0 4px 0;
+      line-height: 1.25;
+
+      display: -webkit-box;
+      -webkit-line-clamp: 3; /* más espacio para descripción */
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* BLOQUE META */
+    .meta {
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
     .producto p {
-      font-size: 11px; /* subimos de 9px a 11px */
-      margin: 3px 0; /* más aire entre líneas */
-      line-height: 1.25; /* mejor legibilidad */
+      font-size: 11px;
+      margin: 0;
+      line-height: 1.25;
     }
 
     .precio {
       font-weight: bold;
       color: #2c7a00;
-      margin-top: 4px;
     }
 
     .stock {
       font-weight: 600;
-      margin-top: 2px;
     }
   </style>
 
@@ -76,17 +101,26 @@
         <div class="producto">
           <img src="<%= p.imagenUrl %>" alt="Imagen del producto" />
 
-          <h3><%= p.nombre %></h3>
+          <div class="contenido">
+            <h3><%= p.nombre %></h3>
 
-          <p><strong>Categoría:</strong> <%= p.categoria?.nombre ?? "N/A" %></p>
+            <div class="meta">
+              <p>
+                <strong>Categoría:</strong>
+                <%= p.categoria?.nombre ?? "N/A" %>
+              </p>
 
-          <p class="precio">
-            <strong>Precio:</strong> $<%= p.precioVenta.toLocaleString("es-CO") %>
-          </p>
+              <p class="precio">
+                <strong>Precio:</strong>
+                $<%= (p.precioVenta ?? 0).toLocaleString("es-CO") %>
+              </p>
 
-          <p class="stock">
-            <strong>Stock:</strong> <%= p.stockDisponible %>
-          </p>
+              <p class="stock">
+                <strong>Stock:</strong>
+                <%= (p.stockDisponible ?? 0) %>
+              </p>
+            </div>
+          </div>
         </div>
       <% }) %>
     </div>

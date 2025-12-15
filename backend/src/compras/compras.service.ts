@@ -277,7 +277,6 @@ export class ComprasService {
     });
     if (!compraExistente) throw new BadRequestException('Compra no encontrada');
 
-    // (Opcional) si no quieres permitir dejar la compra sin detalle:
     if (!data.ProductosCompras || data.ProductosCompras.length === 0) {
       throw new BadRequestException(
         'La compra debe tener al menos un producto'
@@ -286,114 +285,144 @@ export class ComprasService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        // ✅ Re-verificar dentro de la transacción
         const yaRecibida =
           (await tx.movimientoInventario.count({
             where: { idCompra: compraId, idEmpresa: usuario.empresaId },
           })) > 0;
 
-        // 1) Detalles antiguos (para revertir si hace falta)
+        // 1) Detalles antiguos (para revertir inventario si ya estaba recibida)
         const detallesAntiguos = await tx.detalleCompra.findMany({
           where: { idCompra: compraId },
           select: { idProducto: true, cantidad: true },
         });
 
-        // 2) Borrar y recrear detalle (siempre)
+        // 2) Borrar detalle y recrear con precio pactado (SIEMPRE)
         await tx.detalleCompra.deleteMany({ where: { idCompra: compraId } });
 
         for (const item of data.ProductosCompras) {
+          await tx.detalleCompra.create({
+            data: {
+              idCompra: compraId,
+              idProducto: item.idProducto,
+              cantidad: item.cantidad,
+              precioUnitario: item.precio, // ✅ GUARDA PRECIO PACTADO
+            },
+          });
+        }
+
+        // ✅ Si NO está recibida: terminamos acá.
+        //    (No toques producto.precioCompra, no inventario, no movimientos)
+        if (!yaRecibida) {
+          const compraActualizada = await tx.compras.findUnique({
+            where: { idCompra: compraId },
+            include: {
+              detalleCompra: {
+                include: {
+                  producto: { select: { id: true, nombre: true } },
+                },
+              },
+              proveedor: { select: { razonsocial: true } },
+            },
+          });
+
+          const productos = (compraActualizada?.detalleCompra ?? []).map(
+            (d) => {
+              const precio = Number(d.precioUnitario ?? 0);
+              return {
+                id: d.producto.id,
+                nombre: d.producto.nombre,
+                cantidad: d.cantidad,
+                precioUnitario: precio,
+                subtotal: d.cantidad * precio,
+              };
+            }
+          );
+
+          const totalCompra = productos.reduce((sum, p) => sum + p.subtotal, 0);
+
+          return {
+            ...compraActualizada,
+            total: totalCompra,
+            cantidadItems: data.ProductosCompras.length,
+            productos,
+            reaplicoInventario: false,
+          };
+        }
+
+        // 3) Si ya estaba recibida: revertir inventario anterior
+        for (const ant of detallesAntiguos) {
+          await tx.inventario.updateMany({
+            where: { idProducto: ant.idProducto, idEmpresa: usuario.empresaId },
+            data: {
+              stockActual: { decrement: ant.cantidad },
+              stockReferenciaOinicial: { decrement: ant.cantidad },
+            },
+          });
+        }
+
+        // 4) Borrar movimientos anteriores de la compra
+        await tx.movimientoInventario.deleteMany({
+          where: { idCompra: compraId, idEmpresa: usuario.empresaId },
+        });
+
+        // 5) Tipo ENTRADA
+        const tipoEntrada = await tx.tipoMovimientos.findFirst({
+          where: { tipo: 'ENTRADA' },
+          select: { idTipoMovimiento: true },
+        });
+        if (!tipoEntrada) {
+          throw new BadRequestException(
+            'Tipo de movimiento ENTRADA no configurado'
+          );
+        }
+
+        // 6) Re-aplicar inventario y movimientos con el NUEVO detalle
+        for (const item of data.ProductosCompras) {
+          const inv = await tx.inventario.findFirst({
+            where: {
+              idProducto: item.idProducto,
+              idEmpresa: usuario.empresaId,
+            },
+          });
+
+          // ✅ Ahora SÍ actualizamos el precio vigente porque la compra está recibida
           if (typeof item.precio === 'number') {
             await tx.producto.update({
               where: { id: item.idProducto },
               data: { precioCompra: item.precio },
             });
           }
-          await tx.detalleCompra.create({
+
+          if (inv) {
+            await tx.inventario.update({
+              where: { idInventario: inv.idInventario },
+              data: {
+                stockActual: { increment: item.cantidad },
+                stockReferenciaOinicial: { increment: item.cantidad },
+              },
+            });
+          } else {
+            await tx.inventario.create({
+              data: {
+                idProducto: item.idProducto,
+                idEmpresa: usuario.empresaId,
+                stockActual: item.cantidad,
+                stockReferenciaOinicial: item.cantidad,
+              },
+            });
+          }
+
+          await tx.movimientoInventario.create({
             data: {
-              idCompra: compraId,
+              IdUsuario: usuario.id,
               idProducto: item.idProducto,
-              cantidad: item.cantidad,
+              idEmpresa: usuario.empresaId,
+              cantidadMovimiendo: item.cantidad,
+              idTipoMovimiento: tipoEntrada.idTipoMovimiento,
+              idCompra: compraId,
+              observacion: `Ajuste por edición de compra recibida por ${usuario.nombre}`,
             },
           });
-        }
-
-        if (yaRecibida) {
-          // 3.1) Revertir inventario de los detalles antiguos
-          for (const ant of detallesAntiguos) {
-            await tx.inventario.updateMany({
-              where: {
-                idProducto: ant.idProducto,
-                idEmpresa: usuario.empresaId,
-              },
-              data: {
-                stockActual: { decrement: ant.cantidad },
-                stockReferenciaOinicial: { decrement: ant.cantidad },
-              },
-            });
-          }
-
-          // 3.2) Borrar movimientos de la compra
-          await tx.movimientoInventario.deleteMany({
-            where: { idCompra: compraId, idEmpresa: usuario.empresaId },
-          });
-
-          // 3.3) Preparar tipo ENTRADA una sola vez
-          const tipoEntrada = await tx.tipoMovimientos.findFirst({
-            where: { tipo: 'ENTRADA' },
-            select: { idTipoMovimiento: true },
-          });
-          if (!tipoEntrada) {
-            throw new BadRequestException(
-              'Tipo de movimiento ENTRADA no configurado'
-            );
-          }
-
-          // 3.4) Re-aplicar inventario y movimientos con el NUEVO detalle
-          for (const item of data.ProductosCompras) {
-            const inv = await tx.inventario.findFirst({
-              where: {
-                idProducto: item.idProducto,
-                idEmpresa: usuario.empresaId,
-              },
-            });
-            if (typeof item.precio === 'number') {
-              await tx.producto.update({
-                where: { id: item.idProducto },
-                data: { precioCompra: item.precio }, // Float
-              });
-            }
-
-            if (inv) {
-              await tx.inventario.update({
-                where: { idInventario: inv.idInventario },
-                data: {
-                  stockActual: { increment: item.cantidad },
-                  stockReferenciaOinicial: { increment: item.cantidad },
-                },
-              });
-            } else {
-              await tx.inventario.create({
-                data: {
-                  idProducto: item.idProducto,
-                  idEmpresa: usuario.empresaId,
-                  stockActual: item.cantidad,
-                  stockReferenciaOinicial: item.cantidad,
-                },
-              });
-            }
-
-            await tx.movimientoInventario.create({
-              data: {
-                IdUsuario: usuario.id,
-                idProducto: item.idProducto,
-                idEmpresa: usuario.empresaId,
-                cantidadMovimiendo: item.cantidad,
-                idTipoMovimiento: tipoEntrada.idTipoMovimiento,
-                idCompra: compraId,
-                observacion: `Ajuste por edición de compra recibida por ${usuario.nombre}`,
-              },
-            });
-          }
         }
 
         const compraActualizada = await tx.compras.findUnique({
@@ -410,24 +439,28 @@ export class ComprasService {
           },
         });
 
-        const totalCompra = data.ProductosCompras.reduce(
-          (sum, it) => sum + it.cantidad * (it.precio ?? 0),
-          0
-        );
+        // devuelve usando precioUnitario (lo pactado) para que siempre cuadre
+        const productos = (compraActualizada?.detalleCompra ?? []).map((d) => {
+          const precio = Number(
+            d.precioUnitario ?? d.producto.precioCompra ?? 0
+          );
+          return {
+            id: d.producto.id,
+            nombre: d.producto.nombre,
+            cantidad: d.cantidad,
+            precioUnitario: precio,
+            subtotal: d.cantidad * precio,
+          };
+        });
+
+        const totalCompra = productos.reduce((sum, p) => sum + p.subtotal, 0);
 
         return {
           ...compraActualizada,
           total: totalCompra,
           cantidadItems: data.ProductosCompras.length,
-          productos:
-            compraActualizada?.detalleCompra.map((d) => ({
-              id: d.producto.id,
-              nombre: d.producto.nombre,
-              cantidad: d.cantidad,
-              precioCompra: d.producto.precioCompra ?? 0,
-              subtotal: d.cantidad * (d.producto.precioCompra ?? 0),
-            })) ?? [],
-          reaplicoInventario: yaRecibida,
+          productos,
+          reaplicoInventario: true,
         };
       });
     } catch (error) {
@@ -449,6 +482,7 @@ export class ComprasService {
         },
       },
       select: {
+        precioUnitario: true,
         cantidad: true,
         producto: {
           select: { nombre: true, id: true, precioCompra: true },
@@ -514,7 +548,9 @@ export class ComprasService {
         id: dc.producto.id,
         nombre: dc.producto.nombre,
         cantidad: dc.cantidad,
-        precioCompra: dc.producto.precioCompra,
+        precioCompra: Number(
+          dc.precioUnitario ?? dc.producto.precioCompra ?? 0
+        ), // ✅ precio pactado
       });
     });
 
@@ -551,6 +587,7 @@ export class ComprasService {
         compra: { idEmpresa: usuario.empresaId },
       },
       select: {
+        precioUnitario: true,
         cantidad: true,
         producto: {
           select: {
@@ -622,7 +659,9 @@ export class ComprasService {
 
     // 🔥 CALCULAR TOTALES + agregar cantidadRecibida por producto (sin quitar tu cantidadMovimiendo)
     const productos = detalle.map((dc) => {
-      const precioUnitario = dc.producto.precioCompra || 0;
+      const precioUnitario = Number(
+        dc.precioUnitario ?? dc.producto.precioCompra ?? 0
+      ); // ✅
       const subtotal = dc.cantidad * precioUnitario;
 
       return {
@@ -632,8 +671,8 @@ export class ComprasService {
         precio: precioUnitario,
         subtotal,
         cantidadMovimiendo:
-          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0, // ← tu campo original
-        cantidadRecibida: recibidoPorProducto.get(dc.producto.id) ?? 0, // ← por-producto real
+          dc.compra.movimientosInventario[0]?.cantidadMovimiendo ?? 0,
+        cantidadRecibida: recibidoPorProducto.get(dc.producto.id) ?? 0,
       };
     });
 

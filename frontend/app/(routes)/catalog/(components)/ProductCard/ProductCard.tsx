@@ -73,7 +73,7 @@ function AddToCartModal({
               />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-md line-clamp-2 pb-2">
+              <h3 className="font-semibold text-xs line-clamp-2 pb-2">
                 {producto.nombre}
               </h3>
               <Badge variant="secondary" className="text-xs mt-1">

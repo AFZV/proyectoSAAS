@@ -20,6 +20,22 @@ import { CrearReporteInvDto } from './dto/crear-reporte-inventario.dto';
 import { CrearReporteClienteCiudadDto } from './dto/crear-reporte-clientciudad-dto';
 import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { CrearReporteVentasProductoDto } from './dto/crear-reporte-ventas-producto.dto';
+
+type VentaProductoRow = {
+  fecha: Date | string | null;
+  pedidoId: string;
+  cliente: string;
+  rasonZocial: string | null;
+  vendedor: string;
+  codigoProducto: number | string | null;
+  nombreProducto: string;
+  cantidad: number;
+  precioCompra: number;
+  precioVenta: number;
+  totalLinea: number;
+  utilidad: number;
+};
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('reportes')
@@ -262,6 +278,103 @@ export class ReportesController {
       await wb.xlsx.write(res);
       return res.end();
     }
+  }
+  @Roles('admin')
+  @Post('pedidos/ventas-producto/:format')
+  async createVentasPorProductoReport(
+    @Req() req: UsuarioRequest,
+    @Param('format') format: 'excel' | 'pdf',
+    @Body() dto: CrearReporteVentasProductoDto,
+    @Res() res: Response
+  ) {
+    const usuario = req.usuario;
+    console.log('🟢 Entró a pedidos-ventas-producto con dto:', dto);
+
+    // Tipar bien las filas
+    const rows = (await this.reportesService.pedidosVentasPorProducto(
+      usuario,
+      dto
+    )) as VentaProductoRow[];
+
+    // Si no hay filas, puedes devolver un Excel vacío o error amigable
+    if (!rows.length) {
+      return res.status(HttpStatus.BAD_REQUEST).json({
+        message: 'No se encontraron ventas para ese producto y rango de fechas',
+      });
+    }
+
+    const columns: ColumnDef<VentaProductoRow>[] = [
+      {
+        header: 'Fecha',
+        key: 'fecha',
+        width: 20,
+        numFmt: 'dd/mm/yyyy',
+      },
+      { header: 'ID Pedido', key: 'pedidoId', width: 15 },
+      { header: 'Cliente', key: 'cliente', width: 35 },
+      { header: 'Razón Social', key: 'rasonZocial', width: 35 },
+      { header: 'Vendedor', key: 'vendedor', width: 25 },
+      { header: 'Código Prod.', key: 'codigoProducto', width: 15 },
+      { header: 'Cantidad', key: 'cantidad', width: 12, numFmt: '#,##0' },
+      {
+        header: 'Precio Compra',
+        key: 'precioCompra',
+        width: 18,
+        numFmt: '#,##0.00',
+      },
+      {
+        header: 'Precio Venta',
+        key: 'precioVenta',
+        width: 18,
+        numFmt: '#,##0.00',
+      },
+    ];
+
+    if (format === 'excel') {
+      const wb = buildExcel<VentaProductoRow>('Ventas producto', columns, rows);
+
+      const ws = wb.worksheets[0];
+
+      // ----- Construir título -----
+      const nombreProducto = rows[0].nombreProducto ?? 'Producto';
+      const fechaInicioFmt = new Date(dto.fechaInicio).toLocaleDateString(
+        'es-CO'
+      );
+      const fechaFinFmt = new Date(dto.fechaFin).toLocaleDateString('es-CO');
+
+      const titulo = `VENTAS DESDE ${fechaInicioFmt} HASTA ${fechaFinFmt} - PRODUCTO: ${nombreProducto}`;
+
+      // 🔥 Insertamos título en la PRIMERA FILA
+      ws.spliceRows(1, 0, [titulo]);
+
+      // Unir celda A1 → última columna
+      ws.mergeCells(1, 1, 1, columns.length);
+
+      const titleRow = ws.getRow(1);
+      titleRow.font = { bold: true, size: 14 };
+      titleRow.alignment = { horizontal: 'center' };
+
+      ws.autoFilter = {
+        from: { row: 2, column: 1 },
+        to: { row: 2, column: columns.length },
+      };
+
+      // 🚨 NO insertar filas vacías debajo
+      // Con esto, los encabezados quedan en la fila 2 exactamente
+
+      res.status(HttpStatus.OK).set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition':
+          'attachment; filename="reporte-ventas-producto.xlsx"',
+      });
+
+      await wb.xlsx.write(res);
+      return res.end();
+    }
+
+    // Fallback JSON si algún día lo quieres usar
+    return res.status(HttpStatus.OK).json({ data: rows });
   }
 
   //Reporte de pedidos
@@ -722,4 +835,5 @@ export class ReportesController {
 
     return res.status(HttpStatus.OK).json({ data: rows });
   }
+  // 📌 Reporte de ventas por producto (detalle por pedido)
 }

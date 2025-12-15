@@ -259,6 +259,136 @@ function flattenMovimientosForExport(items: MovimientoCliente[]) {
   return rows;
 }
 
+type ExportRow = {
+  Fecha: string;
+  Vencimiento: string;
+  Tipo: string;
+  Numero: string;
+  Pedido: string;
+  Monto: number | string;
+  Saldo: number | string;
+  Descripcion: string;
+};
+
+function buildRowsFromGroups(
+  grupos: Array<{
+    tipo: MovimientoCliente["tipo"];
+    numero: string;
+    fechaPrimera: Date;
+    vencimiento?: Date;
+    totalMonto: number;
+    saldoFinal: number;
+    items: MovimientoCliente[];
+  }>
+): ExportRow[] {
+  const rows: ExportRow[] = [];
+
+  for (const g of grupos) {
+    const baseHeader: ExportRow = {
+      Fecha: isoToLocalDateStr(g.fechaPrimera),
+      Vencimiento: isoToLocalDateStr(g.vencimiento),
+      Tipo: g.tipo, // Cabecera del grupo
+      Numero: g.numero || "—",
+      Pedido: "—",
+      Monto: g.totalMonto,
+      Saldo: g.saldoFinal,
+      Descripcion: g.items[0]?.descripcion || "",
+    };
+
+    // === Si NO es agrupable, una sola fila
+    const esAgrupable = g.tipo === "Recaudo" || g.tipo === "Ajuste";
+    const tieneMultiples = g.items.length > 1;
+
+    // CASO AJUSTE con ajusteDetalles (tu caso ideal)
+    if (
+      g.tipo === "Ajuste" &&
+      g.items.length === 1 &&
+      Array.isArray((g.items[0] as any).ajusteDetalles) &&
+      (g.items[0] as any).ajusteDetalles.length
+    ) {
+      rows.push({ ...baseHeader, Tipo: "Ajuste (Resumen)" });
+
+      const dets = (g.items[0] as any).ajusteDetalles as {
+        pedidoId: string;
+        valor: number;
+      }[];
+      for (const d of dets) {
+        rows.push({
+          Fecha: "",
+          Vencimiento: "",
+          Tipo: "↳ Detalle",
+          Numero: baseHeader.Numero,
+          Pedido: d.pedidoId ? `#${d.pedidoId.slice(0, 6).toUpperCase()}` : "—",
+          Monto: Number(d.valor ?? 0),
+          Saldo: "",
+          Descripcion: "",
+        });
+      }
+
+      rows.push({
+        Fecha: "",
+        Vencimiento: "",
+        Tipo: "",
+        Numero: "",
+        Pedido: "",
+        Monto: "",
+        Saldo: "",
+        Descripcion: "",
+      });
+      continue;
+    }
+
+    // CASO RECAUDO con varios pedidosIds (sin monto por pedido => “—”)
+    if (
+      g.tipo === "Recaudo" &&
+      esAgrupable &&
+      (tieneMultiples ||
+        (Array.isArray((g.items[0] as any).pedidosIds) &&
+          (g.items[0] as any).pedidosIds.length > 1))
+    ) {
+      rows.push({ ...baseHeader, Tipo: "Recaudo (Resumen)" });
+
+      // junta todos los pedidosIds que vengan en los items
+      const allIds = new Set<string>();
+      for (const it of g.items) {
+        const ids = (it as any).pedidosIds as string[] | undefined;
+        if (Array.isArray(ids)) ids.forEach((x) => x && allIds.add(x));
+        if (it.pedidoId) allIds.add(it.pedidoId);
+      }
+
+      for (const pid of Array.from(allIds)) {
+        rows.push({
+          Fecha: "",
+          Vencimiento: "",
+          Tipo: "↳ Factura",
+          Numero: baseHeader.Numero,
+          Pedido: pid ? `#${pid.slice(0, 6).toUpperCase()}` : "—",
+          Monto: "—", // ⚠️ no existe valor por factura en tu modelo actual
+          Saldo: "",
+          Descripcion: "",
+        });
+      }
+
+      rows.push({
+        Fecha: "",
+        Vencimiento: "",
+        Tipo: "",
+        Numero: "",
+        Pedido: "",
+        Monto: "",
+        Saldo: "",
+        Descripcion: "",
+      });
+      continue;
+    }
+
+    // Default: una fila (Factura, Nota crédito, Recaudo simple, Ajuste simple)
+    rows.push(baseHeader);
+  }
+
+  return rows;
+}
+
 function excelFileName(clienteNombre: string) {
   const clean = (clienteNombre || "cliente")
     .replace(/[^a-zA-Z0-9\s_-]/g, "")
@@ -284,51 +414,6 @@ function ClienteHistorial({
   const [error, setError] = useState<string | null>(null);
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
 
-  const exportarExcel = () => {
-    const rows = flattenMovimientosForExport(items);
-    const headers = [
-      "Fecha",
-      "Vencimiento",
-      "Tipo",
-      "Número",
-      "Pedido",
-      "Monto",
-      "Saldo",
-      "Descripción",
-    ];
-
-    // Estructura AOA (arreglo de arreglos)
-    const aoa = [
-      ["HISTORIAL DE MOVIMIENTOS"],
-      [""],
-      ["Cliente:", clienteNombre],
-      ["Fecha de reporte:", new Date().toLocaleDateString("es-CO")],
-      [""],
-      headers,
-      ...rows.map((r) => [
-        r.Fecha,
-        r.Vencimiento,
-        r.Tipo,
-        r.Numero,
-        r.Pedido,
-        r.Monto, // números se guardan como número en Excel
-        r.Saldo,
-        r.Descripcion,
-      ]),
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-    // Ajuste ancho de columnas (opcional)
-    const colWidths = [12, 12, 12, 12, 14, 12, 12, 40].map((w) => ({ wch: w }));
-    (ws as any)["!cols"] = colWidths;
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Historial");
-
-    XLSX.writeFile(wb, excelFileName(clienteNombre));
-  };
-
   const API = process.env.NEXT_PUBLIC_API_URL ?? "";
   const toggle = (k: string) =>
     setExpandido((prev) => ({ ...prev, [k]: !prev[k] }));
@@ -338,7 +423,7 @@ function ClienteHistorial({
       setLoading(true);
       setError(null);
       const token = await getToken();
-      const url = `${API}/balance/movimientos/porCliente/${clienteId}`; // backend ya ordena y calcula saldo
+      const url = `${API}/balance/movimientos/porCliente/${clienteId}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -367,8 +452,8 @@ function ClienteHistorial({
     numero: string;
     fechaPrimera: Date;
     vencimiento?: Date | undefined;
-    totalMonto: number; // suma de montos del grupo
-    saldoFinal: number; // saldo del último item del grupo (según orden recibido)
+    totalMonto: number;
+    saldoFinal: number;
     items: MovimientoCliente[];
   };
 
@@ -392,7 +477,7 @@ function ClienteHistorial({
       const key =
         esAgrupable && numero
           ? `${it.tipo}:${numero}`
-          : `${it.tipo}:__${(it as any).id ?? i}`; // no agrupables → clave única
+          : `${it.tipo}:__${(it as any).id ?? i}`;
 
       if (!map.has(key)) {
         map.set(key, {
@@ -417,6 +502,7 @@ function ClienteHistorial({
 
     return orderKeys.map((k) => map.get(k)!);
   })();
+
   const displayPedidos = (m: MovimientoCliente) => {
     const ids =
       m.pedidosIds && m.pedidosIds.length
@@ -428,6 +514,105 @@ function ClienteHistorial({
       ? ids.map((id) => `#${id.slice(0, 5).toUpperCase()}`).join(", ")
       : "—";
   };
+
+  // ================== ✅ EXPORT EXCEL (PLANO, 1 FILA POR GRUPO) ==================
+  const fmtDate = (d?: Date | string | null) => {
+    if (!d) return "—";
+    const dd = typeof d === "string" ? new Date(d) : d;
+    return dd.toLocaleDateString("es-CO", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  };
+
+  const shortPedido = (id?: string | null) =>
+    id ? `#${id.slice(0, 5).toUpperCase()}` : "—";
+
+  type RowExcel = {
+    Fecha: string;
+    Vencimiento: string;
+    Tipo: string;
+    Numero: string;
+    Pedidos: string;
+    Monto: number;
+    Saldo: number;
+    Descripcion: string;
+  };
+
+  const buildRowsExcelFromGroups = (grs: Grupo[]): RowExcel[] => {
+    return grs.map((g) => {
+      const pedidosUnicos = Array.from(
+        new Set(
+          g.items.flatMap((m) =>
+            m.pedidosIds && m.pedidosIds.length
+              ? m.pedidosIds
+              : m.pedidoId
+              ? [m.pedidoId]
+              : []
+          )
+        )
+      );
+
+      return {
+        Fecha: fmtDate(g.fechaPrimera),
+        Vencimiento: fmtDate(g.vencimiento ?? null),
+        Tipo: g.tipo || "—",
+        Numero: g.numero || "—",
+        Pedidos:
+          pedidosUnicos.length > 0
+            ? pedidosUnicos.map(shortPedido).join(", ")
+            : "—",
+        Monto: Number(g.totalMonto || 0),
+        Saldo: Number(g.saldoFinal || 0),
+        Descripcion: g.items?.[0]?.descripcion || "—",
+      };
+    });
+  };
+
+  const exportarExcel = () => {
+    const rows = buildRowsExcelFromGroups(grupos);
+
+    const headers = [
+      "Fecha",
+      "Vencimiento",
+      "Tipo",
+      "Número",
+      "Pedidos afectados",
+      "Monto",
+      "Saldo",
+      "Descripción",
+    ];
+
+    const aoa = [
+      ["HISTORIAL DE MOVIMIENTOS"],
+      [""],
+      ["Cliente:", clienteNombre],
+      ["Fecha de reporte:", new Date().toLocaleDateString("es-CO")],
+      [""],
+      headers,
+      ...rows.map((r) => [
+        r.Fecha,
+        r.Vencimiento,
+        r.Tipo,
+        r.Numero,
+        r.Pedidos,
+        r.Monto,
+        r.Saldo,
+        r.Descripcion,
+      ]),
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    (ws as any)["!cols"] = [12, 12, 12, 12, 28, 14, 14, 55].map((w) => ({
+      wch: w,
+    }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Historial");
+    XLSX.writeFile(wb, excelFileName(clienteNombre));
+  };
+  // ================== ✅ FIN EXPORT EXCEL ==================
 
   return (
     <div className="space-y-4">
@@ -468,6 +653,7 @@ function ClienteHistorial({
                     </TableHead>
                   </TableRow>
                 </TableHeader>
+
                 <TableBody>
                   {grupos.length === 0 ? (
                     <TableRow>
@@ -483,6 +669,7 @@ function ClienteHistorial({
                       const fecha = g.fechaPrimera;
                       const venc = g.vencimiento;
                       const esRecaudoONota = g.totalMonto < 0;
+
                       const puedeExpandirAjuste =
                         g.tipo === "Ajuste" &&
                         g.items.length >= 1 &&
@@ -492,8 +679,9 @@ function ClienteHistorial({
                       const esAgrupado =
                         (g.tipo === "Recaudo" || g.tipo === "Ajuste") &&
                         g.items.length > 1;
+
                       const esExpandible = esAgrupado || puedeExpandirAjuste;
-                      // ===== Fila principal (todas las columnas completas) =====
+
                       const filaPrincipal = (
                         <TableRow
                           key={g.key}
@@ -506,6 +694,7 @@ function ClienteHistorial({
                               day: "2-digit",
                             })}
                           </TableCell>
+
                           <TableCell className="p-2 text-sm whitespace-nowrap">
                             {venc
                               ? venc.toLocaleDateString("es-CO", {
@@ -515,6 +704,7 @@ function ClienteHistorial({
                                 })
                               : "—"}
                           </TableCell>
+
                           <TableCell className="p-2">
                             <Badge
                               variant={getTipoBadgeVariant(g.tipo)}
@@ -532,9 +722,11 @@ function ClienteHistorial({
                               {g.tipo}
                             </Badge>
                           </TableCell>
+
                           <TableCell className="p-2 text-sm text-muted-foreground">
                             {g.items[0]?.descripcion || "—"}
                           </TableCell>
+
                           <TableCell className="p-2 text-sm font-mono">
                             <div className="flex items-center justify-between gap-2">
                               <span>
@@ -554,6 +746,7 @@ function ClienteHistorial({
                               )}
                             </div>
                           </TableCell>
+
                           <TableCell
                             className={cn(
                               "p-2 text-right tabular-nums font-semibold",
@@ -566,16 +759,15 @@ function ClienteHistorial({
                           >
                             {formatValue(g.totalMonto)}
                           </TableCell>
+
                           <TableCell className="p-2 text-right tabular-nums">
                             {formatValue(g.saldoFinal)}
                           </TableCell>
                         </TableRow>
                       );
 
-                      // Si no es agrupado, solo retornamos la fila principal
                       if (!esExpandible) return filaPrincipal;
 
-                      // ===== Fila de detalles (se muestra sólo al expandir) =====
                       return (
                         <React.Fragment key={g.key}>
                           {filaPrincipal}
@@ -583,174 +775,47 @@ function ClienteHistorial({
                             <TableRow className="bg-blue-50/30">
                               <TableCell colSpan={7} className="p-3">
                                 <div className="space-y-1">
-                                  <div className="space-y-1">
-                                    {/* CASO ESPECIAL: Ajuste con 1 item y pedidosIdsAjuste */}
-                                    {g.tipo === "Ajuste" &&
-                                    g.items.length === 1 &&
-                                    Array.isArray(
-                                      (g.items[0] as any).pedidosIdsAjuste
-                                    ) &&
+                                  {/* CASO ESPECIAL: Ajuste con 1 item y pedidosIdsAjuste */}
+                                  {g.tipo === "Ajuste" &&
+                                  g.items.length === 1 &&
+                                  Array.isArray(
                                     (g.items[0] as any).pedidosIdsAjuste
-                                      .length > 0 ? (
-                                      (() => {
-                                        const base = g.items[0];
+                                  ) &&
+                                  (g.items[0] as any).pedidosIdsAjuste.length >
+                                    0 ? (
+                                    (() => {
+                                      const base = g.items[0];
 
-                                        const f =
-                                          typeof base.fecha === "string"
-                                            ? new Date(base.fecha)
-                                            : (base.fecha as Date);
+                                      const f =
+                                        typeof base.fecha === "string"
+                                          ? new Date(base.fecha)
+                                          : (base.fecha as Date);
 
-                                        // ✔ Preferimos el arreglo con {pedidoId, valor}
-                                        const ajusteDetalles = (base as any)
-                                          .ajusteDetalles as
-                                          | {
-                                              pedidoId: string;
-                                              valor: number;
-                                            }[]
-                                          | undefined;
+                                      const ajusteDetalles = (base as any)
+                                        .ajusteDetalles as
+                                        | { pedidoId: string; valor: number }[]
+                                        | undefined;
 
-                                        // Si no viniera ajusteDetalles, caemos a solo los IDs (muestra “—” en monto)
-                                        const filas = ajusteDetalles?.length
-                                          ? ajusteDetalles.map((d) => ({
-                                              pedidoId: d.pedidoId,
-                                              valor: Number(d.valor || 0), // ✅ respeta signo del backend
-                                            }))
-                                          : (
-                                              (base as any)
-                                                .pedidosIdsAjuste as string[]
-                                            ).map((pid) => ({
-                                              pedidoId: pid,
-                                              valor: undefined as
-                                                | number
-                                                | undefined,
-                                            }));
+                                      const filas = ajusteDetalles?.length
+                                        ? ajusteDetalles.map((d) => ({
+                                            pedidoId: d.pedidoId,
+                                            valor: Number(d.valor || 0),
+                                          }))
+                                        : (
+                                            (base as any)
+                                              .pedidosIdsAjuste as string[]
+                                          ).map((pid) => ({
+                                            pedidoId: pid,
+                                            valor: undefined as
+                                              | number
+                                              | undefined,
+                                          }));
 
-                                        return (
-                                          <>
-                                            {filas.map((row, idx) => (
-                                              <div
-                                                key={`${g.key}-aj-${idx}`}
-                                                className="grid grid-cols-5 gap-2 text-xs items-center"
-                                              >
-                                                <span className="text-gray-600">
-                                                  {f.toLocaleDateString(
-                                                    "es-CO",
-                                                    {
-                                                      year: "numeric",
-                                                      month: "2-digit",
-                                                      day: "2-digit",
-                                                    }
-                                                  )}
-                                                </span>
-
-                                                <span className="text-gray-700">
-                                                  <Badge className="bg-red-50 text-red-700 rounded-md">
-                                                    Ajuste
-                                                  </Badge>
-                                                </span>
-
-                                                <span className="font-mono text-gray-700">
-                                                  Ajuste a la factura:{" "}
-                                                  <span className="text-gray-700">
-                                                    {row.pedidoId
-                                                      ? `#${row.pedidoId
-                                                          .slice(0, 5)
-                                                          .toUpperCase()}`
-                                                      : "—"}
-                                                  </span>
-                                                </span>
-
-                                                {/* 👉 monto por pedido */}
-                                                <span
-                                                  className={cn(
-                                                    "text-right tabular-nums font-semibold",
-                                                    (row.valor ?? 0) < 0
-                                                      ? "text-red-700"
-                                                      : (row.valor ?? 0) > 0
-                                                      ? "text-green-700"
-                                                      : "text-muted-foreground"
-                                                  )}
-                                                >
-                                                  {row.valor !== undefined
-                                                    ? formatValue(row.valor)
-                                                    : "—"}
-                                                </span>
-
-                                                {/* saldo: puedes dejar el del item base o quitarlo por fila */}
-                                                <span className="text-right tabular-nums text-gray-700">
-                                                  {formatValue(base.saldo)}
-                                                </span>
-                                              </div>
-                                            ))}
-                                          </>
-                                        );
-                                      })()
-                                    ) : (
-                                      /* CASO CLÁSICO… (tu bloque existente) */
-                                      <>
-                                        {g.items.map((m, idx) => {
-                                          const f =
-                                            typeof m.fecha === "string"
-                                              ? new Date(m.fecha)
-                                              : (m.fecha as Date);
-
-                                          const pedidosIds = (m as any)
-                                            .pedidosIds as string[] | undefined;
-                                          const pedidosIdsAjuste = (m as any)
-                                            .pedidosIdsAjuste as
-                                            | string[]
-                                            | undefined;
-
-                                          const pedidoIdFila =
-                                            g.tipo === "Ajuste"
-                                              ? Array.isArray(
-                                                  pedidosIdsAjuste
-                                                ) && pedidosIdsAjuste.length
-                                                ? pedidosIdsAjuste[idx]
-                                                : undefined
-                                              : (Array.isArray(pedidosIds) &&
-                                                pedidosIds.length
-                                                  ? pedidosIds[idx]
-                                                  : undefined) ??
-                                                (m.pedidoId || undefined);
-
-                                          const ajusteDetalles = (m as any)
-                                            .ajusteDetalles as
-                                            | {
-                                                pedidoId: string;
-                                                valor: number;
-                                              }[]
-                                            | undefined;
-
-                                          const valorPorPedido =
-                                            g.tipo === "Ajuste"
-                                              ? (() => {
-                                                  if (ajusteDetalles?.length) {
-                                                    const byId = pedidoIdFila
-                                                      ? ajusteDetalles.find(
-                                                          (d) =>
-                                                            d.pedidoId ===
-                                                            pedidoIdFila
-                                                        )?.valor
-                                                      : undefined;
-                                                    if (byId !== undefined)
-                                                      return Number(byId); // ✅ respeta signo
-                                                    const byIdx =
-                                                      ajusteDetalles[idx]
-                                                        ?.valor;
-                                                    if (byIdx !== undefined)
-                                                      return Number(byIdx); // ✅
-                                                  }
-
-                                                  return m.monto;
-                                                })()
-                                              : m.monto;
-
-                                          const esNeg = valorPorPedido < 0;
-
-                                          return (
+                                      return (
+                                        <>
+                                          {filas.map((row, idx) => (
                                             <div
-                                              key={`${g.key}-${idx}`}
+                                              key={`${g.key}-aj-${idx}`}
                                               className="grid grid-cols-5 gap-2 text-xs items-center"
                                             >
                                               <span className="text-gray-600">
@@ -762,29 +827,16 @@ function ClienteHistorial({
                                               </span>
 
                                               <span className="text-gray-700">
-                                                <Badge
-                                                  variant={getTipoBadgeVariant(
-                                                    g.tipo
-                                                  )}
-                                                  className={cn(
-                                                    "rounded-md",
-                                                    g.tipo === "Ajuste" &&
-                                                      "bg-red-50 text-red-700",
-                                                    g.tipo === "Recaudo" &&
-                                                      "border-red-300 text-red-700 hover:bg-red-50"
-                                                  )}
-                                                >
-                                                  {g.tipo}
+                                                <Badge className="bg-red-50 text-red-700 rounded-md">
+                                                  Ajuste
                                                 </Badge>
                                               </span>
 
                                               <span className="font-mono text-gray-700">
-                                                {g.tipo === "Ajuste"
-                                                  ? "Ajuste a la factura:"
-                                                  : "Abono a la factura:"}{" "}
+                                                Ajuste a la factura:{" "}
                                                 <span className="text-gray-700">
-                                                  {pedidoIdFila
-                                                    ? `#${pedidoIdFila
+                                                  {row.pedidoId
+                                                    ? `#${row.pedidoId
                                                         .slice(0, 5)
                                                         .toUpperCase()}`
                                                     : "—"}
@@ -794,25 +846,150 @@ function ClienteHistorial({
                                               <span
                                                 className={cn(
                                                   "text-right tabular-nums font-semibold",
-                                                  esNeg
+                                                  (row.valor ?? 0) < 0
                                                     ? "text-red-700"
-                                                    : valorPorPedido > 0
+                                                    : (row.valor ?? 0) > 0
                                                     ? "text-green-700"
                                                     : "text-muted-foreground"
                                                 )}
                                               >
-                                                {formatValue(valorPorPedido)}
+                                                {row.valor !== undefined
+                                                  ? formatValue(row.valor)
+                                                  : "—"}
                                               </span>
 
                                               <span className="text-right tabular-nums text-gray-700">
-                                                {formatValue(m.saldo)}
+                                                {formatValue(base.saldo)}
                                               </span>
                                             </div>
-                                          );
-                                        })}
-                                      </>
-                                    )}
-                                  </div>
+                                          ))}
+                                        </>
+                                      );
+                                    })()
+                                  ) : (
+                                    <>
+                                      {g.items.map((m, idx) => {
+                                        const f =
+                                          typeof m.fecha === "string"
+                                            ? new Date(m.fecha)
+                                            : (m.fecha as Date);
+
+                                        const pedidosIds = (m as any)
+                                          .pedidosIds as string[] | undefined;
+                                        const pedidosIdsAjuste = (m as any)
+                                          .pedidosIdsAjuste as
+                                          | string[]
+                                          | undefined;
+
+                                        const pedidoIdFila =
+                                          g.tipo === "Ajuste"
+                                            ? Array.isArray(pedidosIdsAjuste) &&
+                                              pedidosIdsAjuste.length
+                                              ? pedidosIdsAjuste[idx]
+                                              : undefined
+                                            : (Array.isArray(pedidosIds) &&
+                                              pedidosIds.length
+                                                ? pedidosIds[idx]
+                                                : undefined) ??
+                                              (m.pedidoId || undefined);
+
+                                        const ajusteDetalles = (m as any)
+                                          .ajusteDetalles as
+                                          | {
+                                              pedidoId: string;
+                                              valor: number;
+                                            }[]
+                                          | undefined;
+
+                                        const valorPorPedido =
+                                          g.tipo === "Ajuste"
+                                            ? (() => {
+                                                if (ajusteDetalles?.length) {
+                                                  const byId = pedidoIdFila
+                                                    ? ajusteDetalles.find(
+                                                        (d) =>
+                                                          d.pedidoId ===
+                                                          pedidoIdFila
+                                                      )?.valor
+                                                    : undefined;
+                                                  if (byId !== undefined)
+                                                    return Number(byId);
+
+                                                  const byIdx =
+                                                    ajusteDetalles[idx]?.valor;
+                                                  if (byIdx !== undefined)
+                                                    return Number(byIdx);
+                                                }
+                                                return m.monto;
+                                              })()
+                                            : m.monto;
+
+                                        const esNeg = valorPorPedido < 0;
+
+                                        return (
+                                          <div
+                                            key={`${g.key}-${idx}`}
+                                            className="grid grid-cols-5 gap-2 text-xs items-center"
+                                          >
+                                            <span className="text-gray-600">
+                                              {f.toLocaleDateString("es-CO", {
+                                                year: "numeric",
+                                                month: "2-digit",
+                                                day: "2-digit",
+                                              })}
+                                            </span>
+
+                                            <span className="text-gray-700">
+                                              <Badge
+                                                variant={getTipoBadgeVariant(
+                                                  g.tipo
+                                                )}
+                                                className={cn(
+                                                  "rounded-md",
+                                                  g.tipo === "Ajuste" &&
+                                                    "bg-red-50 text-red-700",
+                                                  g.tipo === "Recaudo" &&
+                                                    "border-red-300 text-red-700 hover:bg-red-50"
+                                                )}
+                                              >
+                                                {g.tipo}
+                                              </Badge>
+                                            </span>
+
+                                            <span className="font-mono text-gray-700">
+                                              {g.tipo === "Ajuste"
+                                                ? "Ajuste a la factura:"
+                                                : "Abono a la factura:"}{" "}
+                                              <span className="text-gray-700">
+                                                {pedidoIdFila
+                                                  ? `#${pedidoIdFila
+                                                      .slice(0, 5)
+                                                      .toUpperCase()}`
+                                                  : "—"}
+                                              </span>
+                                            </span>
+
+                                            <span
+                                              className={cn(
+                                                "text-right tabular-nums font-semibold",
+                                                esNeg
+                                                  ? "text-red-700"
+                                                  : valorPorPedido > 0
+                                                  ? "text-green-700"
+                                                  : "text-muted-foreground"
+                                              )}
+                                            >
+                                              {formatValue(valorPorPedido)}
+                                            </span>
+
+                                            <span className="text-right tabular-nums text-gray-700">
+                                              {formatValue(m.saldo)}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>

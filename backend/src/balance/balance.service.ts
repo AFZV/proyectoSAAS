@@ -300,7 +300,7 @@ export class BalanceService {
     resultado.sort(
       (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
     );
-
+    console.log('resultado movimientosCarteraCliente:', resultado);
     return { movimientos: resultado };
   }
 
@@ -940,9 +940,17 @@ export class BalanceService {
 
       // Número visible
       const numero =
-        (m.idPedido ? `${m.idPedido.slice(0, 6)}` : null) ??
-        (m.idRecibo ? `${m.idRecibo.slice(0, 6)}` : null) ??
-        `NC-${m.idMovimientoCartera.slice(0, 6)}`;
+        tipo === 'Recaudo'
+          ? m.idRecibo
+            ? `${m.idRecibo.slice(0, 6)}`
+            : `RC-${m.idMovimientoCartera.slice(0, 6)}`
+          : tipo === 'Factura'
+            ? m.idPedido
+              ? `${m.idPedido.slice(0, 6)}`
+              : `PD-${m.idMovimientoCartera.slice(0, 6)}`
+            : m.idMovimientoCartera
+              ? `NC-${m.idMovimientoCartera.slice(0, 6)}`
+              : '—';
 
       const descripcion =
         m.observacion ??
@@ -1015,6 +1023,7 @@ export class BalanceService {
       running += it.monto;
       it.saldo = running;
     }
+    console.log('movimientosCliente:', mapped);
 
     return mapped;
   }
