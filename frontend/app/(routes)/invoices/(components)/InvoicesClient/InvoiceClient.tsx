@@ -33,6 +33,7 @@ import { RenderCardsView } from "../RenderCardsView";
 
 interface InvoicesClientProps {
   pedidos: Pedido[];
+  metaInicial?: MetaPaginacion | null;
   userType: string;
   userName: string;
   estadisticas?: {
@@ -51,6 +52,7 @@ export function InvoicesClient({
   userType,
   userName,
   estadisticas,
+  metaInicial,
 }: InvoicesClientProps) {
   // Estados principales
   const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciales);
@@ -58,7 +60,8 @@ export function InvoicesClient({
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [meta, setMeta] = useState<MetaPaginacion | null>(null);
+  const [meta, setMeta] = useState<MetaPaginacion | null>(metaInicial ?? null);
+  const [currentPage, setCurrentPage] = useState(metaInicial?.currentPage ?? 1);
 
   // Filtros
   const [estadoFiltro, setEstadoFiltro] = useState<string>("todos");
@@ -66,7 +69,7 @@ export function InvoicesClient({
   const [searchTerm, setSearchTerm] = useState(""); // texto debounced
 
   // Paginación server-side
-  const [currentPage, setCurrentPage] = useState(1);
+  // const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
   const [viewMode, setViewMode] = useState<ViewMode>("compact");
@@ -96,6 +99,9 @@ export function InvoicesClient({
           estado: estadoFiltro,
           q: searchTerm,
         });
+        console.log("primer pedido:", resp.data?.[0]);
+        console.log("estados:", resp.data?.[0]?.estados);
+        console.log("estadoActual:", (resp.data?.[0] as any)?.estadoActual);
 
         setPedidos(resp.data);
         setMeta(resp.meta);
@@ -116,8 +122,16 @@ export function InvoicesClient({
 
   // ▶️ Cargar al montar y cuando cambian filtros/búsqueda (debounced)
   useEffect(() => {
+    if (!pedidosIniciales?.length || !metaInicial) {
+      fetchPedidos(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // cuando cambia estadoFiltro o searchTerm, traemos la página 1
     fetchPedidos(1);
-  }, [fetchPedidos]);
+  }, [estadoFiltro, searchTerm, fetchPedidos]);
 
   const STAT_ICONS: Record<
     string,
@@ -183,14 +197,24 @@ export function InvoicesClient({
 
   // Helpers
   const getEstadoActual = (pedido: Pedido): string => {
-    if (!pedido.estados || pedido.estados.length === 0) {
-      return "GENERADO";
+    // ✅ si ya lo tienes guardado en Pedido, úsalo
+    const ea = (pedido as any).estadoActual as string | undefined; // o tipéalos bien
+    if (ea && ea.trim() !== "") return ea;
+
+    // fallback legacy: NO ordenar, solo hallar el más reciente por scan
+    const estados = pedido.estados ?? [];
+    if (estados.length === 0) return "GENERADO";
+
+    let ultimo = estados[0];
+    for (let i = 1; i < estados.length; i++) {
+      if (
+        new Date(estados[i].fechaEstado).getTime() >
+        new Date(ultimo.fechaEstado).getTime()
+      ) {
+        ultimo = estados[i];
+      }
     }
-    const estadosOrdenados = pedido.estados.sort(
-      (a, b) =>
-        new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime()
-    );
-    return estadosOrdenados[0].estado;
+    return ultimo.estado;
   };
 
   const getNombreCliente = (pedido: Pedido): string => {
@@ -334,6 +358,10 @@ export function InvoicesClient({
   };
 
   const getFechaParaMostrar = (pedido: Pedido): string => {
+    const f = (pedido as any).fechaEstadoActual as string | undefined;
+    if (f) return f;
+
+    // fallback viejo
     const fFacturado = getFechaEstado(pedido, "FACTURADO", "ultimo");
     return (fFacturado ?? pedido.fechaPedido) as string;
   };

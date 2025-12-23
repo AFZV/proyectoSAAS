@@ -178,6 +178,8 @@ export class PedidosService {
           empresaId,
           usuarioId: vendedorId, // <- aquí aplicamos la regla
           total: totalCalculado,
+          estadoActual: 'GENERADO',
+          fechaEstadoActual: new Date(),
         },
       });
 
@@ -236,6 +238,16 @@ export class PedidosService {
     flete?: number
   ) {
     const estadoNormalizado = estado.toUpperCase();
+    const actualizarEstadoActual = (estado: string) => {
+      const ahora = new Date();
+      return this.prisma.pedido.update({
+        where: { id: pedidoId },
+        data: {
+          estadoActual: estado,
+          fechaEstadoActual: ahora,
+        },
+      });
+    };
 
     // 👉 Funcióncita simple para anexar en observaciones (sin helpers externos)
     // Versión minimalista dentro de agregarEstado (o como helper)
@@ -284,9 +296,15 @@ export class PedidosService {
     // ✅ ACEPTADO y SEPARADO: Solo registran estado sin afectar inventario
     if (['ACEPTADO', 'SEPARADO'].includes(estadoNormalizado)) {
       await anexarObs();
-      return this.prisma.estadoPedido.create({
-        data: { pedidoId, estado: estadoNormalizado },
-      });
+
+      const [, estadoCreado] = await this.prisma.$transaction([
+        actualizarEstadoActual(estadoNormalizado),
+        this.prisma.estadoPedido.create({
+          data: { pedidoId, estado: estadoNormalizado },
+        }),
+      ]);
+
+      return estadoCreado;
     }
 
     if (estadoNormalizado === 'FACTURADO') {
@@ -387,16 +405,15 @@ export class PedidosService {
         data: { pedidoId, estado: estadoNormalizado },
       });
 
-      const [estadoCreado] = await Promise.all([
-        this.prisma
-          .$transaction([
-            ...updatesInventario,
-            ...movimientosInventario,
-            movimientoCartera,
-            nuevoEstado,
-          ])
-          .then((res) => res[res.length - 1]),
+      const res = await this.prisma.$transaction([
+        ...updatesInventario,
+        ...movimientosInventario,
+        movimientoCartera,
+        actualizarEstadoActual(estadoNormalizado), // ✅ NUEVO
+        nuevoEstado,
       ]);
+
+      const estadoCreado = res[res.length - 1]; // el último es nuevoEstado
       await anexarObs();
 
       // Generar y subir el PDF sin bloquear la respuesta
@@ -508,7 +525,7 @@ export class PedidosService {
 
       // ✅ Agregar logs para debug
 
-      const [, estadoNuevo] = await this.prisma.$transaction([
+      const [, , estadoNuevo] = await this.prisma.$transaction([
         this.prisma.pedido.update({
           where: { id: pedidoId },
           data: {
@@ -517,6 +534,7 @@ export class PedidosService {
             flete: flete || null,
           },
         }),
+        actualizarEstadoActual(estadoNormalizado), // ✅ NUEVO
         this.prisma.estadoPedido.create({
           data: { pedidoId, estado: estadoNormalizado },
         }),
@@ -597,6 +615,8 @@ export class PedidosService {
           where: { idPedido: pedidoExistente.id },
         })
       );
+      accionesReversibles.push(actualizarEstadoActual(estadoNormalizado)); // ✅ NUEVO
+
       accionesReversibles.push(
         this.prisma.estadoPedido.create({
           data: {
@@ -605,7 +625,6 @@ export class PedidosService {
           },
         })
       );
-
       await this.prisma.$transaction(accionesReversibles);
 
       const pedidoActualizado = await this.prisma.pedido.update({
@@ -616,9 +635,13 @@ export class PedidosService {
       return pedidoActualizado;
     }
     await anexarObs();
-    return this.prisma.estadoPedido.create({
-      data: { pedidoId, estado: estadoNormalizado },
-    });
+    const [, estadoCreado] = await this.prisma.$transaction([
+      actualizarEstadoActual(estadoNormalizado),
+      this.prisma.estadoPedido.create({
+        data: { pedidoId, estado: estadoNormalizado },
+      }),
+    ]);
+    return estadoCreado;
   }
 
   ///////////////////////////////
@@ -1132,6 +1155,7 @@ export class PedidosService {
     params: GetPedidosPaginadosDto
   ) {
     if (!usuario) throw new BadRequestException('El usuario es requerido');
+
     const { empresaId, id: usuarioId, rol, clienteId } = usuario;
     const { pagina = 1, limite = 20, estado, q } = params;
 
@@ -1139,31 +1163,28 @@ export class PedidosService {
     const take = Math.max(1, limite);
     const skip = (page - 1) * take;
 
-    // 👉 Lógica de roles (SIN tocar estados aquí)
-    let whereCondition: Prisma.PedidoWhereInput;
+    const estadoNorm =
+      !estado || estado === 'todos' ? null : estado.toUpperCase();
+
+    // =========================
+    // 1) Where base (roles + búsqueda)
+    // =========================
+    let whereBase: Prisma.PedidoWhereInput;
 
     if (rol === 'CLIENTE') {
       if (!clienteId) {
         throw new BadRequestException('Cliente no vinculado correctamente');
       }
-      whereCondition = {
-        empresaId,
-        clienteId,
-      };
+      whereBase = { empresaId, clienteId };
     } else if (rol === 'admin' || rol === 'bodega') {
-      whereCondition = {
-        empresaId,
-      };
+      whereBase = { empresaId };
     } else {
-      whereCondition = {
-        empresaId,
-        usuarioId,
-      };
+      whereBase = { empresaId, usuarioId };
     }
 
     if (q && q.trim() !== '') {
       const term = q.trim();
-      whereCondition.OR = [
+      whereBase.OR = [
         { id: { contains: term, mode: 'insensitive' } },
         {
           cliente: {
@@ -1186,22 +1207,13 @@ export class PedidosService {
       ];
     }
 
-    // 🔀 Dos caminos: con filtro de estado o sin filtro
-
-    let pedidosPagina: (Pedido & {
-      cliente: Cliente;
-      usuario: Usuario;
-      productos: (DetallePedido & { producto: Producto })[];
-      estados: EstadoPedido[];
-    })[] = [];
-
-    let totalItems = 0;
-
-    if (!estado || estado === 'todos') {
-      // 🟢 CASO 1: SIN FILTRO DE ESTADO → todo en DB (rápido)
-      const [pedidos, total] = await this.prisma.$transaction([
+    // =========================
+    // 2) Si NO hay filtro de estado -> camino rápido (solo DB)
+    // =========================
+    if (!estadoNorm) {
+      const [pedidosPagina, totalItems] = await this.prisma.$transaction([
         this.prisma.pedido.findMany({
-          where: whereCondition,
+          where: whereBase,
           include: {
             cliente: true,
             usuario: true,
@@ -1209,77 +1221,215 @@ export class PedidosService {
               include: { producto: true },
               orderBy: { producto: { nombre: 'asc' } },
             },
-            estados: {
-              orderBy: { fechaEstado: 'asc' }, // de viejo → nuevo
-            },
+            estados: { orderBy: { fechaEstado: 'asc' } },
           },
-          orderBy: { fechaPedido: 'desc' },
+          orderBy: [{ fechaPedido: 'desc' }, { id: 'desc' }],
           skip,
           take,
         }),
-        this.prisma.pedido.count({ where: whereCondition }),
+        this.prisma.pedido.count({ where: whereBase }),
       ]);
 
-      pedidosPagina = pedidos;
-      totalItems = total;
-    } else {
-      // 🟡 CASO 2: CON FILTRO DE ESTADO → filtramos por ÚLTIMO estado en memoria
+      const totalPages = Math.ceil(totalItems / take);
 
-      // 1) Traer TODOS los pedidos que cumplan empresa/rol/q
-      const pedidosAll = await this.prisma.pedido.findMany({
-        where: whereCondition,
-        include: {
-          cliente: true,
-          usuario: true,
-          productos: {
-            include: { producto: true },
-            orderBy: { producto: { nombre: 'asc' } },
-          },
-          estados: {
-            orderBy: { fechaEstado: 'asc' }, // importante: ascendente
-          },
+      if (!pedidosPagina.length) {
+        return {
+          data: [],
+          meta: { totalItems, totalPages, currentPage: page, pageSize: take },
+        };
+      }
+
+      const pedidoIds = pedidosPagina.map((p) => p.id);
+
+      // Abonos
+      const abonosPrevios = await this.prisma.detalleRecibo.groupBy({
+        by: ['idPedido'],
+        where: { idPedido: { in: pedidoIds } },
+        _sum: { valorTotal: true },
+      });
+
+      const mapaAbonos = new Map<string, number>();
+      for (const r of abonosPrevios) {
+        mapaAbonos.set(r.idPedido, Number(r._sum.valorTotal || 0));
+      }
+
+      // Ajustes
+      const ajustesRows = await this.prisma.detalleAjusteCartera.findMany({
+        where: {
+          idPedido: { in: pedidoIds },
+          movimiento: { empresaId, tipoMovimientoOrigen: 'AJUSTE_MANUAL' },
         },
-        orderBy: { fechaPedido: 'desc' },
+        select: {
+          idPedido: true,
+          valor: true,
+          movimiento: { select: { observacion: true } },
+        },
       });
 
-      // 2) Filtrar sólo los que su ÚLTIMO estado == `estado`
-      const pedidosFiltrados = pedidosAll.filter((p) => {
-        if (!p.estados || p.estados.length === 0) {
-          // si no tiene estados, lo consideras GENERADO
-          return estado === 'GENERADO';
-        }
-        const ultimo = p.estados[p.estados.length - 1]; // por el orderBy asc
-        return ultimo.estado === estado;
+      const ajustesPorPedido = new Map<string, number>();
+      for (const a of ajustesRows) {
+        if (!a.idPedido) continue;
+        const v = Math.abs(Number(a.valor || 0));
+        const obs = a.movimiento?.observacion || '';
+        const esReverso = /\bREVERSO_DE:\{/.test(obs);
+        const signed = esReverso ? +v : -v;
+
+        ajustesPorPedido.set(
+          a.idPedido,
+          (ajustesPorPedido.get(a.idPedido) ?? 0) + signed
+        );
+      }
+
+      const data = pedidosPagina.map((p) => {
+        const total = Number(p.total || 0);
+        const abonado = mapaAbonos.get(p.id) ?? 0;
+        const ajusteSigned = ajustesPorPedido.get(p.id) ?? 0;
+        const saldoPendiente = Math.max(0, total - abonado + ajusteSigned);
+        return { ...p, saldoPendiente };
       });
 
-      totalItems = pedidosFiltrados.length;
-
-      // 3) Paginamos en memoria
-      pedidosPagina = pedidosFiltrados.slice(skip, skip + take);
-    }
-
-    if (!pedidosPagina.length) {
       return {
-        data: [],
-        meta: {
-          totalItems: 0,
-          totalPages: 0,
-          currentPage: page,
-          pageSize: take,
-        },
+        data,
+        meta: { totalItems, totalPages, currentPage: page, pageSize: take },
       };
     }
 
+    // =========================
+    // 3) Con filtro de estado -> HÍBRIDO:
+    //    A) DB por estadoActual (cuando ya existe)
+    //    B) LEGACY (estadoActual null) -> último estado real por estados (RAW SQL)
+    // =========================
+
+    // A) pedidos modernos (estadoActual ya lleno)
+    const whereModern: Prisma.PedidoWhereInput = {
+      ...whereBase,
+      AND: [
+        ...(Array.isArray(whereBase.AND)
+          ? whereBase.AND
+          : whereBase.AND
+            ? [whereBase.AND]
+            : []),
+        { estadoActual: estadoNorm },
+      ],
+    };
+
+    // B) pedidos legacy (estadoActual null) -> resolvemos por último estado real
+    const whereLegacy: Prisma.PedidoWhereInput = {
+      ...whereBase,
+      AND: [
+        ...(Array.isArray(whereBase.AND)
+          ? whereBase.AND
+          : whereBase.AND
+            ? [whereBase.AND]
+            : []),
+        { estadoActual: null },
+      ],
+    };
+
+    // Traemos IDs + fechaPedido solo (barato) para poder ordenar y paginar exacto
+    const [modernRows, legacyRows] = await this.prisma.$transaction([
+      this.prisma.pedido.findMany({
+        where: whereModern,
+        select: { id: true, fechaPedido: true },
+        orderBy: [{ fechaPedido: 'desc' }, { id: 'desc' }],
+      }),
+      this.prisma.pedido.findMany({
+        where: whereLegacy,
+        select: { id: true, fechaPedido: true },
+        orderBy: [{ fechaPedido: 'desc' }, { id: 'desc' }],
+      }),
+    ]);
+
+    const legacyIds = legacyRows.map((x) => x.id);
+
+    // Último estado por pedido legacy (RAW SQL)
+    // ⚠️ Si tu tabla/modelo tiene otro nombre, ajusta "EstadoPedido"
+    // y columnas "pedidoId", "fechaEstado", "estado"
+    const ultimosLegacy: Array<{
+      pedidoId: string;
+      estado: string;
+      fechaEstado: Date;
+    }> =
+      legacyIds.length === 0
+        ? []
+        : await this.prisma.$queryRaw`
+          SELECT DISTINCT ON (e."pedidoId")
+            e."pedidoId" as "pedidoId",
+            e."estado" as "estado",
+            e."fechaEstado" as "fechaEstado"
+          FROM "EstadoPedido" e
+          WHERE e."pedidoId" = ANY(${legacyIds})
+          ORDER BY e."pedidoId", e."fechaEstado" DESC
+        `;
+
+    const ultimoMap = new Map<string, string>();
+    for (const row of ultimosLegacy) {
+      ultimoMap.set(row.pedidoId, row.estado);
+    }
+
+    // Filtrar legacy por "último estado"
+    const legacyFiltrados = legacyRows.filter((r) => {
+      const ult = ultimoMap.get(r.id);
+
+      // Si no tiene estados -> considérese GENERADO
+      if (!ult) return estadoNorm === 'GENERADO';
+
+      return ult === estadoNorm;
+    });
+
+    // Además: caso GENERADO incluye también los modernos en GENERADO (ya vienen)
+    // y legacy sin estados (ya incluido arriba).
+
+    // Mezclar modernos + legacy filtrados, mantener orden global por fechaPedido desc, id desc
+    const merged = [...modernRows, ...legacyFiltrados].sort((a, b) => {
+      const fa = new Date(a.fechaPedido).getTime();
+      const fb = new Date(b.fechaPedido).getTime();
+      if (fb !== fa) return fb - fa;
+      // tie-breaker por id desc
+      return b.id.localeCompare(a.id);
+    });
+
+    const totalItems = merged.length;
     const totalPages = Math.ceil(totalItems / take);
 
-    const pedidoIds = pedidosPagina.map((p) => p.id);
+    if (totalItems === 0) {
+      return {
+        data: [],
+        meta: { totalItems, totalPages, currentPage: page, pageSize: take },
+      };
+    }
 
-    // 1) Abonos previos
+    const pageRows = merged.slice(skip, skip + take);
+    const pageIds = pageRows.map((x) => x.id);
+
+    // Traer pedidos completos solo de la página
+    const pedidosPagina = await this.prisma.pedido.findMany({
+      where: { id: { in: pageIds } },
+      include: {
+        cliente: true,
+        usuario: true,
+        productos: {
+          include: { producto: true },
+          orderBy: { producto: { nombre: 'asc' } },
+        },
+        estados: { orderBy: { fechaEstado: 'asc' } },
+      },
+    });
+
+    // Reordenar para respetar pageIds
+    const byId = new Map(pedidosPagina.map((p) => [p.id, p]));
+    const pedidosOrdenados = pageIds
+      .map((id) => byId.get(id))
+      .filter(Boolean) as typeof pedidosPagina;
+
+    // =========================
+    // 4) saldos solo para la página
+    // =========================
+    const pedidoIds = pedidosOrdenados.map((p) => p.id);
+
     const abonosPrevios = await this.prisma.detalleRecibo.groupBy({
       by: ['idPedido'],
-      where: {
-        idPedido: { in: pedidoIds },
-      },
+      where: { idPedido: { in: pedidoIds } },
       _sum: { valorTotal: true },
     });
 
@@ -1288,14 +1438,10 @@ export class PedidosService {
       mapaAbonos.set(r.idPedido, Number(r._sum.valorTotal || 0));
     }
 
-    // 2) Ajustes
     const ajustesRows = await this.prisma.detalleAjusteCartera.findMany({
       where: {
         idPedido: { in: pedidoIds },
-        movimiento: {
-          empresaId,
-          tipoMovimientoOrigen: 'AJUSTE_MANUAL',
-        },
+        movimiento: { empresaId, tipoMovimientoOrigen: 'AJUSTE_MANUAL' },
       },
       select: {
         idPedido: true,
@@ -1310,7 +1456,7 @@ export class PedidosService {
       const v = Math.abs(Number(a.valor || 0));
       const obs = a.movimiento?.observacion || '';
       const esReverso = /\bREVERSO_DE:\{/.test(obs);
-      const signed = esReverso ? +v : -v; // reverso suma, ajuste normal resta
+      const signed = esReverso ? +v : -v;
 
       ajustesPorPedido.set(
         a.idPedido,
@@ -1318,28 +1464,17 @@ export class PedidosService {
       );
     }
 
-    // 3) Añadir saldoPendiente a los pedidos de ESTA página
-    const pedidosConSaldo = pedidosPagina.map((p) => {
+    const data = pedidosOrdenados.map((p) => {
       const total = Number(p.total || 0);
       const abonado = mapaAbonos.get(p.id) ?? 0;
       const ajusteSigned = ajustesPorPedido.get(p.id) ?? 0;
-
       const saldoPendiente = Math.max(0, total - abonado + ajusteSigned);
-
-      return {
-        ...p,
-        saldoPendiente,
-      };
+      return { ...p, saldoPendiente };
     });
 
     return {
-      data: pedidosConSaldo,
-      meta: {
-        totalItems,
-        totalPages,
-        currentPage: page,
-        pageSize: take,
-      },
+      data,
+      meta: { totalItems, totalPages, currentPage: page, pageSize: take },
     };
   }
 

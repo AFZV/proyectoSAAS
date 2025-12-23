@@ -53,13 +53,19 @@ export default async function InvoicesPage() {
 
     // ✅ Obtener pedidos con tipo correcto
     let pedidos: Pedido[] = [];
+    let metaInicial = null;
+
     try {
-      // ✅ El servicio ya devuelve el tipo correcto
-      pedidos = await invoicesService.obtenerPedidos(token);
+      const resp = await invoicesService.obtenerPedidosPaginados(token, {
+        pagina: 1,
+        limite: 10,
+      });
+
+      pedidos = resp.data;
+      metaInicial = resp.meta;
     } catch (error) {
-      console.error("Error al cargar pedidos:", error);
-      // Continuar con array vacío si hay error
       pedidos = [];
+      metaInicial = null;
     }
 
     // ✅ Obtener estadísticas con tipo correcto
@@ -85,6 +91,7 @@ export default async function InvoicesPage() {
           userType={usuario.rol}
           userName={`${usuario.nombre} ${usuario.apellidos || ""}`.trim()}
           estadisticas={estadisticas}
+          metaInicial={metaInicial}
         />
       </div>
     );

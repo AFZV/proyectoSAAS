@@ -12,6 +12,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { PedidosService } from './pedidos.service';
 import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -59,11 +60,13 @@ export class PedidosController {
   }
   // pedidos.controller.ts
   @Roles('admin', 'vendedor', 'bodega', 'CLIENTE')
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @Get('new/paginado')
   async getPedidosPaginados(
     @Req() req: UsuarioRequest, // tu decorador actual
     @Query() query: GetPedidosPaginadosDto
   ) {
+    console.log('Query recibida en controlador:', query);
     const usuario = req.usuario;
     return this.pedidosService.obtenerPedidosPaginados(usuario, query);
   }

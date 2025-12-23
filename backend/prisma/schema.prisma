@@ -270,7 +270,8 @@ model Pedido {
   credito              Float?                 @default(30) @db.DoublePrecision
   detalleAjusteCartera DetalleAjusteCartera[]
   //agregar campo de descuento opcional de tipo float @db.DoublePrecision
-
+ estadoActual        String?   @db.Text
+  fechaEstadoActual   DateTime?
   empresa               Empresa                @relation(fields: [empresaId], references: [id])
   cliente               Cliente                @relation(fields: [clienteId], references: [id])
   usuario               Usuario                @relation(fields: [usuarioId], references: [id])
@@ -282,6 +283,8 @@ model Pedido {
 
   @@index([clienteId])
   @@index([usuarioId])
+    @@index([empresaId, estadoActual, fechaPedido])
+
 }
 
 model EstadoPedido {
