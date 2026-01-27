@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsArray,
   ValidateNested,
+  IsOptional,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -49,6 +50,9 @@ export class ResumenPedidoDto {
 
   @IsNumber()
   total: number;
+  @IsOptional()
+  @IsNumber()
+  diasCredito?: number;
 
   @IsString()
   logoUrl: string;

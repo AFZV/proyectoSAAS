@@ -143,6 +143,14 @@
       <div class="datos-pedido">
         <p><strong>Pedido:</strong> #<%= id.slice(0, 5).toUpperCase() %></p>
         <p><strong>Fecha:</strong> <%= new Date(fecha).toLocaleDateString("es-CO") %></p>
+        <% if (typeof diasCredito === "number") { %>
+  <p><strong>Días crédito:</strong> <%= diasCredito %> día(s)</p>
+<% } %>
+
+<% if (typeof fechaVencimiento !== "undefined" && fechaVencimiento) { %>
+  <p><strong>Vence:</strong> <%= new Date(fechaVencimiento).toLocaleDateString("es-CO") %></p>
+<% } %>
+
       </div>
     </div>
 

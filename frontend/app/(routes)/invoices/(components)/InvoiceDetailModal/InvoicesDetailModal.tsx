@@ -93,6 +93,8 @@ export function InvoiceDetailModal({
 
   const opcionesCredito = [
     { label: "Contado", value: 1 },
+    { label: "Crédito 8 días", value: 8 },
+    { label: "Crédito 15 días", value: 15 },
     { label: "Crédito 30 días", value: 30 },
     { label: "Crédito 45 días", value: 45 },
     { label: "Crédito 60 días", value: 60 },

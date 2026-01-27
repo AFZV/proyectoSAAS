@@ -66,7 +66,6 @@ export class PedidosController {
     @Req() req: UsuarioRequest, // tu decorador actual
     @Query() query: GetPedidosPaginadosDto
   ) {
-    console.log('Query recibida en controlador:', query);
     const usuario = req.usuario;
     return this.pedidosService.obtenerPedidosPaginados(usuario, query);
   }
@@ -174,6 +173,7 @@ export class PedidosController {
     @Body('diasCredito', ParseIntPipe) diasCredito: number,
     @Req() req: UsuarioRequest
   ) {
+    console.log('diasCredito recibido en el controlador:', diasCredito);
     const usuario = req.usuario;
     return await this.pedidosService.actualizarDiasCredito(
       pedidoId,

@@ -61,6 +61,8 @@ export class PedidosService {
       nombreEmpresa: pedido.empresa.nombreComercial,
       direccionEmpresa: pedido.empresa.direccion,
       telefonoEmpresa: pedido.empresa.telefono,
+      diasCredito: pedido.credito || 1,
+
       cliente:
         pedido.cliente.rasonZocial ||
         `${pedido.cliente.nombre} ${pedido.cliente.apellidos}`,
@@ -1715,6 +1717,7 @@ export class PedidosService {
     diasCredito: number,
     usuario: UsuarioPayload
   ) {
+    console.log('Dias de credito a asignar:', diasCredito);
     if (!usuario) throw new BadRequestException('El usuario es requerido');
     const { empresaId, rol } = usuario; // Desestructurar rol del usuario
     // Solo admin puede asignar dias de credito

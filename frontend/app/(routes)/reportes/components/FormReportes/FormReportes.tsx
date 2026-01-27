@@ -202,7 +202,6 @@ export function FormReportes({ tipo, opcion, onClose }: FormReportesProps) {
       }
 
       const data = await resp.json();
-      console.log("Productos cargados:", data);
 
       const lista = Array.isArray(data) ? data : data.productos;
 

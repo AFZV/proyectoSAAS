@@ -288,7 +288,6 @@ export class ReportesController {
     @Res() res: Response
   ) {
     const usuario = req.usuario;
-    console.log('🟢 Entró a pedidos-ventas-producto con dto:', dto);
 
     // Tipar bien las filas
     const rows = (await this.reportesService.pedidosVentasPorProducto(

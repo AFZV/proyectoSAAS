@@ -300,7 +300,7 @@ export class BalanceService {
     resultado.sort(
       (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
     );
-    console.log('resultado movimientosCarteraCliente:', resultado);
+
     return { movimientos: resultado };
   }
 
@@ -1023,7 +1023,6 @@ export class BalanceService {
       running += it.monto;
       it.saldo = running;
     }
-    console.log('movimientosCliente:', mapped);
 
     return mapped;
   }

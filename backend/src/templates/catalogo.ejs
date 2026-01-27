@@ -7,10 +7,7 @@
   <style>
     * { box-sizing: border-box; }
 
-    @page {
-      size: A4;
-      margin: 0;
-    }
+    @page { size: A4; margin: 0; }
 
     body {
       font-family: Arial, sans-serif;
@@ -31,60 +28,65 @@
     .producto {
       border: 1px solid #ccc;
       border-radius: 8px;
-      padding: 8px 10px;
+      padding: 6px 8px;          /* ⬇️ menos padding */
       display: flex;
       flex-direction: column;
       background-color: #fafafa;
       overflow: hidden;
     }
 
-    /* IMAGEN */
+    /* IMAGEN: más grande */
     .producto img {
       width: 100%;
-      height: 140px;
+      height: 175px;             /* ⬆️ sube de 140 a 175 */
       object-fit: contain;
-      margin-bottom: 6px;
+      margin: 0 0 4px 0;         /* ⬇️ menos margen */
       flex-shrink: 0;
     }
 
-    /* CONTENIDO */
     .contenido {
       flex: 1;
       display: flex;
       flex-direction: column;
-      justify-content: flex-start; /* evita huecos grandes */
+      justify-content: flex-start;
       text-align: center;
     }
 
-    /* NOMBRE */
+    /* NOMBRE: más compacto y menos líneas */
     .producto h3 {
-      font-size: 11px;
+      font-size: 10px;           /* ⬇️ de 11 a 10 */
       color: #007bff;
-      margin: 2px 0 4px 0;
-      line-height: 1.25;
+      margin: 1px 0 3px 0;       /* ⬇️ menos margen */
+      line-height: 1.15;         /* ⬇️ más compacto */
 
       display: -webkit-box;
-      -webkit-line-clamp: 3; /* más espacio para descripción */
+      -webkit-line-clamp: 2;     /* ⬇️ de 3 a 2 líneas */
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
 
-    /* BLOQUE META */
+    /* META: más compacto (menos texto y menos aire) */
     .meta {
-      margin-top: 6px;
+      margin-top: 3px;           /* ⬇️ */
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 2px;                  /* ⬇️ */
     }
 
     .producto p {
-      font-size: 11px;
+      font-size: 9.5px;          /* ⬇️ de 11 a 9.5 */
       margin: 0;
-      line-height: 1.25;
+      line-height: 1.15;         /* ⬇️ */
+    }
+
+    /* opcional: etiquetas en gris para que “pesen” menos */
+    .producto p strong {
+      font-weight: 600;
+      color: #555;
     }
 
     .precio {
-      font-weight: bold;
+      font-weight: 700;
       color: #2c7a00;
     }
 
@@ -92,8 +94,8 @@
       font-weight: 600;
     }
   </style>
-
 </head>
+
 <body>
   <% for (let i = 0; i < productos.length; i += 9) { %>
     <div class="pagina">

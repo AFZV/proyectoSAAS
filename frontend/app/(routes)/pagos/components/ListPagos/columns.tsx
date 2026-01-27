@@ -596,7 +596,7 @@ function ProveedorActions({ proveedor }: { proveedor: ProveedorConSaldo }) {
       {openHistory && (
         <Dialog open={openHistory} onOpenChange={setOpenHistory} modal={false}>
           <DialogContent
-            className="max-w-5xl w-full z-[120]"
+            className="max-w-5xl w-full z-[120] max-h-[90vh] overflow-y-auto"
             onOpenAutoFocus={(e) => e.preventDefault()}
             onPointerDownOutside={(e) => {
               if (performance.now() - justOpenedAt.current < 200)

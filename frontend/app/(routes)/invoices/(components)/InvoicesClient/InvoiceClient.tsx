@@ -99,9 +99,6 @@ export function InvoicesClient({
           estado: estadoFiltro,
           q: searchTerm,
         });
-        console.log("primer pedido:", resp.data?.[0]);
-        console.log("estados:", resp.data?.[0]?.estados);
-        console.log("estadoActual:", (resp.data?.[0] as any)?.estadoActual);
 
         setPedidos(resp.data);
         setMeta(resp.meta);
