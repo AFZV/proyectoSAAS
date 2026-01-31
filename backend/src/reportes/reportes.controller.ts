@@ -658,6 +658,7 @@ export class ReportesController {
       { header: 'Cliente', key: 'cliente', width: 35 },
       { header: 'Razon Social', key: 'rasonZocial', width: 35 },
       { header: 'Valor', key: 'valor', width: 25, numFmt: '#,##0.00' },
+      { header: 'PedidosAfectados', key: 'pedidosAfectados', width: 20 },
       { header: 'Vendedor', key: 'vendedor', width: 20 },
       { header: 'Concepto', key: 'concepto', width: 45 },
       { header: 'Estado', key: 'estado', width: 15 },
@@ -706,6 +707,8 @@ export class ReportesController {
       vendedorId
     );
 
+    const nombreVendedor = usuario.nombre;
+
     // 2) Definir columnas
     const columns: ColumnDef<(typeof rows)[0]>[] = [
       { header: '# Recibo', key: 'reciboId', width: 15 },
@@ -714,7 +717,7 @@ export class ReportesController {
       { header: 'Cliente', key: 'cliente', width: 35 },
       { header: 'Razon Social', key: 'rasonZocial', width: 35 },
       { header: 'Valor', key: 'valor', width: 25, numFmt: '#,##0.00' },
-      { header: 'Vendedor', key: 'vendedor', width: 20 },
+      { header: 'PedidosAfectados', key: 'pedidosAfectados', width: 20 },
       { header: 'Concepto', key: 'concepto', width: 45 },
       { header: 'Estado', key: 'estado', width: 15 },
       // {
@@ -734,11 +737,36 @@ export class ReportesController {
     // 3) Generar y devolver Excel o PDF
     if (format === 'excel') {
       const wb = buildExcel('Recaudo por Vendedor', columns, rows);
+
+      // 👇 toma la hoja (si buildExcel crea 1 hoja con ese nombre)
+      const ws = wb.getWorksheet('Recaudo por Vendedor') ?? wb.worksheets[0];
+
+      // ✅ Inserta 3 filas arriba (para NO pisar los headers de columnas)
+      ws.spliceRows(1, 0, [], [], []);
+
+      // ✅ Escribe info
+      ws.getCell('A1').value = 'Vendedor:';
+      ws.getCell('B1').value = nombreVendedor;
+
+      ws.getCell('A2').value = 'Periodo:';
+      ws.getCell('B2').value =
+        `${dto.fechaInicio.toLocaleDateString('es-CO')} - ${dto.fechaFin.toLocaleDateString('es-CO')}`;
+
+      // (opcional) estilo simple
+      ws.getRow(1).font = { bold: true };
+      ws.getRow(2).font = { italic: true };
+
+      // (opcional) unir celdas para que se vea más bonito
+      // Ajusta la última letra según cuántas columnas tengas (A..I = 9 columnas)
+      ws.mergeCells('B1:I1');
+      ws.mergeCells('B2:I2');
+
       res.status(HttpStatus.OK).set({
         'Content-Type':
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': 'attachment; filename="recaudo-vendedor.xlsx"',
       });
+
       await wb.xlsx.write(res);
       return res.end();
     }

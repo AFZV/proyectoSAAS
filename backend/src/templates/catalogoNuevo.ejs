@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Catálogo Revista</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    /* Media carta */
+    @page { size: 5.5in 8.5in; margin: 0; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      background: #111;
+    }
+
+    /* Página: 2 cards */
+    .pagina {
+      width: 5.5in;
+      height: 8.5in;
+      padding: 10px;
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      gap: 10px; /* espacio SOLO entre cards */
+      page-break-after: always;
+      background: #111;
+    }
+
+    /* Card */
+    .item {
+      position: relative;
+      overflow: hidden;
+      border-radius: 14px;
+      background: #000;
+    }
+
+    /* Imagen full card SIN distorsión */
+    .item img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;      /* llena todo sin deformar */
+      object-position: center;
+      display: block;
+    }
+
+    /* Overlay SOLO abajo */
+    .overlay {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 34%;
+      background: linear-gradient(
+        to top,
+        rgba(0,0,0,0.65) 0%,
+        rgba(0,0,0,0.35) 55%,
+        rgba(0,0,0,0.00) 100%
+      );
+      pointer-events: none;
+    }
+
+    /* Texto dentro de la imagen */
+    .info {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 10px 12px 10px 12px;
+      color: #fff;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    /* Categoría */
+    .categoria {
+      margin: 0;
+      font-size: 9px;
+      letter-spacing: 0.9px;
+      text-transform: uppercase;
+      opacity: 0.85;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Nombre debajo de categoría */
+    .nombre {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.1;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.35);
+
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* Fila precio */
+    .fila {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 4px;
+    }
+
+    .precio {
+      font-size: 12px;
+      font-weight: 900;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.88);
+      color: #111;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+
+<body>
+  <% for (let i = 0; i < productos.length; i += 2) { %>
+    <section class="pagina">
+      <% productos.slice(i, i + 2).forEach((p) => { %>
+        <div class="item">
+          <% if (p.imagenUrl) { %>
+            <img src="<%= p.imagenUrl %>" alt="Imagen del producto" />
+          <% } %>
+
+          <div class="overlay"></div>
+
+          <div class="info">
+            <span class="categoria"><%= p.categoria?.nombre ?? '' %></span>
+            <h3 class="nombre"><%= p.nombre %></h3>
+
+            <div class="fila">
+              <span class="precio">
+                $<%= (p.precioVenta ?? 0).toLocaleString('es-CO') %>
+              </span>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </section>
+  <% } %>
+</body>
+</html>

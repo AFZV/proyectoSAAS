@@ -194,6 +194,11 @@ export class ProductosService {
       productosFormateados,
       fileName
     );
+    /// ASI SE HACE EL NUEVO CATALOGO
+    // const { path } = await this.pdfUploaderService.generarCatalogoNuevoPDF(
+    //   productosFormateados
+    //   //fileName
+    // );
 
     // 4) Sube al bucket (público) y devuelve link
     const folder = `catalogos/${usuario.empresaId}/${nombreCategoria}`;

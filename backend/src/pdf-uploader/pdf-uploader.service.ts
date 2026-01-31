@@ -36,20 +36,22 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   private browser: Browser | null = null;
 
   private templates: Record<
-    'pedido' | 'recibo' | 'catalogo' | 'compra',
+    'pedido' | 'recibo' | 'catalogo' | 'compra' | 'catalogoNuevo',
     TemplateFunction | null
   > = {
     pedido: null,
     recibo: null,
     catalogo: null,
-    compra: null, // ⬅️ nuevo
+    compra: null,
+    catalogoNuevo: null,
   };
 
   private readonly templatePaths = {
     pedido: join(process.cwd(), 'src', 'templates', 'pedido.ejs'),
     recibo: join(process.cwd(), 'src', 'templates', 'recibo.ejs'),
     catalogo: join(process.cwd(), 'src', 'templates', 'catalogo.ejs'),
-    compra: join(process.cwd(), 'src', 'templates', 'compra.ejs'), // ⬅️ nuevo
+    compra: join(process.cwd(), 'src', 'templates', 'compra.ejs'),
+    catalogoNuevo: join(process.cwd(), 'src', 'templates', 'catalogoNuevo.ejs'),
   };
   private async optimizarImagenesCatalogo(
     productos: CatalogoProducto[]
@@ -126,18 +128,25 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
         Object.values(this.templatePaths).map((path) => fs.access(path))
       );
 
-      const [pedidoHtml, reciboHtml, catalogoHtml, compraHtml] =
-        await Promise.all([
-          fs.readFile(this.templatePaths.pedido, 'utf8'),
-          fs.readFile(this.templatePaths.recibo, 'utf8'),
-          fs.readFile(this.templatePaths.catalogo, 'utf8'),
-          fs.readFile(this.templatePaths.compra, 'utf8'), // ⬅️ nuevo
-        ]);
+      const [
+        pedidoHtml,
+        reciboHtml,
+        catalogoHtml,
+        compraHtml,
+        catalogoNuevoHtml,
+      ] = await Promise.all([
+        fs.readFile(this.templatePaths.pedido, 'utf8'),
+        fs.readFile(this.templatePaths.recibo, 'utf8'),
+        fs.readFile(this.templatePaths.catalogo, 'utf8'),
+        fs.readFile(this.templatePaths.compra, 'utf8'),
+        fs.readFile(this.templatePaths.catalogoNuevo, 'utf8'),
+      ]);
 
       this.templates.pedido = compile(pedidoHtml);
       this.templates.recibo = compile(reciboHtml);
       this.templates.catalogo = compile(catalogoHtml);
-      this.templates.compra = compile(compraHtml); // ⬅️ nuevo
+      this.templates.compra = compile(compraHtml);
+      this.templates.catalogoNuevo = compile(catalogoNuevoHtml);
 
       this.logger.log('✅ Templates compiled successfully');
     } catch (error) {
@@ -185,7 +194,7 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
   }: {
     data: TemplateData;
     fileName: string;
-    tipo: 'pedido' | 'recibo' | 'catalogo' | 'compra';
+    tipo: 'pedido' | 'recibo' | 'catalogo' | 'compra' | 'catalogoNuevo';
   }): Promise<{ buffer: Buffer; path: string }> {
     try {
       const html = this.renderTemplate(tipo, data);
@@ -194,7 +203,8 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
       try {
         await this.loadContent(page, html);
 
-        const buffer = await this.generatePdfBuffer(page);
+        const buffer = await this.generatePdfBuffer(page, tipo);
+
         const filePath = join(os.tmpdir(), fileName);
 
         await fs.writeFile(filePath, buffer);
@@ -233,9 +243,20 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
       );
     });
   }
+  async generarCatalogoNuevoPDF(
+    productos: CatalogoProducto[]
+  ): Promise<{ buffer: Buffer; path: string }> {
+    const productosOptim = await this.optimizarImagenesCatalogo(productos);
+
+    return this.generarPDF({
+      data: { productos: productosOptim },
+      fileName: `catalogo_revista.pdf`,
+      tipo: 'catalogoNuevo',
+    });
+  }
 
   private renderTemplate(
-    tipo: 'pedido' | 'recibo' | 'catalogo' | 'compra',
+    tipo: 'pedido' | 'recibo' | 'catalogo' | 'compra' | 'catalogoNuevo',
     data: TemplateData
   ): string {
     const template = this.templates[tipo];
@@ -349,25 +370,36 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async generatePdfBuffer(page: Page): Promise<Buffer> {
+  private async generatePdfBuffer(
+    page: Page,
+    tipo: 'pedido' | 'recibo' | 'catalogo' | 'compra' | 'catalogoNuevo'
+  ): Promise<Buffer> {
     try {
       await page.waitForNetworkIdle({ idleTime: 1200, timeout: 90_000 });
-    } catch {
-      /* empty */
-    }
-    const buffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: {
-        top: '10mm',
-        right: '10mm',
-        bottom: '10mm',
-        left: '10mm',
-      },
-      timeout: 180_000,
-    });
+    } catch {}
 
+    const pdfOptions =
+      tipo === 'catalogoNuevo'
+        ? {
+            printBackground: true,
+            preferCSSPageSize: true,
+            margin: { top: '0', right: '0', bottom: '0', left: '0' },
+            timeout: 180_000,
+          }
+        : {
+            format: 'A4',
+            printBackground: true,
+            preferCSSPageSize: true,
+            margin: {
+              top: '10mm',
+              right: '10mm',
+              bottom: '10mm',
+              left: '10mm',
+            },
+            timeout: 180_000,
+          };
+
+    const buffer = await page.pdf(pdfOptions as any);
     return Buffer.from(buffer);
   }
 
@@ -378,7 +410,8 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
         this.templates.pedido &&
         this.templates.recibo &&
         this.templates.catalogo &&
-        this.templates.compra
+        this.templates.compra &&
+        this.templates.catalogoNuevo
     );
   }
 

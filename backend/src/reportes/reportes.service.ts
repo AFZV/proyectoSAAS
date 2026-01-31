@@ -476,7 +476,7 @@ export class ReportesService {
         detalleRecibo: {
           select: {
             valorTotal: true,
-            pedido: { select: { comisionVendedor: true } },
+            pedido: { select: { comisionVendedor: true, id: true } },
           },
         },
         usuario: { select: { nombre: true, apellidos: true } },
@@ -497,6 +497,24 @@ export class ReportesService {
         const pct = d.pedido?.comisionVendedor ?? 0;
         return s + (d.valorTotal * pct) / 100;
       }, 0);
+      const pedidosUnicos = Array.from(
+        new Map(
+          r.detalleRecibo
+            .filter((d) => d.pedido?.id)
+            .map((d) => [
+              d.pedido.id,
+              {
+                id: d.pedido.id,
+                // numero: d.pedido!.numero ?? null,
+                // consecutivo: d.pedido!.consecutivo ?? null,
+              },
+            ])
+        ).values()
+      );
+
+      const pedidosAfectados = pedidosUnicos
+        .map((p) => p.id.slice(0, 6)) // ✅ o usa numero/consecutivo si tienes
+        .join(', ');
 
       // Promedio ponderado del % de comisión por valor recaudado
       // const porcentajeComision =
@@ -517,6 +535,7 @@ export class ReportesService {
         vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
         concepto: r.concepto,
         estado: r.revisado ? 'revisado' : 'pendiente',
+        pedidosAfectados,
 
         // 🔽 Solo campos de comisión (agregados a tu return)
         //  porcentajeComision, // % equivalente ponderado por recaudo
@@ -543,7 +562,7 @@ export class ReportesService {
         detalleRecibo: {
           select: {
             valorTotal: true,
-            pedido: { select: { comisionVendedor: true } },
+            pedido: { select: { comisionVendedor: true, id: true } },
           },
         },
         usuario: { select: { nombre: true, apellidos: true } },
@@ -572,6 +591,24 @@ export class ReportesService {
       //         return s + d.valorTotal * pct;
       //       }, 0) / totalRecaudo
       //     : 0;
+      const pedidosUnicos = Array.from(
+        new Map(
+          r.detalleRecibo
+            .filter((d) => d.pedido?.id)
+            .map((d) => [
+              d.pedido.id,
+              {
+                id: d.pedido.id,
+                // numero: d.pedido!.numero ?? null,
+                // consecutivo: d.pedido!.consecutivo ?? null,
+              },
+            ])
+        ).values()
+      );
+
+      const pedidosAfectados = pedidosUnicos
+        .map((p) => p.id.slice(0, 6)) // ✅ o usa numero/consecutivo si tienes
+        .join(', ');
 
       return {
         reciboId: r.id.slice(0, 5),
@@ -583,6 +620,7 @@ export class ReportesService {
         vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
         concepto: r.concepto,
         estado: r.revisado ? 'revisado' : 'pendiente',
+        pedidosAfectados,
 
         // 🔽 Solo campos de comisión (agregados a tu return)
         //porcentajeComision, // % equivalente ponderado por recaudo
