@@ -16,14 +16,15 @@ async function bootstrap() {
       'http://localhost:3000',
       'https://bgacloudsaas.com',
       'https://www.bgacloudsaas.com',
+      'https://c4s4w8s0skksoo8g484k8o0g.69.62.65.126.sslip.io',
+      'http://c4s4w8s0skksoo8g484k8o0g.69.62.65.126.sslip.io',
     ],
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS', // incluye OPTIONS
-    allowedHeaders: '*', // permite todos los headers
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: '*',
     credentials: true,
-    preflightContinue: false, // Nest responde el preflight
+    preflightContinue: false,
     optionsSuccessStatus: 204,
   });
-
   //  Pipe global para validación con detalles de errores
   app.useGlobalPipes(
     new ValidationPipe({
