@@ -46,10 +46,15 @@ export class UsuarioGuard implements CanActivate {
 
     /**
      * 🔒 BLOQUEO POR INSTANCIA
+     * (excepto superadmin)
      */
     const instanceEmpresaId = process.env.INSTANCE_EMPRESA_ID;
 
-    if (instanceEmpresaId && usuario.empresaId !== instanceEmpresaId) {
+    if (
+      usuario.rol !== 'superadmin' &&
+      instanceEmpresaId &&
+      usuario.empresaId !== instanceEmpresaId
+    ) {
       throw new ForbiddenException(
         'Este usuario no pertenece a esta instancia'
       );
