@@ -20,6 +20,8 @@ async function bootstrap() {
       'http://c4s4w8s0skksoo8g484k8o0g.69.62.65.126.sslip.io',
       'https://jndistribuidora.bgacloudsaas.com',
       'http://jndistribuidora.bgacloudsaas.com',
+      'https://pruebas.bgacloudsaas.com',
+      'http://pruebas.bgacloudsaas.com',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: '*',
