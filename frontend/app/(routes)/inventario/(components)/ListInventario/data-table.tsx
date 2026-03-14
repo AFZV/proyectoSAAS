@@ -32,15 +32,21 @@ import {
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  globalFilter?: string; // ✅ nuevo
+  onGlobalFilterChange?: (v: string) => void;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  globalFilter: globalFilterProp,
+  onGlobalFilterChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
+  const [localFilter, setLocalFilter] = useState("");
+  const globalFilter = globalFilterProp ?? localFilter;
+  const setGlobalFilter = onGlobalFilterChange ?? setLocalFilter;
 
   const table = useReactTable({
     data,
@@ -91,7 +97,7 @@ export function DataTable<TData, TValue>({
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext()
+                          header.getContext(),
                         )}
                   </TableHead>
                 ))}
@@ -106,7 +112,7 @@ export function DataTable<TData, TValue>({
                     <TableCell key={cell.id}>
                       {flexRender(
                         cell.column.columnDef.cell,
-                        cell.getContext()
+                        cell.getContext(),
                       )}
                     </TableCell>
                   ))}
@@ -143,7 +149,7 @@ export function DataTable<TData, TValue>({
           {Math.min(
             (table.getState().pagination.pageIndex + 1) *
               table.getState().pagination.pageSize,
-            table.getFilteredRowModel().rows.length
+            table.getFilteredRowModel().rows.length,
           )}{" "}
           de {table.getFilteredRowModel().rows.length} item(s)
         </div>

@@ -41,6 +41,8 @@ export function AjusteManualModal({
   const [observacion, setObservacion] = useState<string>("");
   const { getToken } = useAuth();
 
+  const [globalFilter, setGlobalFilter] = useState<string>("");
+
   // Obtener stocks del producto
   const stockInicial = producto.inventario?.[0]?.stockReferenciaOinicial ?? 0;
   const stockActual = producto.inventario?.[0]?.stockActual ?? 0;
@@ -70,7 +72,7 @@ export function AjusteManualModal({
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-          }
+          },
         );
 
         if (!res.ok) throw new Error("Error al obtener tipos de movimiento");
@@ -106,7 +108,7 @@ export function AjusteManualModal({
             stockActual: cantidad,
             observacion: observacion,
           }),
-        }
+        },
       );
 
       if (!res.ok) throw new Error("Error en la actualización");

@@ -69,7 +69,7 @@ function ModalBuscarProducto({
 
   const productosFiltrados = Array.isArray(productos)
     ? productos.filter((p) =>
-        p.nombre.toLowerCase().includes(busqueda.toLowerCase())
+        p.nombre.toLowerCase().includes(busqueda.toLowerCase()),
       )
     : [];
 
@@ -163,7 +163,7 @@ function ClienteSelectorModal({
         const token = await getToken();
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/clientes/all-min`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         if (!res.ok) throw new Error("No se pudo cargar la lista de clientes");
         const data: ClienteLite[] = await res.json();
@@ -198,7 +198,7 @@ function ClienteSelectorModal({
     const byNit = (c: ClienteLite) => onlyDigits(c.nit || "").includes(qDigits);
 
     let res = clientes.filter((c) =>
-      isNit ? byNit(c) || byName(c) : byName(c)
+      isNit ? byNit(c) || byName(c) : byName(c),
     );
 
     // ordenar: exactos por NIT primero, luego alfabético
@@ -393,7 +393,7 @@ export function EditPedidoModal({
               email: c.email ?? "", // <-- fuerza string
               ciudad: c.ciudad ?? "",
             }
-          : null
+          : null,
       );
     }
   }, [pedido, isOpen]);
@@ -415,7 +415,7 @@ export function EditPedidoModal({
               id: producto.id,
               nombre: producto.nombre || "Sin nombre",
               precio: Number(
-                producto.precioVenta || producto.precioCompra || 0
+                producto.precioVenta || producto.precioCompra || 0,
               ),
               categoria:
                 producto?.categoria?.nombre ||
@@ -458,8 +458,8 @@ export function EditPedidoModal({
       prev.map((item) =>
         item.productoId === productoId
           ? { ...item, cantidad: Math.max(1, item.cantidad + delta) }
-          : item
-      )
+          : item,
+      ),
     );
   };
   const establecerCantidad = (productoId: string, nuevaCantidad: number) => {
@@ -467,16 +467,16 @@ export function EditPedidoModal({
       prev.map((item) =>
         item.productoId === productoId
           ? { ...item, cantidad: Math.max(1, nuevaCantidad) }
-          : item
-      )
+          : item,
+      ),
     );
   };
   const actualizarPrecio = (productoId: string, nuevoPrecio: string) => {
     const precio = parseFloat(nuevoPrecio) || 0;
     setCarrito((prev) =>
       prev.map((item) =>
-        item.productoId === productoId ? { ...item, precio } : item
-      )
+        item.productoId === productoId ? { ...item, precio } : item,
+      ),
     );
   };
   const eliminarProducto = (productoId: string) => {
@@ -547,7 +547,7 @@ export function EditPedidoModal({
       await invoicesService.actualizarPedido(
         token!,
         pedido.id,
-        datosActualizados
+        datosActualizados,
       );
 
       toast({
@@ -577,9 +577,16 @@ export function EditPedidoModal({
           .sort(
             (a, b) =>
               new Date(b.fechaEstado).getTime() -
-              new Date(a.fechaEstado).getTime()
+              new Date(a.fechaEstado).getTime(),
           )[0].estado
       : "GENERADO";
+
+  const tieneAbonos =
+    (pedido as any)?.saldoPendiente !== undefined
+      ? Number(pedido.total ?? 0) -
+          Number((pedido as any).saldoPendiente ?? 0) >
+        0
+      : false;
 
   return (
     <>
@@ -615,12 +622,23 @@ export function EditPedidoModal({
                     {clienteSel?.ciudad}{" "}
                     {clienteSel?.nit && `• NIT: ${clienteSel.nit}`}
                   </p>
+                  {tieneAbonos && (
+                    <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      <span className="mt-0.5 text-base leading-none">🔒</span>
+                      <span>
+                        No es posible cambiar el cliente porque este pedido
+                        tiene abonos registrados. Reversa los abonos primero
+                        para habilitar esta opción.
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <Button
                   variant="outline"
                   type="button"
-                  onClick={() => setOpenClienteModal(true)}
-                  className="flex items-center gap-2"
+                  onClick={() => !tieneAbonos && setOpenClienteModal(true)}
+                  disabled={tieneAbonos}
+                  className="flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Search className="w-4 h-4" />
                   Cambiar cliente
@@ -698,13 +716,13 @@ export function EditPedidoModal({
                               onChange={(e) =>
                                 establecerCantidad(
                                   item.productoId,
-                                  Math.max(1, parseInt(e.target.value) || 1)
+                                  Math.max(1, parseInt(e.target.value) || 1),
                                 )
                               }
                               onBlur={(e) =>
                                 establecerCantidad(
                                   item.productoId,
-                                  Math.max(1, parseInt(e.target.value) || 1)
+                                  Math.max(1, parseInt(e.target.value) || 1),
                                 )
                               }
                               className="w-40 text-center text-sm"
@@ -729,7 +747,7 @@ export function EditPedidoModal({
                               onChange={(e) =>
                                 actualizarPrecio(
                                   item.productoId,
-                                  e.target.value
+                                  e.target.value,
                                 )
                               }
                               className="text-sm"

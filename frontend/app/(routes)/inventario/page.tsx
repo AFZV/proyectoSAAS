@@ -16,6 +16,7 @@ export default function InventarioPage() {
     valorTotalInventario: 0,
     productosStockBajo: 0,
   });
+  const [globalFilter, setGlobalFilter] = useState<string>("");
   const { getToken } = useAuth();
 
   // función de carga
@@ -31,7 +32,7 @@ export default function InventarioPage() {
         {
           headers: { Authorization: `Bearer ${token}` },
           cache: "no-store",
-        }
+        },
       );
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const json = await res.json();
@@ -101,7 +102,12 @@ export default function InventarioPage() {
                   <span className="ml-2">Cargando inventario...</span>
                 </div>
               ) : (
-                <DataTable columns={columns} data={data} />
+                <DataTable
+                  columns={columns(loadInventario)}
+                  data={data}
+                  globalFilter={globalFilter}
+                  onGlobalFilterChange={setGlobalFilter}
+                />
               )}
             </div>
           </div>

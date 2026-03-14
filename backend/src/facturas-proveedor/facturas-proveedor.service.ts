@@ -292,16 +292,15 @@ export class FacturasProveedorService {
     }
     const { empresaId } = usuario;
 
-    // 1) Agrupar facturas abiertas por proveedor y tomar saldo + moneda
+    // 1) Agrupar TODAS las facturas (sin filtrar por saldo)
     const grouped = await this.prisma.facturaProveedor.groupBy({
       by: ['proveedorId'],
       where: {
         empresaId,
-        saldo: { gt: 0 },
         // estado: { not: 'ANULADA' },
       },
       _sum: { saldo: true },
-      _min: { moneda: true }, // 👈 como sólo hay una moneda, da igual min o max
+      _min: { moneda: true },
     });
 
     if (grouped.length === 0) return [];
@@ -319,21 +318,20 @@ export class FacturasProveedorService {
       },
     });
 
-    // 3) Merge proveedor + saldo + moneda
+    // 3) Merge proveedor + saldo + moneda (saldo >= 0)
     const resultado = proveedores
       .map((p) => {
         const g = grouped.find((x) => x.proveedorId === p.idProveedor);
         return {
           ...p,
-          saldoPendiente: Number(g?._sum.saldo ?? 0),
-          moneda: g?._min.moneda ?? 'COP', // 👈 única moneda del proveedor
+          saldoPendiente: Math.max(0, Number(g?._sum.saldo ?? 0)),
+          moneda: g?._min.moneda ?? 'COP',
         };
       })
       .sort((a, b) => b.saldoPendiente - a.saldoPendiente);
 
     return resultado;
   }
-
   async getHistorialPagos(idProveedor: string, usuario: UsuarioPayload) {
     if (!usuario) {
       throw new BadRequestException('Usuario no autenticado');

@@ -47,7 +47,7 @@ export function InventarioDetalleModal({
 }: InventarioDetalleModalProps) {
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [filteredMovimientos, setFilteredMovimientos] = useState<Movimiento[]>(
-    []
+    [],
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +74,7 @@ export function InventarioDetalleModal({
           `${process.env.NEXT_PUBLIC_API_URL}/inventario/movimientos/${producto.id}`,
           {
             headers: { Authorization: `Bearer ${token}` },
-          }
+          },
         );
         if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`);
 
@@ -96,7 +96,7 @@ export function InventarioDetalleModal({
       setFilteredMovimientos(movimientos);
     } else {
       const filtered = movimientos.filter((m) =>
-        m.tipoMovimiento.toLowerCase().includes(filtroTipo.toLowerCase())
+        m.tipoMovimiento.toLowerCase().includes(filtroTipo.toLowerCase()),
       );
       setFilteredMovimientos(filtered);
     }
@@ -141,7 +141,7 @@ export function InventarioDetalleModal({
       [
         "Stock Inicial:",
         (producto.inventario?.[0]?.stockReferenciaOinicial || 0).toLocaleString(
-          "es-CO"
+          "es-CO",
         ),
       ],
       [
@@ -232,7 +232,7 @@ export function InventarioDetalleModal({
     const fecha = new Date().toISOString().split("T")[0];
     const nombreArchivo = `Cardex_${producto.nombre.replace(
       /[^a-zA-Z0-9]/g,
-      "_"
+      "_",
     )}_${fecha}.xlsx`;
 
     XLSX.writeFile(wb, nombreArchivo);
@@ -282,7 +282,7 @@ export function InventarioDetalleModal({
               <p className="text-xs text-gray-500">Stock Actual</p>
               <p className="font-semibold text-sm">
                 {(producto.inventario?.[0]?.stockActual || 0).toLocaleString(
-                  "es-CO"
+                  "es-CO",
                 )}
               </p>
             </div>

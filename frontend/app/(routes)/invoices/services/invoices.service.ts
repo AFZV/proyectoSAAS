@@ -14,7 +14,7 @@ export class InvoicesService {
   private async makeRequest<T>(
     endpoint: string,
     token: string,
-    options?: RequestInit
+    options?: RequestInit,
   ): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
@@ -29,7 +29,7 @@ export class InvoicesService {
       const error = await response.json().catch(() => ({}));
       console.error("❌ Error en response:", error);
       throw new Error(
-        error.message || `Error ${response.status}: ${response.statusText}`
+        error.message || `Error ${response.status}: ${response.statusText}`,
       );
     }
 
@@ -54,19 +54,19 @@ export class InvoicesService {
   async actualizarEnvioPedido(
     token: string,
     pedidoId: string,
-    data: { guiaTransporte?: string | null; flete?: number | null }
+    data: { guiaTransporte?: string | null; flete?: number | null },
   ) {
     const payload = {
       guiaTransporte:
         typeof data.guiaTransporte === "string"
           ? data.guiaTransporte.trim() || null
-          : data.guiaTransporte ?? null,
+          : (data.guiaTransporte ?? null),
       flete:
         typeof data.flete === "number"
           ? Number.isFinite(data.flete)
             ? data.flete
             : null
-          : data.flete ?? null,
+          : (data.flete ?? null),
     };
 
     return this.makeRequest<Pedido>(`/pedidos/${pedidoId}/envio`, token, {
@@ -83,7 +83,7 @@ export class InvoicesService {
       estado: string;
       guiaTransporte?: string;
       flete?: number;
-    }
+    },
   ): Promise<any> {
     // ✅ VALIDACIÓN: Solo estados permitidos (con ACEPTADO)
     const estadosPermitidos = [
@@ -98,7 +98,7 @@ export class InvoicesService {
       throw new Error(
         `Estado no válido: ${
           data.estado
-        }. Estados permitidos: ${estadosPermitidos.join(", ")}`
+        }. Estados permitidos: ${estadosPermitidos.join(", ")}`,
       );
     }
 
@@ -117,7 +117,7 @@ export class InvoicesService {
         {
           method: "POST",
           body: JSON.stringify(payload),
-        }
+        },
       );
 
       return result;
@@ -131,7 +131,7 @@ export class InvoicesService {
   async actualizarPedido(
     token: string,
     pedidoId: string,
-    data: Partial<CreatePedidoDto>
+    data: Partial<CreatePedidoDto>,
   ): Promise<Pedido> {
     return this.makeRequest<Pedido>(`/pedidos/${pedidoId}`, token, {
       method: "PATCH",
@@ -152,7 +152,9 @@ export class InvoicesService {
     } catch (error) {
       console.error("❌ Error al cancelar pedido:", error);
       throw new Error(
-        error instanceof Error ? error.message : "No se pudo cancelar el pedido"
+        error instanceof Error
+          ? error.message
+          : "No se pudo cancelar el pedido",
       );
     }
   }
@@ -169,7 +171,7 @@ export class InvoicesService {
         | "total"
         | "empresaId"
         | "fechaPedido";
-    }
+    },
   ): Promise<Pedido[]> {
     // ✅ USAR QUERY PARAMETERS - PERO VERIFICAR SI BACKEND ESPERA BODY
     // Según tu controller, usa @Body(), así que enviamos en el body
@@ -181,7 +183,7 @@ export class InvoicesService {
 
   // 📊 OBTENER ESTADÍSTICAS - SIN ENTREGADO
   async obtenerEstadisticasPedidos(
-    token: string
+    token: string,
   ): Promise<EstadisticasPedidos> {
     const pedidos = await this.obtenerPedidos(token);
 
@@ -213,7 +215,7 @@ export class InvoicesService {
         const estadosOrdenados = pedido.estados.sort(
           (a: any, b: any) =>
             new Date(b.fechaEstado).getTime() -
-            new Date(a.fechaEstado).getTime()
+            new Date(a.fechaEstado).getTime(),
         );
         estadoActual = estadosOrdenados[0].estado;
       }
@@ -285,7 +287,7 @@ export class InvoicesService {
 
     const estadoActual = pedido.estados.sort(
       (a, b) =>
-        new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime()
+        new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime(),
     )[0].estado;
 
     switch (estadoActual) {
@@ -327,7 +329,7 @@ export class InvoicesService {
 
     const estadoActual = pedido.estados.sort(
       (a, b) =>
-        new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime()
+        new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime(),
     )[0].estado;
 
     return {
@@ -339,7 +341,7 @@ export class InvoicesService {
   // 📊 OBTENER RESUMEN DE MOVIMIENTOS POR CANCELACIÓN
   async obtenerMovimientosCancelacion(
     token: string,
-    pedidoId: string
+    pedidoId: string,
   ): Promise<any> {
     // Esta función podrías implementarla si el backend
     // proporciona detalles de los movimientos revertidos
@@ -407,7 +409,7 @@ export class InvoicesService {
     }
     const estadosOrdenados = pedido.estados.sort(
       (a, b) =>
-        new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime()
+        new Date(b.fechaEstado).getTime() - new Date(a.fechaEstado).getTime(),
     );
     return estadosOrdenados[0].estado;
   }
@@ -415,7 +417,7 @@ export class InvoicesService {
   // 📊 VALIDAR TRANSICIÓN DE ESTADO - CON ACEPTADO
   validarTransicionEstado(
     estadoActual: string,
-    nuevoEstado: string
+    nuevoEstado: string,
   ): { valida: boolean; razon?: string } {
     const transicionesValidas: Record<string, string[]> = {
       GENERADO: ["ACEPTADO"],
@@ -476,7 +478,7 @@ export class InvoicesService {
       limite?: number;
       estado?: string;
       q?: string;
-    }
+    },
   ): Promise<PedidosPaginadosResponse> {
     const params = new URLSearchParams();
 

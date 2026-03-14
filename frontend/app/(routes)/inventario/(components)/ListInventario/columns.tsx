@@ -19,47 +19,37 @@ export type ProductoInventario = {
 import dynamic from "next/dynamic";
 
 const InventarioDetalleModal = dynamic(
-  () => import("./InventarioDetalleModal").then((mod) => ({ default: mod.InventarioDetalleModal })),
-  { ssr: false }
+  () =>
+    import("./InventarioDetalleModal").then((mod) => ({
+      default: mod.InventarioDetalleModal,
+    })),
+  { ssr: false },
 );
 
 const AjusteManualModal = dynamic(
-  () => import("./AjusteManualModal").then((mod) => ({ default: mod.AjusteManualModal })),
-  { ssr: false }
+  () =>
+    import("./AjusteManualModal").then((mod) => ({
+      default: mod.AjusteManualModal,
+    })),
+  { ssr: false },
 );
 
-function InventarioActions({ producto }: { producto: ProductoInventario }) {
+function InventarioActions({
+  producto,
+  onRefresh,
+}: {
+  producto: ProductoInventario;
+  onRefresh: () => void;
+}) {
   const [showCardex, setShowCardex] = useState(false);
   const [showAjuste, setShowAjuste] = useState(false);
-  const router = useRouter();
-
-  const handleCardex = () => {
-    setShowCardex(true);
-  };
-
-  const handleAjuste = () => {
-    setShowAjuste(true);
-  };
-
-  const handleCloseCardex = () => {
-    setShowCardex(false);
-  };
-
-  const handleCloseAjuste = () => {
-    setShowAjuste(false);
-    // Refresh después de ajuste
-    setTimeout(() => {
-      router.refresh();
-    }, 300);
-  };
 
   return (
     <div className="flex items-center gap-1">
-      {/* Botón Ver Cardex */}
       <Button
         variant="ghost"
         size="sm"
-        onClick={handleCardex}
+        onClick={() => setShowCardex(true)}
         className="h-8 w-8 p-0 hover:bg-gray-100"
         disabled={showCardex || showAjuste}
         title="Ver Cardex"
@@ -67,11 +57,10 @@ function InventarioActions({ producto }: { producto: ProductoInventario }) {
         <Eye className="h-4 w-4" />
       </Button>
 
-      {/* Botón Ajuste */}
       <Button
         variant="ghost"
         size="sm"
-        onClick={handleAjuste}
+        onClick={() => setShowAjuste(true)}
         className="h-8 w-8 p-0 hover:bg-gray-100"
         disabled={showCardex || showAjuste}
         title="Ajuste Manual"
@@ -79,11 +68,10 @@ function InventarioActions({ producto }: { producto: ProductoInventario }) {
         <Edit className="h-4 w-4" />
       </Button>
 
-      {/* Modales */}
       {showCardex && (
         <InventarioDetalleModal
           open={showCardex}
-          onClose={handleCloseCardex}
+          onClose={() => setShowCardex(false)}
           producto={producto}
         />
       )}
@@ -91,7 +79,10 @@ function InventarioActions({ producto }: { producto: ProductoInventario }) {
       {showAjuste && (
         <AjusteManualModal
           open={showAjuste}
-          onClose={handleCloseAjuste}
+          onClose={() => {
+            setShowAjuste(false);
+            onRefresh(); // ✅ recarga datos reales desde el backend
+          }}
           producto={producto}
         />
       )}
@@ -99,61 +90,64 @@ function InventarioActions({ producto }: { producto: ProductoInventario }) {
   );
 }
 
-export const columns: ColumnDef<ProductoInventario>[] = [
-  { 
-    accessorKey: "nombre", 
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="h-auto p-0 hover:bg-transparent"
-        >
-          Nombre
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+export const columns = (
+  onRefresh: () => void,
+): ColumnDef<ProductoInventario>[] => [
+  {
+    accessorKey: "nombre",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="h-auto p-0 hover:bg-transparent"
+      >
+        Nombre <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
     enableSorting: true,
   },
   {
     accessorKey: "precioCompra",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="h-auto p-0 hover:bg-transparent"
-        >
-          Precio Compra
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
-    cell: ({ row }) => `$ ${(row.getValue("precioCompra") as number).toLocaleString()}`,
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="h-auto p-0 hover:bg-transparent"
+      >
+        Precio Compra <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) =>
+      `$ ${(row.getValue("precioCompra") as number).toLocaleString()}`,
     enableSorting: true,
   },
   {
     accessorKey: "fechaCreado",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="h-auto p-0 hover:bg-transparent"
-        >
-          Fecha
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="h-auto p-0 hover:bg-transparent"
+      >
+        Fecha <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
     cell: ({ row }) => {
       const d = new Date(row.getValue("fechaCreado") as string);
       return (
         <>
-          <div>{d.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}</div>
+          <div>
+            {d.toLocaleDateString("es-CO", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })}
+          </div>
           <div className="text-xs text-muted-foreground">
-            {d.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
+            {d.toLocaleTimeString("es-CO", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </div>
         </>
       );
@@ -162,37 +156,33 @@ export const columns: ColumnDef<ProductoInventario>[] = [
   },
   {
     id: "stockReferenciaOinicial",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="h-auto p-0 hover:bg-transparent"
-        >
-          Stock Inicial
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="h-auto p-0 hover:bg-transparent"
+      >
+        Stock Inicial <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
     accessorFn: (row) => row.inventario?.[0]?.stockReferenciaOinicial ?? 0,
     cell: ({ row }) =>
-      (row.original.inventario?.[0]?.stockReferenciaOinicial ?? 0).toLocaleString(),
+      (
+        row.original.inventario?.[0]?.stockReferenciaOinicial ?? 0
+      ).toLocaleString(),
     enableSorting: true,
   },
   {
     id: "stockActual",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="h-auto p-0 hover:bg-transparent"
-        >
-          Stock Actual
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="h-auto p-0 hover:bg-transparent"
+      >
+        Stock Actual <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
     accessorFn: (row) => row.inventario?.[0]?.stockActual ?? 0,
     cell: ({ row }) =>
       (row.original.inventario?.[0]?.stockActual ?? 0).toLocaleString(),
@@ -201,7 +191,10 @@ export const columns: ColumnDef<ProductoInventario>[] = [
   {
     id: "actions",
     header: "Acciones",
-    cell: ({ row }) => <InventarioActions producto={row.original} />,
+    // ✅ onRefresh llega por closure desde la función
+    cell: ({ row }) => (
+      <InventarioActions producto={row.original} onRefresh={onRefresh} />
+    ),
     enableSorting: false,
   },
 ];

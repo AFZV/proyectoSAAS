@@ -826,7 +826,7 @@ export class BalanceService {
 
     // Solo clientes con saldo > 0
     const items = Array.from(porCliente.values())
-      .filter((x) => x.saldoPendienteCOP > 0)
+      .filter((x) => x.saldoPendienteCOP >= 0)
       .sort((a, b) => b.saldoPendienteCOP - a.saldoPendienteCOP);
 
     return items;
