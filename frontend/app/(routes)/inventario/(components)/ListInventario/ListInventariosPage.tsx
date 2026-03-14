@@ -1,5 +1,4 @@
-
-'use client'  
+"use client";
 
 import { useState, useEffect } from "react";
 import { DataTable } from "./data-table";
@@ -24,8 +23,8 @@ export default function ListInventariosPage() {
         `${process.env.NEXT_PUBLIC_API_URL}/inventario/productosall`,
         {
           headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",       // forzar no cache para que siempre traiga datos frescos
-        }
+          cache: "no-store", // forzar no cache para que siempre traiga datos frescos
+        },
       );
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const json = await res.json();
@@ -62,7 +61,7 @@ export default function ListInventariosPage() {
                 <span className="ml-2">Cargando inventario...</span>
               </div>
             ) : (
-              <DataTable columns={columns} data={data} />
+              <DataTable columns={columns(loadInventario)} data={data} />
             )}
           </div>
         </div>
@@ -77,7 +76,8 @@ export default function ListInventariosPage() {
               ¡Comienza a gestionar tu inventario!
             </h3>
             <p className="text-blue-700 mb-4">
-              Registra tu primer movimiento de inventario para llevar el control.
+              Registra tu primer movimiento de inventario para llevar el
+              control.
             </p>
           </div>
         )}

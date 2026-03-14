@@ -29,19 +29,19 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
+interface DataTableProps<TData> {
+  columns: ColumnDef<TData, any>[];
   data: TData[];
-  globalFilter?: string; // ✅ nuevo
+  globalFilter?: string;
   onGlobalFilterChange?: (v: string) => void;
 }
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData>({
   columns,
   data,
   globalFilter: globalFilterProp,
   onGlobalFilterChange,
-}: DataTableProps<TData, TValue>) {
+}: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [localFilter, setLocalFilter] = useState("");
