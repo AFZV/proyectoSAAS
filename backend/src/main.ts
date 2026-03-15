@@ -22,6 +22,8 @@ async function bootstrap() {
       'http://jndistribuidora.bgacloudsaas.com',
       'https://pruebas.bgacloudsaas.com',
       'http://pruebas.bgacloudsaas.com',
+      'https://consultants.bgacloudsaas.com',
+      'http://consultants.bgacloudsaas.com',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: '*',
