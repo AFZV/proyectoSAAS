@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +22,21 @@ import { Input } from "@/components/ui/input";
 import { RefreshCw, Edit3, Plus, X, ShoppingCart } from "lucide-react";
 import { Loading } from "@/components/Loading";
 
+/* SafeFormMessage: evita "Objects are not valid as React child"
+   cuando react-hook-form entrega un objeto de error en vez de string */
+function SafeFormMessage({ children }: { children?: React.ReactNode }) {
+  if (!children) return null;
+  const text =
+    typeof children === "string"
+      ? children
+      : typeof children === "object" &&
+          children !== null &&
+          "message" in (children as any)
+        ? String((children as any).message)
+        : JSON.stringify(children);
+  return <p className="text-sm font-medium text-destructive">{text}</p>;
+}
+
 /* =======================
  *  Schemas
  * ======================= */
@@ -37,10 +52,9 @@ const formSchema = z.object({
     .array(
       z.object({
         pedidoId: z.string().uuid(),
-        // Ambos campos son editables. Permitimos undefined durante escritura.
-        valorAplicado: z.number().nonnegative().optional(),
-        ajuste: z.number().min(0).optional(),
-      })
+        valorAplicado: z.coerce.number().nonnegative().optional(),
+        ajuste: z.coerce.number().nonnegative().optional(),
+      }),
     )
     .min(1),
 });
@@ -72,9 +86,6 @@ export function FormUpdateRecibo({
   >([]);
   const [mostrarPedidos, setMostrarPedidos] = useState(false);
 
-  // Mapas auxiliares (saldo/flete sólo informativos)
-
-  // para no recalcular inicial más de una vez
   const inicializadoRef = useRef(false);
 
   const { getToken } = useAuth();
@@ -90,7 +101,7 @@ export function FormUpdateRecibo({
     mode: "onChange",
   });
 
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: editForm.control,
     name: "pedidos",
   });
@@ -104,36 +115,33 @@ export function FormUpdateRecibo({
     try {
       const token = await getToken();
 
-      // 1) Recibo base
       const res = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/recibos/getById/${values.idRecibo}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       const data = res.data;
 
-      // 2) Ajustes por pedido (si existen)
       let ajustesMap: Record<string, number> = {};
       try {
         const aj = await axios.get(
           `${process.env.NEXT_PUBLIC_API_URL}/recibos/ajustesporrecibo/ajustes/${values.idRecibo}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         (aj.data as AjusteItem[]).forEach((a) => {
-          ajustesMap[a.idPedido] = Number(a.ajuste || 0);
+          ajustesMap[a.idPedido] = Number(a.ajuste ?? 0);
         });
       } catch {
         ajustesMap = {};
       }
 
-      // 3) Form editable (sin auto-recalcular al cambiar ajuste)
       const reciboEditable: ReciboEditable = {
         clienteId: data.clienteId,
         tipo: String(data.tipo).toLowerCase() as ReciboEditable["tipo"],
         concepto: data.concepto,
         pedidos: (data.detalleRecibo || []).map((d: any) => ({
           pedidoId: d.idPedido,
-          valorAplicado: Number(d.valorTotal), // inicial
-          ajuste: ajustesMap[d.idPedido] ?? 0, // inicial
+          valorAplicado: Number(d.valorTotal),
+          ajuste: ajustesMap[d.idPedido] ?? 0,
         })),
       };
 
@@ -141,21 +149,14 @@ export function FormUpdateRecibo({
       setStep("edit");
       toast({ title: "Recibo encontrado", duration: 1500 });
 
-      // 4) Pedidos con saldo (para mostrar saldo/flete y, UNA sola vez, ajustar valorAplicado inicial si quieres)
       const pendientes = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/recibos/PedidosSaldoPendiente/${data.clienteId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
-      const arr: PedidoPendiente[] = pendientes.data || [];
-      setPedidosDisponibles(arr);
-
-      // 5) Mapas saldo/flete
-
-      // 7) (Opcional) Ajuste inicial único: valorAplicado := max(0, saldo - ajuste)
-      //    Sólo al cargar, para que no salte luego al editar.
+      setPedidosDisponibles(pendientes.data || []);
 
       inicializadoRef.current = true;
-    } catch (error) {
+    } catch {
       toast({ title: "Recibo no encontrado", variant: "destructive" });
     } finally {
       setIsSearching(false);
@@ -164,6 +165,7 @@ export function FormUpdateRecibo({
 
   /* -----------------------
    * Actualizar recibo
+   * FIX: usar ?? en lugar de || para que el valor 0 no sea tratado como falsy
    * ----------------------- */
   const onUpdate = async (values: z.infer<typeof formSchema>) => {
     const idRecibo = searchForm.getValues("idRecibo");
@@ -172,19 +174,14 @@ export function FormUpdateRecibo({
     try {
       const token = await getToken();
 
-      // 👇 Normaliza y mapea a 'descuento' (NO 'ajuste')
       const pedidosPayload = (values.pedidos ?? []).map((p) => ({
         pedidoId: p.pedidoId,
-        valorAplicado: Number.isFinite(p.valorAplicado as number)
-          ? Number(p.valorAplicado)
-          : 0,
-        descuento: Number.isFinite((p as any).ajuste) // por si tu form aún usa "ajuste"
-          ? Number((p as any).ajuste)
-          : Number((p as any).descuento) || 0,
+        valorAplicado: p.valorAplicado ?? 0,
+        descuento: (p as any).ajuste ?? (p as any).descuento ?? 0,
       }));
 
       const payload = {
-        clienteId: values.clienteId, // asegúrate que esté seteado al cargar el recibo
+        clienteId: values.clienteId,
         tipo: values.tipo,
         concepto: values.concepto,
         pedidos: pedidosPayload,
@@ -193,20 +190,21 @@ export function FormUpdateRecibo({
       await axios.patch(
         `${process.env.NEXT_PUBLIC_API_URL}/recibos/actualizar/${idRecibo}`,
         payload,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
 
       toast({ title: "Recibo actualizado correctamente" });
       setOpenModalUpdate(false);
       router.refresh();
     } catch (error: any) {
-      // ayuda para depurar si vuelve a fallar
       console.error("Update error:", error?.response?.data || error);
       toast({
         title: "Error al actualizar recibo",
         description:
           error?.response?.data?.message ||
-          error?.response?.data ||
+          (typeof error?.response?.data === "string"
+            ? error.response.data
+            : JSON.stringify(error?.response?.data)) ||
           "Bad Request",
         variant: "destructive",
       });
@@ -220,7 +218,6 @@ export function FormUpdateRecibo({
     searchForm.reset();
     editForm.reset();
     setPedidosDisponibles([]);
-
     inicializadoRef.current = false;
   };
 
@@ -240,13 +237,19 @@ export function FormUpdateRecibo({
             <FormField
               control={searchForm.control}
               name="idRecibo"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>ID del Recibo</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="UUID del recibo" />
                   </FormControl>
-                  <FormMessage />
+                  {fieldState.error && (
+                    <p className="text-sm font-medium text-destructive">
+                      {typeof fieldState.error.message === "string"
+                        ? fieldState.error.message
+                        : JSON.stringify(fieldState.error.message)}
+                    </p>
+                  )}
                 </FormItem>
               )}
             />
@@ -287,7 +290,7 @@ export function FormUpdateRecibo({
             <FormField
               control={editForm.control}
               name="tipo"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>Tipo de Pago</FormLabel>
                   <FormControl>
@@ -309,7 +312,13 @@ export function FormUpdateRecibo({
                       <option value="consignacion">Consignación</option>
                     </select>
                   </FormControl>
-                  <FormMessage />
+                  {fieldState.error && (
+                    <p className="text-sm font-medium text-destructive">
+                      {typeof fieldState.error.message === "string"
+                        ? fieldState.error.message
+                        : JSON.stringify(fieldState.error.message)}
+                    </p>
+                  )}
                 </FormItem>
               )}
             />
@@ -318,156 +327,169 @@ export function FormUpdateRecibo({
             <FormField
               control={editForm.control}
               name="concepto"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>Concepto</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Descripción del recibo" />
                   </FormControl>
-                  <FormMessage />
+                  {fieldState.error && (
+                    <p className="text-sm font-medium text-destructive">
+                      {typeof fieldState.error.message === "string"
+                        ? fieldState.error.message
+                        : JSON.stringify(fieldState.error.message)}
+                    </p>
+                  )}
                 </FormItem>
               )}
             />
 
             {/* Pedidos */}
-            {fields.map((field, index) => {
-              const pid = editForm.watch(`pedidos.${index}.pedidoId`);
+            {fields.map((field, index) => (
+              <div
+                key={field.id}
+                className="grid grid-cols-4 gap-4 items-end border rounded-md p-3"
+              >
+                {/* Pedido ID */}
+                <FormField
+                  control={editForm.control}
+                  name={`pedidos.${index}.pedidoId`}
+                  render={({ field, fieldState }) => (
+                    <FormItem>
+                      <FormLabel>Pedido</FormLabel>
+                      <FormControl>
+                        <Input {...field} disabled className="bg-muted" />
+                      </FormControl>
+                      {fieldState.error && (
+                        <p className="text-sm font-medium text-destructive">
+                          {typeof fieldState.error.message === "string"
+                            ? fieldState.error.message
+                            : JSON.stringify(fieldState.error.message)}
+                        </p>
+                      )}
+                    </FormItem>
+                  )}
+                />
 
-              return (
-                <div
-                  key={field.id}
-                  className="grid grid-cols-4 gap-4 items-end border rounded-md p-3"
-                >
-                  {/* Pedido */}
-                  <FormField
-                    control={editForm.control}
-                    name={`pedidos.${index}.pedidoId`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Pedido</FormLabel>
-                        <FormControl>
-                          <Input {...field} disabled className="bg-muted" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Ajuste (editable) */}
-                  <FormField
-                    control={editForm.control}
-                    name={`pedidos.${index}.ajuste`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ajuste</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            value={
-                              field.value === undefined || field.value === null
-                                ? ""
-                                : field.value
-                            }
-                            onChange={(e) => {
-                              // permitir vacío sin forzar 0
-                              if (e.target.value === "") {
-                                editForm.setValue(
-                                  `pedidos.${index}.ajuste`,
-                                  undefined as any,
-                                  {
-                                    shouldDirty: true,
-                                    shouldValidate: false,
-                                  }
-                                );
-                                return;
-                              }
-                              const n = Number(e.target.value);
+                {/* Ajuste */}
+                <FormField
+                  control={editForm.control}
+                  name={`pedidos.${index}.ajuste`}
+                  render={({ field, fieldState }) => (
+                    <FormItem>
+                      <FormLabel>Ajuste</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={
+                            field.value === undefined || field.value === null
+                              ? ""
+                              : field.value
+                          }
+                          onChange={(e) => {
+                            if (e.target.value === "") {
                               editForm.setValue(
                                 `pedidos.${index}.ajuste`,
-                                Number.isFinite(n) && n >= 0 ? n : 0,
-                                { shouldDirty: true, shouldValidate: true }
+                                undefined as any,
+                                { shouldDirty: true, shouldValidate: false },
                               );
-                              // IMPORTANTE: NO recalculamos valorAplicado aquí.
-                            }}
-                            onBlur={(e) => {
-                              if (e.target.value === "") {
-                                editForm.setValue(
-                                  `pedidos.${index}.ajuste`,
-                                  0,
-                                  { shouldDirty: true, shouldValidate: true }
-                                );
-                              }
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Valor aplicado (editable, sin sobrescribir) */}
-                  <FormField
-                    control={editForm.control}
-                    name={`pedidos.${index}.valorAplicado`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Valor aplicado</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            value={
-                              field.value === undefined || field.value === null
-                                ? ""
-                                : field.value
+                              return;
                             }
-                            onChange={(e) => {
-                              if (e.target.value === "") {
-                                editForm.setValue(
-                                  `pedidos.${index}.valorAplicado`,
-                                  undefined as any,
-                                  {
-                                    shouldDirty: true,
-                                    shouldValidate: false,
-                                  }
-                                );
-                                return;
-                              }
-                              const n = Number(e.target.value);
+                            const n = Number(e.target.value);
+                            editForm.setValue(
+                              `pedidos.${index}.ajuste`,
+                              Number.isFinite(n) && n >= 0 ? n : 0,
+                              { shouldDirty: true, shouldValidate: true },
+                            );
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === "") {
+                              editForm.setValue(`pedidos.${index}.ajuste`, 0, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      {fieldState.error && (
+                        <p className="text-sm font-medium text-destructive">
+                          {typeof fieldState.error.message === "string"
+                            ? fieldState.error.message
+                            : JSON.stringify(fieldState.error.message)}
+                        </p>
+                      )}
+                    </FormItem>
+                  )}
+                />
+
+                {/* Valor aplicado */}
+                <FormField
+                  control={editForm.control}
+                  name={`pedidos.${index}.valorAplicado`}
+                  render={({ field, fieldState }) => (
+                    <FormItem>
+                      <FormLabel>Valor aplicado</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={
+                            field.value === undefined || field.value === null
+                              ? ""
+                              : field.value
+                          }
+                          onChange={(e) => {
+                            if (e.target.value === "") {
                               editForm.setValue(
                                 `pedidos.${index}.valorAplicado`,
-                                Number.isFinite(n) && n >= 0 ? n : 0,
-                                { shouldDirty: true, shouldValidate: true }
+                                undefined as any,
+                                { shouldDirty: true, shouldValidate: false },
                               );
-                            }}
-                            onBlur={(e) => {
-                              if (e.target.value === "") {
-                                editForm.setValue(
-                                  `pedidos.${index}.valorAplicado`,
-                                  0,
-                                  { shouldDirty: true, shouldValidate: true }
-                                );
-                              }
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                              return;
+                            }
+                            const n = Number(e.target.value);
+                            editForm.setValue(
+                              `pedidos.${index}.valorAplicado`,
+                              Number.isFinite(n) && n >= 0 ? n : 0,
+                              { shouldDirty: true, shouldValidate: true },
+                            );
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === "") {
+                              editForm.setValue(
+                                `pedidos.${index}.valorAplicado`,
+                                0,
+                                { shouldDirty: true, shouldValidate: true },
+                              );
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      {fieldState.error && (
+                        <p className="text-sm font-medium text-destructive">
+                          {typeof fieldState.error.message === "string"
+                            ? fieldState.error.message
+                            : JSON.stringify(fieldState.error.message)}
+                        </p>
+                      )}
+                    </FormItem>
+                  )}
+                />
 
-                  {/* Quitar */}
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => remove(index)}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
+                {/* Quitar pedido */}
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => remove(index)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
-              );
-            })}
+              </div>
+            ))}
 
             {/* Otros pedidos disponibles del cliente */}
             {pedidosDisponibles.length > 0 && (
@@ -498,7 +520,6 @@ export function FormUpdateRecibo({
                             {new Date(p.fecha).toLocaleDateString("es-CO")}
                           </p>
                         </div>
-
                         <Button
                           type="button"
                           size="sm"
@@ -509,7 +530,6 @@ export function FormUpdateRecibo({
                             if (!yaExiste) {
                               append({
                                 pedidoId: p.id,
-                                // inicial: el usuario lo puede cambiar
                                 valorAplicado: p.saldoPendiente,
                                 ajuste: 0,
                               });
