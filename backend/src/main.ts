@@ -24,6 +24,8 @@ async function bootstrap() {
       'http://pruebas.bgacloudsaas.com',
       'https://consultants.bgacloudsaas.com',
       'http://consultants.bgacloudsaas.com',
+      'https://bodegabebe.bgacloudsaas.com',
+      'http://bodegabebe.bgacloudsaas.com',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: '*',
