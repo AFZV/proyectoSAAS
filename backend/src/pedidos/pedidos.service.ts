@@ -989,8 +989,51 @@ export class PedidosService {
     // ✅ Update suelto eliminado — ya se hace dentro de la tx
 
     // PDF + correo (sin cambios)
+    // PDF + correo (fuera de la tx)
     setImmediate(() => {
-      /* ... igual que antes ... */
+      void (async () => {
+        try {
+          const pedidoParaPdf = await this.prisma.pedido.findUnique({
+            where: { id: pedidoId },
+            include: {
+              productos: {
+                include: { producto: true },
+                orderBy: { producto: { nombre: 'asc' } },
+              },
+              cliente: true,
+              usuario: { select: { nombre: true, telefono: true } },
+              empresa: true,
+              estados: { orderBy: { fechaEstado: 'desc' } },
+            },
+          });
+          if (!pedidoParaPdf) return;
+          const url = await this.generarYSubirPDFPedido(pedidoParaPdf as any);
+
+          if (
+            ['FACTURADO', 'ENVIADO'].includes(estadoPrevio) &&
+            pedidoParaPdf.cliente?.email
+          ) {
+            const numeroWhatsApp = `+57${pedidoParaPdf.usuario?.telefono?.replace(/\D/g, '')}`;
+            await this.resend.enviarCorreo(
+              pedidoParaPdf.cliente.email,
+              'Actualización de tu pedido',
+              `<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+              <p>Hola <strong>${pedidoParaPdf.cliente.nombre}</strong>,</p>
+              <p>Tu pedido ha sido actualizado y sigue en estado <strong>${estadoPrevio}</strong>. Adjuntamos el comprobante en PDF:</p>
+              <p style="margin:16px 0;">
+                <a href="${url}?t=${Date.now()}" target="_blank"
+                  style="display:inline-block;padding:10px 20px;background-color:#4F46E5;color:#fff;text-decoration:none;border-radius:6px;">
+                  Ver Comprobante PDF
+                </a>
+              </p>
+              <p>¿Dudas? <a href="https://wa.me/${numeroWhatsApp}" target="_blank">Escríbenos por WhatsApp</a>.</p>
+            </div>`
+            );
+          }
+        } catch (err) {
+          console.error('Error generando/enviando PDF tras update:', err);
+        }
+      })();
     });
 
     const pedidoFinal = await this.prisma.pedido.findUnique({
