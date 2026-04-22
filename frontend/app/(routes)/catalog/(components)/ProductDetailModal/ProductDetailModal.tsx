@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { formatValue } from "@/utils/FormartValue";
 import type { Producto } from "../../types/catalog.types";
+import { ProductImageCarousel } from "../ProductImageCarousel";
 
 interface ProductDetailModalProps {
   producto: Producto | null;
@@ -89,52 +90,17 @@ export function ProductDetailModal({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Columna izquierda - Imagen */}
             <div className="space-y-4">
-              <div
-                className="relative aspect-square overflow-hidden rounded-lg border bg-muted cursor-pointer"
-                onClick={() => setIsImageFullscreen(true)}
-              >
-                {!imageLoaded && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                    <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
-                  </div>
-                )}
-
-                <img
-                  src={producto.imagenUrl || "/placeholder-product.png"}
+              <div className="space-y-4">
+                <ProductImageCarousel
+                  imagenUrl={producto.imagenUrl}
+                  imagenes={producto.imagenes}
                   alt={producto.nombre}
-                  className={`w-full h-full object-cover transition-opacity duration-300 ${
-                    imageLoaded ? "opacity-100" : "opacity-0"
-                  }`}
-                  onLoad={() => setImageLoaded(true)}
-                  onError={() => setImageLoaded(true)}
+                  className="aspect-square rounded-lg border bg-muted cursor-pointer"
+                  onClick={() => setIsImageFullscreen(true)}
                 />
-
-                {/* Overlay hover */}
-                <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors duration-300 flex items-center justify-center opacity-0 hover:opacity-100">
-                  <div className="bg-white/90 rounded-full p-3 transform scale-75 hover:scale-100 transition-transform">
-                    <Eye className="w-6 h-6 text-blue-600" />
-                  </div>
+                <div className="text-center text-sm text-muted-foreground">
+                  Haz clic en la imagen para ver en tamaño completo
                 </div>
-
-                {/* Overlay para productos agotados */}
-                {isOutOfStock && (
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                    <Badge variant="destructive" className="text-lg px-4 py-2">
-                      <Package className="w-5 h-5 mr-2" />
-                      Producto Agotado
-                    </Badge>
-                  </div>
-                )}
-
-                {/* Badge de en carrito */}
-                {isInCart && !isOutOfStock && (
-                  <div className="absolute top-4 right-4">
-                    <Badge className="bg-emerald-500 text-white shadow-lg px-3 py-1">
-                      <ShoppingCart className="w-4 h-4 mr-1" />
-                      En carrito: {cantidadEnCarrito}
-                    </Badge>
-                  </div>
-                )}
               </div>
 
               <div className="text-center text-sm text-muted-foreground">
@@ -182,8 +148,8 @@ export function ProductDetailModal({
                           producto.stock > 10
                             ? "text-green-600"
                             : producto.stock > 0
-                            ? "text-yellow-600"
-                            : "text-red-600"
+                              ? "text-yellow-600"
+                              : "text-red-600"
                         }`}
                       >
                         {producto.stock} unidades
@@ -226,8 +192,8 @@ export function ProductDetailModal({
                           1,
                           Math.min(
                             producto.stock,
-                            parseInt(e.target.value) || 1
-                          )
+                            parseInt(e.target.value) || 1,
+                          ),
                         );
                         setCantidad(value);
                       }}

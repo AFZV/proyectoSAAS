@@ -5,8 +5,12 @@ import {
   Min,
   IsUUID,
   IsOptional,
+  IsIn,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
 
+import { Transform, Type } from 'class-transformer';
 export enum ProductoEstado {
   ACTIVO = 'activo',
   INACTIVO = 'inactivo',
@@ -14,18 +18,19 @@ export enum ProductoEstado {
   DISPONIBLE = 'disponible',
 }
 
+export class ProductoImagenDto {
+  @IsIn(['image1', 'image2', 'image3'])
+  slot: 'image1' | 'image2' | 'image3';
+
+  @IsString()
+  url: string;
+}
+
 export class CreateProductoDto {
   @IsString()
   nombre: string;
 
-  @IsNumber()
-  @Min(0)
-  precioCompra: number;
-
-  @IsNumber()
-  @Min(0)
-  precioVenta: number;
-
+  @IsOptional()
   @IsUrl()
   imagenUrl: string;
 
@@ -35,20 +40,48 @@ export class CreateProductoDto {
 
   @IsOptional()
   @IsString()
-  manifiestoUrl: string;
+  manifiestoUrl?: string;
   @IsOptional()
   @IsString()
-  descripcion: string;
-}
+  descripcion?: string;
 
-//  id          String   @id @default(uuid())
-//   codigo      Int      @default(autoincrement())
-//   nombre      String   @db.Text
-//   precioCompra      Float    @db.DoublePrecision
-//   precioVenta      Float    @db.DoublePrecision
-//   categoriaId String ?
-//   imagenUrl   String   @db.Text
-//   fechaCreado      DateTime @default(now())
-//   fechaActualizado DateTime @updatedAt
-//   estado String @db.Text
-//   manifiestoUrl     String?   @db.Text // ← NUEVO CAMPO OPCIONAL
+  @IsOptional()
+  @IsString()
+  referencia?: string;
+
+  @IsOptional()
+  @IsNumber()
+  precioCompraExterior?: number;
+
+  @IsOptional()
+  @IsString()
+  monedaCompraExterior?: string;
+
+  @IsOptional()
+  @IsNumber()
+  unidadesPorBulto?: number;
+
+  @IsOptional()
+  @IsNumber()
+  pesoPorBulto?: number;
+
+  @IsOptional()
+  @IsNumber()
+  cubicajePorBulto?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductoImagenDto)
+  imagenes?: ProductoImagenDto[];
+
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  precioCompra: number;
+
+  @Transform(({ value }) => Number(value))
+  @IsNumber()
+  @Min(0)
+  precioVenta: number;
+}

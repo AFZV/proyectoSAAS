@@ -133,10 +133,40 @@ model Producto {
   detalleCompra        DetalleCompra[]
   movimientoInventario MovimientoInventario[]
 
+   // ── Carrusel ────────────────────────────────────────
+  imagenes         ProductoImagen[]
+   // ── Referencia comercial ────────────────────────────
+  referencia       String?  @db.Text
+  precioCompraExterior Float?   @db.DoublePrecision
+  monedaCompraExterior String?   @db.Text
+
+  // ── Datos de bulto (kg y m³ fijos) ─────────────────
+  unidadesPorBulto Int?
+  pesoPorBulto     Float?   @db.DoublePrecision  // siempre en kg
+  cubicajePorBulto Float?   @db.DoublePrecision  // siempre en m³
+
   ///agregar una descripcion opcinal del producto
 
   @@unique([codigo, empresaId])
   @@index([empresaId])
+}
+
+
+//nuevo modelo
+model ProductoImagen {
+  id         String   @id @default(uuid())
+  productoId String
+  url        String   @db.Text
+  orden      Int      @default(0)
+  altText    String?  @db.Text
+  activo     Boolean  @default(true)
+  creadoEn   DateTime @default(now())
+
+  producto Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@index([productoId])
+  @@index([productoId, orden])
+   @@unique([productoId, orden])
 }
 
 model CategoriasProducto {

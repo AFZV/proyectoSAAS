@@ -173,7 +173,6 @@ export class PedidosController {
     @Body('diasCredito', ParseIntPipe) diasCredito: number,
     @Req() req: UsuarioRequest
   ) {
-    console.log('diasCredito recibido en el controlador:', diasCredito);
     const usuario = req.usuario;
     return await this.pedidosService.actualizarDiasCredito(
       pedidoId,

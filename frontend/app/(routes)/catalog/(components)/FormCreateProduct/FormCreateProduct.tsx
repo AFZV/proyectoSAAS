@@ -7,7 +7,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Form,
   FormControl,
@@ -34,30 +33,33 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@clerk/nextjs";
 import { useToast } from "@/hooks/use-toast";
-// import { UploadButton } from "@/utils/UploadButton";
-import { Plus, Package } from "lucide-react";
+import { Plus, Package, Camera, Trash2 } from "lucide-react";
 import type { Categoria } from "../../types/catalog.types";
+
+type Slot = "image1" | "image2" | "image3";
 
 const formSchema = z.object({
   nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
   precioCompra: z.number().min(0, "El precio de compra debe ser mayor a 0"),
   precioVenta: z.number().min(0, "El precio de venta debe ser mayor a 0"),
-  imagenUrl: z.string().url("URL de imagen inválida"),
   categoriaId: z.string().min(1, "Debe seleccionar una categoría"),
+  // Opcionales
+  referencia: z.string().optional(),
+  unidadesPorBulto: z.number().optional(),
+  pesoPorBulto: z.number().optional(),
+  cubicajePorBulto: z.number().optional(),
+  precioCompraExterior: z.number().optional(),
+  monedaCompraExterior: z.string().optional(),
 });
 
 const categoriaSchema = z.object({
-  nombre: z
-    .string()
-    .min(2, "El nombre debe tener al menos 2 caracteres")
-    .max(50, "El nombre no puede exceder 30 caracteres"),
+  nombre: z.string().min(2).max(50),
 });
 
 interface FormCreateProductProps {
   onSuccess: () => void;
 }
 
-// Componente para crear nueva categoría
 function CreateCategoriaModal({
   onCategoriaCreated,
 }: {
@@ -70,16 +72,13 @@ function CreateCategoriaModal({
 
   const categoriaForm = useForm<z.infer<typeof categoriaSchema>>({
     resolver: zodResolver(categoriaSchema),
-    defaultValues: {
-      nombre: "",
-    },
+    defaultValues: { nombre: "" },
   });
 
   const onSubmitCategoria = async (values: z.infer<typeof categoriaSchema>) => {
     try {
       setIsSubmitting(true);
       const token = await getToken();
-
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/productos/categoria/create`,
         {
@@ -89,28 +88,17 @@ function CreateCategoriaModal({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(values),
-        }
+        },
       );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Error al crear categoría");
-      }
-
+      if (!response.ok) throw new Error((await response.json()).message);
       const data = await response.json();
-
-      toast({
-        title: "Categoría creada exitosamente",
-        description: `${data.categoria.nombre} ha sido agregada`,
-      });
-
+      toast({ title: "Categoría creada", description: data.categoria.nombre });
       onCategoriaCreated(data.categoria);
       categoriaForm.reset();
       setIsOpen(false);
     } catch (error: any) {
-      console.error("Error:", error);
       toast({
-        title: "Error al crear categoría",
+        title: "Error",
         description: error.message,
         variant: "destructive",
       });
@@ -126,7 +114,7 @@ function CreateCategoriaModal({
           type="button"
           variant="outline"
           size="sm"
-          className="flex items-center gap-1 hover:bg-blue-50 hover:border-blue-300"
+          className="flex items-center gap-1"
         >
           <Plus className="w-3 h-3" />
           Nueva Categoría
@@ -138,11 +126,7 @@ function CreateCategoriaModal({
             <Package className="w-5 h-5 text-blue-600" />
             Crear Nueva Categoría
           </DialogTitle>
-          <DialogDescription>
-            Agrega una nueva categoría para organizar tus productos
-          </DialogDescription>
         </DialogHeader>
-
         <Form {...categoriaForm}>
           <form
             onSubmit={categoriaForm.handleSubmit(onSubmitCategoria)}
@@ -153,37 +137,28 @@ function CreateCategoriaModal({
               name="nombre"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nombre de la Categoría</FormLabel>
+                  <FormLabel>Nombre</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
-                      placeholder="Ej: Papelería, Ferretería, Hogar..."
-                      maxLength={30}
+                      placeholder="Ej: Papelería, Ferretería..."
+                      maxLength={50}
                     />
                   </FormControl>
-                  <FormDescription>
-                    {field.value.length}/30 caracteres
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            <div className="flex justify-end space-x-2">
+            <div className="flex justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setIsOpen(false)}
-                disabled={isSubmitting}
               >
                 Cancelar
               </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-              >
-                {isSubmitting ? "Creando..." : "Crear Categoría"}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creando..." : "Crear"}
               </Button>
             </div>
           </form>
@@ -195,55 +170,30 @@ function CreateCategoriaModal({
 
 export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [photoUploaded, setPhotoUploaded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  // Estados de imágenes por slot
+  const [imageFiles, setImageFiles] = useState<Record<Slot, File | null>>({
+    image1: null,
+    image2: null,
+    image3: null,
+  });
+  const [imagePreviews, setImagePreviews] = useState<
+    Record<Slot, string | null>
+  >({
+    image1: null,
+    image2: null,
+    image3: null,
+  });
+  const [imageUrls, setImageUrls] = useState<Record<Slot, string | null>>({
+    image1: null,
+    image2: null,
+    image3: null,
+  });
 
   const { getToken } = useAuth();
   const { toast } = useToast();
-
-  const handleImageUpload = async (
-    file: File,
-    setUrl: (url: string) => void,
-    setUploaded: (v: boolean) => void
-  ) => {
-    const formData = new FormData();
-    formData.append("imagen", file);
-
-    try {
-      const token = await getToken();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/hetzner-storage/upload-product`, //aca
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Error al subir imagen");
-      }
-
-      const data = await response.json(); // { url: string }
-      setUrl(data.url);
-      setUploaded(true);
-
-      toast({
-        title: "Imagen cargada",
-        description: "La imagen se subió correctamente",
-      });
-    } catch (error: any) {
-      console.error(error);
-      toast({
-        title: "Error al subir imagen",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -251,12 +201,16 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
       nombre: "",
       precioCompra: 0,
       precioVenta: 0,
-      imagenUrl: "",
       categoriaId: "",
+      referencia: "",
+      unidadesPorBulto: undefined,
+      pesoPorBulto: undefined,
+      cubicajePorBulto: undefined,
+      precioCompraExterior: undefined,
+      monedaCompraExterior: "",
     },
   });
 
-  // Cargar categorías al montar el componente
   useEffect(() => {
     fetchCategorias();
   }, []);
@@ -266,41 +220,97 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
       const token = await getToken();
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/productos/categoria/empresa`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
-
       if (response.ok) {
         const data = await response.json();
         setCategorias(data.categorias);
       }
     } catch (error) {
       console.error("Error al cargar categorías:", error);
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar las categorías",
-        variant: "destructive",
-      });
     }
   };
 
-  // Función para formatear números mientras el usuario escribe
+  const handleCategoriaCreated = (nuevaCategoria: Categoria) => {
+    setCategorias((prev) => [...prev, nuevaCategoria]);
+    form.setValue("categoriaId", nuevaCategoria.idCategoria);
+  };
+
   const formatearNumero = (value: string): number => {
-    // Remover todo lo que no sea dígito o punto decimal
     const cleaned = value.replace(/[^\d.]/g, "");
     return cleaned === "" ? 0 : parseFloat(cleaned) || 0;
   };
 
-  // Callback cuando se crea una nueva categoría
-  const handleCategoriaCreated = (nuevaCategoria: Categoria) => {
-    setCategorias((prev) => [...prev, nuevaCategoria]);
-    // Seleccionar automáticamente la nueva categoría
-    form.setValue("categoriaId", nuevaCategoria.idCategoria);
-    toast({
-      title: "Categoría agregada",
-      description: "La nueva categoría ha sido seleccionada automáticamente",
-    });
+  // Seleccionar imagen por slot — genera preview inmediato
+  const handleFileSelectSlot = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    slot: Slot,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Error",
+        description: "Solo se permiten imágenes",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Error",
+        description: "La imagen debe ser menor a 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setImagePreviews((prev) => ({
+        ...prev,
+        [slot]: event.target?.result as string,
+      }));
+    };
+    reader.readAsDataURL(file);
+    setImageFiles((prev) => ({ ...prev, [slot]: file }));
+  };
+
+  const removeImageSlot = (slot: Slot) => {
+    setImageFiles((prev) => ({ ...prev, [slot]: null }));
+    setImagePreviews((prev) => ({ ...prev, [slot]: null }));
+    setImageUrls((prev) => ({ ...prev, [slot]: null }));
+  };
+
+  // Subir imagen al bucket por slot
+  const uploadImageSlot = async (
+    file: File,
+    slot: Slot,
+    productoId: string,
+  ): Promise<string> => {
+    const formData = new FormData();
+    formData.append("imagen", file);
+    formData.append("productoId", productoId);
+    formData.append("slot", slot);
+
+    const token = await getToken();
+    if (!token) throw new Error("No hay token");
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/hetzner-storage/upload-product`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      },
+    );
+
+    if (!response.ok)
+      throw new Error(
+        (await response.json()).message || "Error al subir imagen",
+      );
+    return (await response.json()).url;
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -308,11 +318,7 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
       setIsSubmitting(true);
       const token = await getToken();
 
-      // ✅ Codificar imagenUrl antes de enviar
-      if (values.imagenUrl) {
-        values.imagenUrl = encodeURI(values.imagenUrl);
-      }
-
+      // 1. Crear producto sin imágenes primero
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/productos/create`,
         {
@@ -321,25 +327,66 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(values),
-        }
+          body: JSON.stringify({
+            ...values,
+            // imagenUrl vacío — se llenará con image1 si la suben
+          }),
+        },
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Error al crear producto");
+      if (!response.ok)
+        throw new Error(
+          (await response.json()).message || "Error al crear producto",
+        );
+      const data = await response.json();
+      const productoId = data.producto.id;
+
+      // 2. Subir imágenes si hay y actualizar producto
+      const imagenesPayload: { slot: Slot; url: string }[] = [];
+      let imagenUrlPrincipal: string | undefined;
+
+      setIsUploadingImage(true);
+      for (const slot of ["image1", "image2", "image3"] as Slot[]) {
+        const file = imageFiles[slot];
+        if (file) {
+          const url = await uploadImageSlot(file, slot, productoId);
+          imagenesPayload.push({ slot, url });
+          if (slot === "image1") imagenUrlPrincipal = encodeURI(url);
+        }
+      }
+      setIsUploadingImage(false);
+
+      // 3. Si hay imágenes, actualizar producto con urls
+      if (imagenesPayload.length > 0) {
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/productos/update/${productoId}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              ...values,
+              ...(imagenUrlPrincipal && { imagenUrl: imagenUrlPrincipal }),
+              imagenes: imagenesPayload,
+            }),
+          },
+        );
       }
 
-      const data = await response.json();
-
       toast({
-        title: "Producto creado exitosamente",
-        description: `${data.producto.nombre} ha sido agregado al catálogo`,
+        title: "Producto creado",
+        description: `${data.producto.nombre} agregado al catálogo`,
       });
 
+      // Reset
+      form.reset();
+      setImageFiles({ image1: null, image2: null, image3: null });
+      setImagePreviews({ image1: null, image2: null, image3: null });
+      setImageUrls({ image1: null, image2: null, image3: null });
       onSuccess();
     } catch (error: any) {
-      console.error("Error:", error);
       toast({
         title: "Error al crear producto",
         description: error.message,
@@ -347,6 +394,7 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
       });
     } finally {
       setIsSubmitting(false);
+      setIsUploadingImage(false);
     }
   };
 
@@ -354,13 +402,13 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Nombre del producto */}
+          {/* Nombre */}
           <FormField
             control={form.control}
             name="nombre"
             render={({ field }) => (
               <FormItem className="col-span-full">
-                <FormLabel>Nombre del Producto</FormLabel>
+                <FormLabel>Nombre del Producto *</FormLabel>
                 <FormControl>
                   <Input
                     {...field}
@@ -372,7 +420,7 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
             )}
           />
 
-          {/* Precio de compra */}
+          {/* Precio compra */}
           <FormField
             control={form.control}
             name="precioCompra"
@@ -381,7 +429,7 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
                 <FormLabel>Precio de Compra *</FormLabel>
                 <FormControl>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                       $
                     </span>
                     <Input
@@ -389,28 +437,18 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
                       placeholder="0"
                       className="pl-8"
                       value={field.value === 0 ? "" : field.value.toString()}
-                      onChange={(e) => {
-                        const value = formatearNumero(e.target.value);
-                        field.onChange(value);
-                      }}
-                      onBlur={() => {
-                        // Si está vacío al perder el foco, establecer en 0
-                        if (field.value === 0) {
-                          field.onChange(0);
-                        }
-                      }}
+                      onChange={(e) =>
+                        field.onChange(formatearNumero(e.target.value))
+                      }
                     />
                   </div>
                 </FormControl>
-                <FormDescription>
-                  Precio al que compras el producto
-                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          {/* Precio de venta */}
+          {/* Precio venta */}
           <FormField
             control={form.control}
             name="precioVenta"
@@ -419,7 +457,7 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
                 <FormLabel>Precio de Venta *</FormLabel>
                 <FormControl>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                       $
                     </span>
                     <Input
@@ -427,34 +465,24 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
                       placeholder="0"
                       className="pl-8"
                       value={field.value === 0 ? "" : field.value.toString()}
-                      onChange={(e) => {
-                        const value = formatearNumero(e.target.value);
-                        field.onChange(value);
-                      }}
-                      onBlur={() => {
-                        // Si está vacío al perder el foco, establecer en 0
-                        if (field.value === 0) {
-                          field.onChange(0);
-                        }
-                      }}
+                      onChange={(e) =>
+                        field.onChange(formatearNumero(e.target.value))
+                      }
                     />
                   </div>
                 </FormControl>
-                <FormDescription>
-                  Precio al que vendes el producto
-                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          {/* Categoría con botón para crear nueva */}
+          {/* Categoría */}
           <FormField
             control={form.control}
             name="categoriaId"
             render={({ field }) => (
               <FormItem className="col-span-full">
-                <FormLabel>Categoría</FormLabel>
+                <FormLabel>Categoría *</FormLabel>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <Select onValueChange={field.onChange} value={field.value}>
@@ -464,12 +492,12 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {categorias.map((categoria) => (
+                        {categorias.map((cat) => (
                           <SelectItem
-                            key={categoria.idCategoria}
-                            value={categoria.idCategoria}
+                            key={cat.idCategoria}
+                            value={cat.idCategoria}
                           >
-                            {categoria.nombre}
+                            {cat.nombre}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -479,81 +507,231 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
                     onCategoriaCreated={handleCategoriaCreated}
                   />
                 </div>
-                <FormDescription>
-                  {categorias.length === 0
-                    ? "No hay categorías. Crea una nueva categoría primero."
-                    : "Selecciona una categoría existente o crea una nueva"}
-                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="imagenUrl"
-            render={({ field }) => (
-              <FormItem className="col-span-full">
-                <FormLabel>Imagen del Producto</FormLabel>
-                <FormControl>
-                  <div className="space-y-4">
-                    {photoUploaded && field.value ? (
-                      <div className="flex items-center space-x-4">
-                        <div className="w-20 h-20 border rounded-lg overflow-hidden">
-                          <img
-                            src={field.value}
-                            alt="Producto"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-green-600">
-                            ✅ Imagen cargada correctamente
-                          </p>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setPhotoUploaded(false);
-                              field.onChange("");
-                            }}
-                          >
-                            Cambiar imagen
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <Input
-                          type="file"
-                          accept="image/*"
-                          className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg hover:border-slate-400 transition-colors p-2"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              handleImageUpload(
-                                file,
-                                field.onChange,
-                                setPhotoUploaded
-                              );
-                            }
-                          }}
+          {/* ── Imágenes del carrusel ── */}
+          <div className="col-span-full space-y-2">
+            <Label>
+              Imágenes del producto{" "}
+              <span className="text-muted-foreground text-xs">(opcional)</span>
+            </Label>
+            <div className="grid grid-cols-3 gap-3">
+              {(["image1", "image2", "image3"] as Slot[]).map((slot, idx) => {
+                const preview = imagePreviews[slot];
+                const label = idx === 0 ? "Principal" : `Imagen ${idx + 1}`;
+                return (
+                  <div key={slot} className="flex flex-col items-center gap-1">
+                    <span className="text-xs text-muted-foreground">
+                      {label}
+                    </span>
+                    <div className="w-20 h-20 border-2 border-dashed rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+                      {preview ? (
+                        <img
+                          src={preview}
+                          alt={label}
+                          className="w-full h-full object-cover"
                         />
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Sube una imagen en formato JPG o PNG
-                        </p>
-                      </div>
+                      ) : (
+                        <Camera className="w-6 h-6 text-muted-foreground opacity-40" />
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-7 px-2 text-blue-600"
+                      onClick={() =>
+                        document.getElementById(`create-file-${slot}`)?.click()
+                      }
+                      disabled={isUploadingImage}
+                    >
+                      {imageFiles[slot] ? "Cambiar" : "Subir"}
+                    </Button>
+                    {imageFiles[slot] && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 px-2 text-red-500"
+                        onClick={() => removeImageSlot(slot)}
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Quitar
+                      </Button>
                     )}
+                    <input
+                      id={`create-file-${slot}`}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileSelectSlot(e, slot)}
+                    />
                   </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              La imagen principal se usará como portada en el catálogo
+            </p>
+          </div>
+
+          {/* ── Campos logística (opcionales) ── */}
+          <div className="col-span-full">
+            <p className="text-sm font-medium mb-3">
+              Datos de logística{" "}
+              <span className="text-muted-foreground text-xs">(opcional)</span>
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="referencia"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Referencia</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Código proveedor" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="unidadesPorBulto"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Unidades por bulto</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="Ej: 12"
+                        value={field.value ?? ""}
+                        onChange={(e) =>
+                          field.onChange(
+                            e.target.value
+                              ? parseInt(e.target.value)
+                              : undefined,
+                          )
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="pesoPorBulto"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Peso por bulto (kg)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="Ej: 8.5"
+                        value={field.value ?? ""}
+                        onChange={(e) =>
+                          field.onChange(
+                            e.target.value
+                              ? parseFloat(e.target.value)
+                              : undefined,
+                          )
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="cubicajePorBulto"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cubicaje por bulto (m³)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        placeholder="Ej: 0.05"
+                        value={field.value ?? ""}
+                        onChange={(e) =>
+                          field.onChange(
+                            e.target.value
+                              ? parseFloat(e.target.value)
+                              : undefined,
+                          )
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="precioCompraExterior"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Precio compra exterior</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="Ej: 12.50"
+                        value={field.value ?? ""}
+                        onChange={(e) =>
+                          field.onChange(
+                            e.target.value
+                              ? parseFloat(e.target.value)
+                              : undefined,
+                          )
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="monedaCompraExterior"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Moneda exterior</FormLabel>
+                    <FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="USD">USD — Dólar</SelectItem>
+                          <SelectItem value="EUR">EUR — Euro</SelectItem>
+                          <SelectItem value="CNY">CNY — Yuan</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Resumen de ganancias */}
+        {/* Resumen financiero */}
         {form.watch("precioCompra") > 0 && form.watch("precioVenta") > 0 && (
           <div className="bg-muted/50 p-4 rounded-lg">
             <h4 className="font-medium mb-2">Resumen financiero</h4>
@@ -570,9 +748,7 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
                 </p>
               </div>
               <div>
-                <span className="text-muted-foreground">
-                  Margen de ganancia:
-                </span>
+                <span className="text-muted-foreground">Margen:</span>
                 <p className="font-semibold">
                   {(
                     ((form.watch("precioVenta") - form.watch("precioCompra")) /
@@ -586,14 +762,14 @@ export function FormCreateProduct({ onSuccess }: FormCreateProductProps) {
           </div>
         )}
 
-        {/* Botones */}
-        <div className="flex justify-end space-x-4">
+        {/* Botón submit */}
+        <div className="flex justify-end">
           <Button
             type="submit"
-            disabled={isSubmitting || !photoUploaded}
-            className="min-w-[120px] bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-blue-500/25"
+            disabled={isSubmitting || isUploadingImage}
+            className="min-w-[140px] bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
           >
-            {isSubmitting ? "Creando..." : "Crear Producto"}
+            {isSubmitting || isUploadingImage ? "Creando..." : "Crear Producto"}
           </Button>
         </div>
       </form>

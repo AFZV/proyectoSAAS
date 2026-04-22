@@ -114,7 +114,7 @@ export function InvoicesClient({
         setIsRefreshing(false);
       }
     },
-    [getToken, itemsPerPage, estadoFiltro, searchTerm, toast]
+    [getToken, itemsPerPage, estadoFiltro, searchTerm, toast],
   );
 
   // ▶️ Cargar al montar y cuando cambian filtros/búsqueda (debounced)
@@ -325,7 +325,7 @@ export function InvoicesClient({
 
   const handleUpdatePedido = async (pedidoActualizado: Pedido) => {
     setPedidos((prev) =>
-      prev.map((p) => (p.id === pedidoActualizado.id ? pedidoActualizado : p))
+      prev.map((p) => (p.id === pedidoActualizado.id ? pedidoActualizado : p)),
     );
     setSelectedPedido(pedidoActualizado);
 
@@ -337,7 +337,7 @@ export function InvoicesClient({
   const getFechaEstado = (
     pedido: Pedido,
     estadoBuscado: string,
-    modo: "primero" | "ultimo" = "ultimo"
+    modo: "primero" | "ultimo" = "ultimo",
   ): string | null => {
     if (!pedido?.estados?.length) return null;
     const coincidencias = pedido.estados
@@ -345,7 +345,7 @@ export function InvoicesClient({
       .sort(
         (a, b) =>
           new Date(a.fechaEstado).getTime() - // 👈 corregido
-          new Date(b.fechaEstado).getTime()
+          new Date(b.fechaEstado).getTime(),
       ); // asc
 
     if (coincidencias.length === 0) return null;
@@ -378,7 +378,7 @@ export function InvoicesClient({
                 "SEPARADO",
                 "FACTURADO",
                 "ACEPTADO",
-              ].includes(estado)
+              ].includes(estado),
           )
           .reduce((sum, [, count]) => sum + count, 0),
         pedidosCompletados: estadisticas.pedidosPorEstado.ENVIADO || 0,
@@ -392,22 +392,22 @@ export function InvoicesClient({
 
     const totalPedidos = pedidos.length;
     const pedidosGenerados = pedidos.filter(
-      (p) => getEstadoActual(p) === "GENERADO"
+      (p) => getEstadoActual(p) === "GENERADO",
     ).length;
     const pedidosCompletados = pedidos.filter(
-      (p) => getEstadoActual(p) === "ENVIADO"
+      (p) => getEstadoActual(p) === "ENVIADO",
     ).length;
     const pedidosCancelados = pedidos.filter(
-      (p) => getEstadoActual(p) === "CANCELADO"
+      (p) => getEstadoActual(p) === "CANCELADO",
     ).length;
     const pedidosSeparados = pedidos.filter(
-      (p) => getEstadoActual(p) === "SEPARADO"
+      (p) => getEstadoActual(p) === "SEPARADO",
     ).length;
     const pedidosFacturados = pedidos.filter(
-      (p) => getEstadoActual(p) === "FACTURADO"
+      (p) => getEstadoActual(p) === "FACTURADO",
     ).length;
     const pedidosAceptados = pedidos.filter(
-      (p) => getEstadoActual(p) === "ACEPTADO"
+      (p) => getEstadoActual(p) === "ACEPTADO",
     ).length;
 
     return {
@@ -431,6 +431,46 @@ export function InvoicesClient({
 
   // Los pedidos YA vienen paginados desde el backend
   const pedidosPaginaActual = pedidos;
+  const [generandoManifiestos, setGenerandoManifiestos] = useState(false);
+
+  const handleDescargarManifiestos = async (pedido: Pedido) => {
+    try {
+      setGenerandoManifiestos(true);
+      const token = await getToken();
+      if (!token) return;
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/pedidos/manifiestos/fusionar/${pedido.id}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      if (!response.ok) throw new Error("Error al obtener manifiestos");
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `manifiestos_${pedido.id.slice(0, 5)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Manifiestos descargados",
+        description: "El PDF de manifiestos se descargó correctamente",
+      });
+    } catch (error) {
+      console.error("Error al descargar manifiestos:", error);
+      toast({
+        title: "Error al descargar",
+        description: "No se pudo descargar el PDF de manifiestos",
+        variant: "destructive",
+      });
+    } finally {
+      setGenerandoManifiestos(false);
+    }
+  };
 
   return (
     <div className="p-4 lg:p-6">
@@ -615,6 +655,7 @@ export function InvoicesClient({
                 onVerDetalle={handleVerDetalle}
                 onEditarPedido={handleEditarPedido}
                 onDescargarPdf={handleDescargarPdf}
+                onDescargarManifiestos={handleDescargarManifiestos}
               />
             )}
 
@@ -629,6 +670,7 @@ export function InvoicesClient({
                 onVerDetalle={handleVerDetalle}
                 onEditarPedido={handleEditarPedido}
                 onDescargarPdf={handleDescargarPdf}
+                onDescargarManifiestos={handleDescargarManifiestos}
               />
             )}
           </>
@@ -716,6 +758,29 @@ export function InvoicesClient({
           </div>
         </div>
       </div>
+
+      {/* Overlay manifiestos */}
+      {generandoManifiestos && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center space-y-4 max-w-sm w-full mx-4">
+            <div className="relative">
+              <div className="h-16 w-16 rounded-full border-4 border-purple-100 border-t-purple-600 animate-spin" />
+              <FileText className="h-6 w-6 text-purple-600 absolute inset-0 m-auto" />
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-semibold text-gray-900">
+                Generando manifiestos
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Fusionando PDFs, esto puede tomar unos segundos...
+              </p>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+              <div className="h-full bg-purple-600 rounded-full animate-pulse w-3/4" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modales */}
       <InvoiceDetailModal

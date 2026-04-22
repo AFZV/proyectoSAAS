@@ -16,7 +16,7 @@ export class CatalogService {
   private async makeRequest<T>(
     endpoint: string,
     token: string,
-    options?: RequestInit
+    options?: RequestInit,
   ): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
@@ -40,16 +40,16 @@ export class CatalogService {
     const [productosRes, categoriasRes] = await Promise.all([
       this.makeRequest<{ productos: ProductoBackend[] }>(
         "/productos/empresa/activos",
-        token
+        token,
       ),
       this.makeRequest<{ categorias: Categoria[] }>(
         "/productos/categoria/empresa",
-        token
+        token,
       ),
     ]);
 
     const categoriasMap = new Map(
-      categoriasRes.categorias.map((cat) => [cat.idCategoria, cat.nombre])
+      categoriasRes.categorias.map((cat) => [cat.idCategoria, cat.nombre]),
     );
 
     // Mapear productos y ordenar alfabéticamente por nombre
@@ -61,13 +61,13 @@ export class CatalogService {
         categoria: categoriasMap.get(producto.categoriaId) || "Sin categoría",
         imagenUrl: producto.imagenUrl,
         stock: producto.inventario?.[0]?.stockActual ?? 0,
+        imagenes: producto.imagenes || [], // ← agregar esto
       }))
-      // ✅ ORDENAR ALFABÉTICAMENTE POR NOMBRE (A-Z)
       .sort((a, b) =>
         a.nombre.localeCompare(b.nombre, "es", {
-          sensitivity: "base", // Ignora mayúsculas/minúsculas y acentos
-          numeric: true, // Maneja números correctamente (ej: "Producto 2" antes que "Producto 10")
-        })
+          sensitivity: "base",
+          numeric: true,
+        }),
       );
 
     return productosOrdenados;
@@ -79,7 +79,7 @@ export class CatalogService {
   async getAllProductosEmpresa(token: string): Promise<ProductoBackend[]> {
     const response = await this.makeRequest<{ productos: ProductoBackend[] }>(
       "/productos/empresa",
-      token
+      token,
     );
     return response.productos;
   }
@@ -87,7 +87,7 @@ export class CatalogService {
   // Crear nuevo producto
   async createProducto(
     token: string,
-    productoData: CreateProductoDto
+    productoData: CreateProductoDto,
   ): Promise<any> {
     return this.makeRequest("/productos/create", token, {
       method: "POST",
@@ -99,7 +99,7 @@ export class CatalogService {
   async updateProducto(
     token: string,
     productoId: string,
-    productoData: UpdateProductoDto
+    productoData: UpdateProductoDto,
   ): Promise<any> {
     return this.makeRequest(`/productos/update/${productoId}`, token, {
       method: "PUT",
@@ -117,7 +117,7 @@ export class CatalogService {
   // Crear nueva categoría
   async createCategoria(
     token: string,
-    categoriaData: CreateCategoriaProductoDto
+    categoriaData: CreateCategoriaProductoDto,
   ): Promise<any> {
     return this.makeRequest("/productos/categoria/create", token, {
       method: "POST",
@@ -128,7 +128,7 @@ export class CatalogService {
   // Obtener productos por categoría
   async getProductosPorCategoria(
     token: string,
-    categoriaId: string
+    categoriaId: string,
   ): Promise<ProductoBackend[]> {
     return this.makeRequest(`/productos/categoria/${categoriaId}`, token);
   }
@@ -137,7 +137,7 @@ export class CatalogService {
   async getCategorias(token: string): Promise<Categoria[]> {
     const response = await this.makeRequest<{ categorias: Categoria[] }>(
       "/productos/categoria/empresa",
-      token
+      token,
     );
     return response.categorias;
   }
@@ -174,7 +174,7 @@ export class CatalogService {
           throw new Error("Token de autorización inválido o expirado");
         } else {
           throw new Error(
-            `Error ${response.status}: ${errorText || response.statusText}`
+            `Error ${response.status}: ${errorText || response.statusText}`,
           );
         }
       }
@@ -204,7 +204,7 @@ export class CatalogService {
   // 🔄 MÉTODO ALTERNATIVO: Usar getByFilter en lugar de getByNit
   async buscarClientePorNitAlternativo(
     token: string,
-    nit: string
+    nit: string,
   ): Promise<Cliente> {
     try {
       const nitLimpio = nit.trim().replace(/[.-\s]/g, "");
@@ -233,7 +233,7 @@ export class CatalogService {
           throw new Error("Cliente no encontrado");
         } else {
           throw new Error(
-            `Error ${response.status}: ${errorText || response.statusText}`
+            `Error ${response.status}: ${errorText || response.statusText}`,
           );
         }
       }
@@ -259,7 +259,7 @@ export class CatalogService {
     token: string,
     clienteId: string,
     carrito: { id: string; cantidad: number; precio: number }[],
-    observaciones?: string
+    observaciones?: string,
   ): Promise<any> {
     const pedidoData: CreatePedidoDto = {
       clienteId,
@@ -280,12 +280,16 @@ export class CatalogService {
   // 📄 GENERAR CATÁLOGO PDF POR IDS SELECCIONADOS
   async generarCatalogoPorIds(
     token: string,
-    productoIds: string[]
+    productoIds: string[],
   ): Promise<{ url: string; key: string; count: number }> {
-    return this.makeRequest("/productos/catalogoseleccionado/seleccionado", token, {
-      method: "POST",
-      body: JSON.stringify({ productoIds }),
-    });
+    return this.makeRequest(
+      "/productos/catalogoseleccionado/seleccionado",
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ productoIds }),
+      },
+    );
   }
 }
 

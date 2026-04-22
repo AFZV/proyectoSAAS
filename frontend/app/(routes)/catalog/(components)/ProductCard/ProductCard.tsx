@@ -109,8 +109,8 @@ function AddToCartModal({
                   setCantidad(
                     Math.max(
                       0,
-                      Math.min(producto.stock, parseInt(e.target.value) || 0)
-                    )
+                      Math.min(producto.stock, parseInt(e.target.value) || 0),
+                    ),
                   )
                 }
                 className="w-40 text-center focus:ring-blue-500 focus:border-blue-500"
@@ -171,6 +171,7 @@ function AddToCartModal({
 
 // Componente principal ProductCard actualizado
 import Image from "next/image";
+import { ProductImageCarousel } from "../ProductImageCarousel";
 // ...resto imports
 
 export function ProductCard({
@@ -224,47 +225,34 @@ export function ProductCard({
           isSelectionMode && isSelected
             ? "ring-2 ring-emerald-500 ring-offset-2 shadow-md shadow-emerald-500/30 border-emerald-300 bg-emerald-50/30"
             : isInCart
-            ? "ring-1 ring-emerald-400 ring-offset-1 shadow-md shadow-emerald-500/20 border-emerald-200 bg-emerald-50/30"
-            : "hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/10"
+              ? "ring-1 ring-emerald-400 ring-offset-1 shadow-md shadow-emerald-500/20 border-emerald-200 bg-emerald-50/30"
+              : "hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/10"
         }
       `}
       >
         <CardContent className="p-0 flex flex-col h-full">
           {/* Imagen del producto con next/image */}
-          <div
-            className="relative aspect-square overflow-hidden bg-white flex-shrink-0 cursor-pointer"
-            onClick={handleImageClick}
-          >
-            <Image
-              src={src}
+          <div className="relative aspect-square overflow-hidden bg-white flex-shrink-0">
+            <ProductImageCarousel
+              imagenUrl={producto.imagenUrl}
+              imagenes={producto.imagenes}
               alt={producto.nombre}
-              fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              className="object-contain"
-              priority={false}
+              className="w-full h-full"
+              onClick={handleImageClick}
             />
 
-            {/* Overlay hover para indicar que es clickeable */}
-            {!isSelectionMode && (
-              <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors duration-300 flex items-center justify-center opacity-0 hover:opacity-100">
-                <div className="bg-white/90 rounded-full p-2 transform scale-75 hover:scale-100 transition-transform">
-                  <Eye className="w-6 h-6 text-blue-600" />
-                </div>
-              </div>
-            )}
-
-            {/* Checkbox para modo selección */}
+            {/* Checkbox modo selección — igual que antes */}
             {isSelectionMode && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/5">
+              <div className="absolute inset-0 flex items-center justify-center bg-black/5 pointer-events-none">
                 <div
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (onToggleSelection) onToggleSelection();
+                    onToggleSelection?.();
                   }}
-                  className={`w-10 h-10 rounded-full border-4 flex items-center justify-center cursor-pointer transition-all duration-200 ${
+                  className={`pointer-events-auto w-10 h-10 rounded-full border-4 flex items-center justify-center cursor-pointer transition-all duration-200 ${
                     isSelected
                       ? "bg-emerald-600 border-emerald-600 scale-110"
-                      : "bg-white/90 border-gray-300 hover:border-emerald-400 hover:scale-105"
+                      : "bg-white/90 border-gray-300 hover:border-emerald-400"
                   }`}
                 >
                   {isSelected && (
@@ -277,26 +265,26 @@ export function ProductCard({
                       viewBox="0 0 24 24"
                       stroke="currentColor"
                     >
-                      <path d="M5 13l4 4L19 7"></path>
+                      <path d="M5 13l4 4L19 7" />
                     </svg>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Badge de stock */}
+            {/* Badge agotado */}
             {isOutOfStock && (
-              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                <Badge variant="destructive" className="text-sm">
+              <div className="absolute inset-0 bg-black/60 flex items-center justify-center pointer-events-none">
+                <Badge variant="destructive">
                   <AlertCircle className="w-4 h-4 mr-1" />
                   Agotado
                 </Badge>
               </div>
             )}
 
-            {/* Badge de en carrito */}
+            {/* Badge en carrito */}
             {isInCart && !isOutOfStock && (
-              <div className="absolute top-2 right-2">
+              <div className="absolute top-2 right-2 pointer-events-none">
                 <Badge className="bg-emerald-500 text-white shadow-md text-xs">
                   <ShoppingCart className="w-3 h-3 mr-1" />
                   {cantidadEnCarrito}
@@ -304,8 +292,8 @@ export function ProductCard({
               </div>
             )}
 
-            {/* Categoría */}
-            <div className="absolute top-2 left-2">
+            {/* Badge categoría */}
+            <div className="absolute top-2 left-2 pointer-events-none">
               <Badge
                 variant="secondary"
                 className="text-xs bg-white/90 text-gray-700"

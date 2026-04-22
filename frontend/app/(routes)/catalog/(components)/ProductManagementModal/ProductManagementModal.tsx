@@ -69,16 +69,34 @@ export function ProductManagementModal({
 
   // Estados de edición
   const [editingProduct, setEditingProduct] = useState<EditingProduct | null>(
-    null
+    null,
   );
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  // Nuevo estado para manejar la imagen temporal
-  const [tempImageFile, setTempImageFile] = useState<File | null>(null);
-  const [tempImagePreview, setTempImagePreview] = useState<string | null>(null);
-  // estados nuevos
-  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
+  type Slot = "image1" | "image2" | "image3";
+
+  const [tempImageFiles, setTempImageFiles] = useState<
+    Record<Slot, File | null>
+  >({
+    image1: null,
+    image2: null,
+    image3: null,
+  });
+  const [tempImagePreviews, setTempImagePreviews] = useState<
+    Record<Slot, string | null>
+  >({
+    image1: null,
+    image2: null,
+    image3: null,
+  });
+  const [originalImageUrls, setOriginalImageUrls] = useState<
+    Record<Slot, string | null>
+  >({
+    image1: null,
+    image2: null,
+    image3: null,
+  });
   ///estados para pdfurl
   const [tempPdfFile, setTempPdfFile] = useState<File | null>(null);
   const [originalManifiestoUrl, setOriginalManifiestoUrl] = useState<
@@ -94,15 +112,31 @@ export function ProductManagementModal({
       precioCompra: producto.precioCompra,
       precioVenta: producto.precioVenta,
       categoriaId: producto.categoriaId,
-      imagenUrl: producto.imagenUrl || "", // mantiene UI
-      manifiestoUrl: producto.manifiestoUrl ?? "", // 👈
+      imagenUrl: producto.imagenUrl || "",
+      manifiestoUrl: producto.manifiestoUrl ?? "",
+      // ── Campos nuevos ──────────────────
+      referencia: producto.referencia ?? "",
+      unidadesPorBulto: producto.unidadesPorBulto ?? undefined,
+      pesoPorBulto: producto.pesoPorBulto ?? undefined,
+      cubicajePorBulto: producto.cubicajePorBulto ?? undefined,
+      precioCompraExterior: producto.precioCompraExterior ?? undefined,
+      monedaCompraExterior: producto.monedaCompraExterior ?? "",
     });
-    setOriginalImageUrl(producto.imagenUrl || null); // <-- guarda original
-    setOriginalManifiestoUrl(producto.manifiestoUrl ?? null); // 👈
+
+    const imgs = producto.imagenes || [];
+    const getUrl = (orden: number) =>
+      imgs.find((i) => i.orden === orden)?.url || null;
+
+    setOriginalImageUrls({
+      image1: producto.imagenUrl || null,
+      image2: getUrl(2),
+      image3: getUrl(3),
+    });
+    setTempImageFiles({ image1: null, image2: null, image3: null });
+    setTempImagePreviews({ image1: null, image2: null, image3: null });
+    setOriginalManifiestoUrl(producto.manifiestoUrl ?? null);
     setEditErrors({});
-    setTempImageFile(null);
-    setTempImagePreview(null);
-    setTempPdfFile(null); // 👈
+    setTempPdfFile(null);
     setManifiestoRemoved(false);
   };
 
@@ -139,7 +173,7 @@ export function ProductManagementModal({
           `${process.env.NEXT_PUBLIC_API_URL}/productos/categoria/empresa`,
           {
             headers: { Authorization: `Bearer ${token}` },
-          }
+          },
         ),
       ]);
 
@@ -188,8 +222,53 @@ export function ProductManagementModal({
     setEditingProduct(null);
     setEditErrors({});
     setIsUploadingImage(false);
-    setTempImageFile(null);
-    setTempImagePreview(null);
+    setTempImageFiles({ image1: null, image2: null, image3: null });
+    setTempImagePreviews({ image1: null, image2: null, image3: null });
+  };
+
+  const handleFileSelectSlot = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    slot: Slot,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Error",
+        description: "Solo se permiten imágenes",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Error",
+        description: "La imagen debe ser menor a 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setTempImagePreviews((prev) => ({
+        ...prev,
+        [slot]: event.target?.result as string,
+      }));
+    };
+    reader.readAsDataURL(file);
+
+    setTempImageFiles((prev) => ({ ...prev, [slot]: file }));
+    toast({
+      title: `Imagen ${slot} seleccionada`,
+      description: "Se subirá al guardar",
+    });
+  };
+
+  const removeImageSlot = (slot: Slot) => {
+    setTempImageFiles((prev) => ({ ...prev, [slot]: null }));
+    setTempImagePreviews((prev) => ({ ...prev, [slot]: null }));
   };
 
   // Validar formulario (ACTUALIZADO para requerir imagen)
@@ -207,8 +286,12 @@ export function ProductManagementModal({
     }
     if (!data.categoriaId) errors.categoriaId = "La categoría es requerida";
 
-    // Solo exigir imagen si NO hay original y NO se subió una nueva
-    if (!originalImageUrl && !tempImageFile && !data.imagenUrl) {
+    // Usar tempImageFiles.image1 en lugar de tempImageFile
+    if (
+      !originalImageUrls.image1 &&
+      !tempImageFiles.image1 &&
+      !data.imagenUrl
+    ) {
       errors.imagenUrl = "La imagen del producto es requerida";
     }
 
@@ -216,9 +299,15 @@ export function ProductManagementModal({
   };
 
   // Función para subir imagen a Cloudinary (IGUAL QUE EN CREAR PRODUCTO)
-  const uploadImageToCloudinary = async (file: File): Promise<string> => {
+  const uploadImageToCloudinary = async (
+    file: File,
+    productoId: string,
+    slot: "image1" | "image2" | "image3" = "image1",
+  ): Promise<string> => {
     const formData = new FormData();
     formData.append("imagen", file);
+    formData.append("productoId", editingProduct?.id || ""); // enviar productoId para organizar en Hetzner
+    formData.append("slot", slot); // por ahora siempre image1, puedes extender para manejar múltiples slots si quieres
 
     const token = await getToken();
     if (!token) throw new Error("No hay token de autorización");
@@ -231,7 +320,7 @@ export function ProductManagementModal({
           Authorization: `Bearer ${token}`,
         },
         body: formData,
-      }
+      },
     );
 
     if (!response.ok) {
@@ -245,7 +334,7 @@ export function ProductManagementModal({
   // Sube el manifiesto (PDF) de un producto
   const uploadManifiestoPdf = async (
     file: File,
-    productoId: string
+    productoId: string,
   ): Promise<{ url: string; key: string }> => {
     if (!file) throw new Error("No se ha seleccionado ningún archivo");
     if (file.type !== "application/pdf") {
@@ -267,7 +356,7 @@ export function ProductManagementModal({
           // ¡No seteamos Content-Type manualmente!
         },
         body: formData,
-      }
+      },
     );
 
     if (!response.ok) {
@@ -280,7 +369,7 @@ export function ProductManagementModal({
         detail = await response.text();
       }
       throw new Error(
-        `Error al subir manifiesto: ${response.status} - ${detail}`
+        `Error al subir manifiesto: ${response.status} - ${detail}`,
       );
     }
 
@@ -290,46 +379,46 @@ export function ProductManagementModal({
   };
 
   // Manejar selección de archivo de imagen (IGUAL QUE EN CREAR PRODUCTO)
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = e.target.files?.[0];
+  //   if (!file) return;
 
-    // Validar tipo de archivo
-    if (!file.type.startsWith("image/")) {
-      toast({
-        title: "Error",
-        description: "Solo se permiten archivos de imagen",
-        variant: "destructive",
-      });
-      return;
-    }
+  //   // Validar tipo de archivo
+  //   if (!file.type.startsWith("image/")) {
+  //     toast({
+  //       title: "Error",
+  //       description: "Solo se permiten archivos de imagen",
+  //       variant: "destructive",
+  //     });
+  //     return;
+  //   }
 
-    // Validar tamaño (máximo 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "Error",
-        description: "La imagen debe ser menor a 5MB",
-        variant: "destructive",
-      });
-      return;
-    }
+  //   // Validar tamaño (máximo 5MB)
+  //   if (file.size > 5 * 1024 * 1024) {
+  //     toast({
+  //       title: "Error",
+  //       description: "La imagen debe ser menor a 5MB",
+  //       variant: "destructive",
+  //     });
+  //     return;
+  //   }
 
-    // Crear preview inmediato
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      setTempImagePreview(base64);
-    };
-    reader.readAsDataURL(file);
+  //   // Crear preview inmediato
+  //   const reader = new FileReader();
+  //   reader.onload = (event) => {
+  //     const base64 = event.target?.result as string;
+  //     setTempImagePreview(base64);
+  //   };
+  //   reader.readAsDataURL(file);
 
-    // Guardar el archivo para subirlo después
-    setTempImageFile(file);
+  //   // Guardar el archivo para subirlo después
+  //   setTempImageFile(file);
 
-    toast({
-      title: "Imagen seleccionada",
-      description: "La imagen se subirá al guardar los cambios",
-    });
-  };
+  //   toast({
+  //     title: "Imagen seleccionada",
+  //     description: "La imagen se subirá al guardar los cambios",
+  //   });
+  // };
 
   // Selección de PDF
   const handlePdfSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -374,21 +463,21 @@ export function ProductManagementModal({
   };
 
   // Remover imagen (ACTUALIZADO para DTO requerido)
-  const removeImage = () => {
-    setTempImageFile(null);
-    setTempImagePreview(null);
-    if (editingProduct) {
-      setEditingProduct({
-        ...editingProduct,
-        imagenUrl: "", // ✅ Vacío en lugar de undefined
-      });
-    }
-    toast({
-      title: "Imagen removida",
-      description: "Se usará una imagen por defecto al guardar",
-      variant: "destructive",
-    });
-  };
+  // const removeImage = () => {
+  //   setTempImageFile(null);
+  //   setTempImagePreview(null);
+  //   if (editingProduct) {
+  //     setEditingProduct({
+  //       ...editingProduct,
+  //       imagenUrl: "", // ✅ Vacío en lugar de undefined
+  //     });
+  //   }
+  //   toast({
+  //     title: "Imagen removida",
+  //     description: "Se usará una imagen por defecto al guardar",
+  //     variant: "destructive",
+  //   });
+  // };
 
   // Guardar cambios (MISMA ESTRATEGIA QUE CREAR PRODUCTO)
   const saveChanges = async () => {
@@ -406,57 +495,103 @@ export function ProductManagementModal({
       const token = await getToken();
       if (!token) throw new Error("No hay token de autorización");
 
-      // 3.1 Subir imagen nueva si hay
-      let uploadedUrl: string | undefined;
-      if (tempImageFile) {
-        setIsUploadingImage(true);
-        uploadedUrl = await uploadImageToCloudinary(tempImageFile);
-        setIsUploadingImage(false);
-      }
-      let manifiestoUploadedUrl: string | undefined;
-
-      // 3.2 Decidir si enviar imagenUrl
-      // - Nueva imagen: usar uploadedUrl
-      // - Sin imagen original y sin nueva: usar placeholder
-      // - Si el usuario borró la imagen (imagenUrl === "" y había original): usar placeholder
-      // - En cualquier otro caso: NO enviar imagenUrl (para conservar la existente)
+      // ── 1. Subir imágenes de los 3 slots si hay archivos nuevos ──────────
+      const imagenesPayload: { slot: Slot; url: string }[] = [];
       let imagenUrlToSend: string | undefined;
+
+      setIsUploadingImage(true);
+      for (const slot of ["image1", "image2", "image3"] as Slot[]) {
+        const file = tempImageFiles[slot];
+        if (file) {
+          const url = await uploadImageToCloudinary(
+            file,
+            editingProduct.id,
+            slot,
+          );
+          imagenesPayload.push({ slot, url });
+
+          // image1 también actualiza el campo imagenUrl principal del producto
+          if (slot === "image1") {
+            imagenUrlToSend = encodeURI(url);
+          }
+        }
+      }
+      setIsUploadingImage(false);
+
+      // ── 2. Subir PDF si hay uno nuevo ────────────────────────────────────
+      let manifiestoUploadedUrl: string | undefined;
       if (tempPdfFile) {
         const { url } = await uploadManifiestoPdf(
           tempPdfFile,
-          editingProduct.id
+          editingProduct.id,
         );
         manifiestoUploadedUrl = url;
       }
-      let manifiestoUrlToSend: string | null | undefined = undefined;
-      if (manifiestoUploadedUrl) {
-        manifiestoUrlToSend = manifiestoUploadedUrl; // string
-      } else if (manifiestoRemoved) {
-        manifiestoUrlToSend = null; // limpiar en BDD
+
+      // ── 3. Decidir qué enviar para imagenUrl principal ───────────────────
+      // Si no se subió image1 nueva, revisar si había original o se quitó
+      if (!imagenUrlToSend) {
+        if (!originalImageUrls.image1 && !editingProduct.imagenUrl) {
+          imagenUrlToSend =
+            "https://via.placeholder.com/400x400?text=Sin+Imagen";
+        } else if (
+          originalImageUrls.image1 &&
+          editingProduct.imagenUrl === ""
+        ) {
+          imagenUrlToSend =
+            "https://via.placeholder.com/400x400?text=Sin+Imagen";
+        }
+        // else undefined → backend no toca imagenUrl
       }
 
-      if (uploadedUrl) {
-        imagenUrlToSend = encodeURI(uploadedUrl);
-      } else if (!originalImageUrl && !editingProduct.imagenUrl) {
-        imagenUrlToSend = "https://via.placeholder.com/400x400?text=Sin+Imagen";
-      } else if (originalImageUrl && editingProduct.imagenUrl === "") {
-        // interpretamos que el usuario quitó la imagen existente
-        imagenUrlToSend = "https://via.placeholder.com/400x400?text=Sin+Imagen";
-      } // else: undefined → no tocar imagen en backend
+      // ── 4. Decidir qué enviar para manifiestoUrl ─────────────────────────
+      let manifiestoUrlToSend: string | null | undefined = undefined;
+      if (manifiestoUploadedUrl) {
+        manifiestoUrlToSend = manifiestoUploadedUrl;
+      } else if (manifiestoRemoved) {
+        manifiestoUrlToSend = null; // limpiar en BD
+      }
 
-      // 3.3 Construir payload sin pisar imagen si no corresponde
+      // ── 5. Construir payload ─────────────────────────────────────────────
       const baseData = {
         nombre: editingProduct.nombre.trim(),
         precioCompra: Number(editingProduct.precioCompra),
         precioVenta: Number(editingProduct.precioVenta),
         categoriaId: editingProduct.categoriaId,
+        // ── Campos nuevos ──────────────────
+        ...(editingProduct.referencia !== undefined && {
+          referencia: editingProduct.referencia,
+        }),
+        ...(editingProduct.unidadesPorBulto !== undefined && {
+          unidadesPorBulto: editingProduct.unidadesPorBulto,
+        }),
+        ...(editingProduct.pesoPorBulto !== undefined && {
+          pesoPorBulto: editingProduct.pesoPorBulto,
+        }),
+        ...(editingProduct.cubicajePorBulto !== undefined && {
+          cubicajePorBulto: editingProduct.cubicajePorBulto,
+        }),
+        ...(editingProduct.precioCompraExterior !== undefined && {
+          precioCompraExterior: editingProduct.precioCompraExterior,
+        }),
+        ...(editingProduct.monedaCompraExterior !== undefined && {
+          monedaCompraExterior: editingProduct.monedaCompraExterior,
+        }),
       } as Record<string, unknown>;
 
-      const updateData =
-        imagenUrlToSend !== undefined
-          ? { ...baseData, imagenUrl: imagenUrlToSend }
-          : baseData;
+      const updateData: Record<string, unknown> = { ...baseData };
 
+      if (imagenUrlToSend !== undefined) {
+        updateData.imagenUrl = imagenUrlToSend;
+      }
+      if (manifiestoUrlToSend !== undefined) {
+        updateData.manifiestoUrl = manifiestoUrlToSend;
+      }
+      if (imagenesPayload.length > 0) {
+        updateData.imagenes = imagenesPayload;
+      }
+
+      // ── 6. Llamar al backend ─────────────────────────────────────────────
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/productos/update/${editingProduct.id}`,
         {
@@ -466,13 +601,13 @@ export function ProductManagementModal({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(updateData),
-        }
+        },
       );
 
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(
-          `Error del servidor: ${response.status} - ${errorText}`
+          `Error del servidor: ${response.status} - ${errorText}`,
         );
       }
 
@@ -481,7 +616,7 @@ export function ProductManagementModal({
         description: "Los cambios se guardaron correctamente",
       });
 
-      // 3.4 Actualizar lista local sin perder imagen existente
+      // ── 7. Actualizar lista local ────────────────────────────────────────
       setProductos((prev) =>
         prev.map((p) => {
           if (p.id !== editingProduct.id) return p;
@@ -489,15 +624,34 @@ export function ProductManagementModal({
           if (imagenUrlToSend !== undefined) next.imagenUrl = imagenUrlToSend;
           if (manifiestoUrlToSend !== undefined)
             next.manifiestoUrl = manifiestoUrlToSend as any;
+          // Actualizar imagenes locales con las nuevas URLs
+          if (imagenesPayload.length > 0) {
+            const slotOrden: Record<Slot, number> = {
+              image1: 1,
+              image2: 2,
+              image3: 3,
+            };
+            const imagenesActuales = [...(p.imagenes || [])];
+            imagenesPayload.forEach(({ slot, url }) => {
+              const orden = slotOrden[slot];
+              const idx = imagenesActuales.findIndex((i) => i.orden === orden);
+              if (idx >= 0) {
+                imagenesActuales[idx] = { ...imagenesActuales[idx], url };
+              } else {
+                imagenesActuales.push({ id: "", url, orden, activo: true });
+              }
+            });
+            next.imagenes = imagenesActuales;
+          }
           return next;
-        })
+        }),
       );
 
-      // limpiar
+      // ── 8. Limpiar estados ───────────────────────────────────────────────
       setEditingProduct(null);
-      setTempImageFile(null);
-      setTempImagePreview(null);
-      setOriginalImageUrl(null);
+      setTempImageFiles({ image1: null, image2: null, image3: null });
+      setTempImagePreviews({ image1: null, image2: null, image3: null });
+      setOriginalImageUrls({ image1: null, image2: null, image3: null });
       setTempPdfFile(null);
       setOriginalManifiestoUrl(null);
       setManifiestoRemoved(false);
@@ -530,7 +684,7 @@ export function ProductManagementModal({
         {
           method: "PATCH",
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       if (response.ok) {
@@ -538,8 +692,8 @@ export function ProductManagementModal({
           prevProductos.map((p) =>
             p.id === productoId
               ? { ...p, estado: p.estado === "activo" ? "inactivo" : "activo" }
-              : p
-          )
+              : p,
+          ),
         );
 
         toast({
@@ -576,7 +730,7 @@ export function ProductManagementModal({
     return (
       producto.inventario?.reduce(
         (total, inv) => total + (inv.stockActual || 0),
-        0
+        0,
       ) || 0
     );
   };
@@ -584,24 +738,17 @@ export function ProductManagementModal({
   // Función para obtener la imagen a mostrar (ACTUALIZADA)
   const getImageToShow = (producto: ProductoBackend) => {
     if (editingProduct?.id === producto.id) {
-      // Si estamos editando este producto
-      if (tempImagePreview) {
-        // Si hay una nueva imagen seleccionada, mostrar preview
-        return tempImagePreview;
-      } else if (editingProduct.imagenUrl && editingProduct.imagenUrl !== "") {
-        // Si no hay nueva imagen, mostrar la actual (si existe y no está vacía)
+      // Preview de image1 si hay archivo nuevo seleccionado
+      if (tempImagePreviews.image1) return tempImagePreviews.image1;
+      // Imagen original si existe
+      if (editingProduct.imagenUrl && editingProduct.imagenUrl !== "")
         return editingProduct.imagenUrl;
-      } else {
-        // Si no hay imagen nueva ni existente
-        return "/placeholder-product.png";
-      }
+      return "/placeholder-product.png";
     }
-    // Para productos no en edición, mostrar imagen actual o placeholder
     return producto.imagenUrl && producto.imagenUrl !== ""
       ? producto.imagenUrl
       : "/placeholder-product.png";
   };
-
   // Componente de paginación
   const PaginationControls = () => {
     if (totalPages <= 1) return null;
@@ -637,7 +784,7 @@ export function ProductManagementModal({
     };
     const uploadManifiestoPdf = async (
       productoId: string,
-      file: File
+      file: File,
     ): Promise<{ url: string; key: string }> => {
       const token = await getToken();
       if (!token) throw new Error("No hay token de autorización");
@@ -651,7 +798,7 @@ export function ProductManagementModal({
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
-        }
+        },
       );
 
       if (!res.ok) {
@@ -888,11 +1035,7 @@ export function ProductManagementModal({
                                           nombre: e.target.value,
                                         })
                                       }
-                                      className={`text-sm ${
-                                        editErrors.nombre
-                                          ? "border-red-500"
-                                          : ""
-                                      }`}
+                                      className={`text-sm ${editErrors.nombre ? "border-red-500" : ""}`}
                                       placeholder="Nombre del producto"
                                     />
                                     {editErrors.nombre && (
@@ -907,21 +1050,142 @@ export function ProductManagementModal({
                                     )}
                                   </div>
 
-                                  {/* Upload/Cambio de imagen COMPLETO */}
+                                  {/* Imágenes del carrusel */}
+                                  <div className="space-y-2">
+                                    <Label className="text-xs font-medium">
+                                      Imágenes del producto
+                                    </Label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                      {(
+                                        ["image1", "image2", "image3"] as Slot[]
+                                      ).map((slot, idx) => {
+                                        const preview = tempImagePreviews[slot];
+                                        const original =
+                                          originalImageUrls[slot];
+                                        const imgSrc =
+                                          preview || original || null;
+                                        const label =
+                                          idx === 0
+                                            ? "Principal"
+                                            : `Imagen ${idx + 1}`;
+                                        return (
+                                          <div
+                                            key={slot}
+                                            className="flex flex-col items-center gap-1"
+                                          >
+                                            <span className="text-xs text-muted-foreground">
+                                              {label}
+                                            </span>
+                                            <div className="w-16 h-16 border rounded overflow-hidden bg-muted flex items-center justify-center">
+                                              {imgSrc ? (
+                                                <img
+                                                  src={imgSrc}
+                                                  alt={label}
+                                                  className="w-full h-full object-cover"
+                                                />
+                                              ) : (
+                                                <Camera className="w-6 h-6 text-muted-foreground opacity-40" />
+                                              )}
+                                            </div>
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              size="sm"
+                                              className="text-xs px-2 py-1 h-7 text-blue-600"
+                                              onClick={() =>
+                                                document
+                                                  .getElementById(
+                                                    `file-input-${editingProduct.id}-${slot}`,
+                                                  )
+                                                  ?.click()
+                                              }
+                                              disabled={isUploadingImage}
+                                            >
+                                              {tempImageFiles[slot]
+                                                ? "Cambiar"
+                                                : "Subir"}
+                                            </Button>
+                                            {(tempImageFiles[slot] ||
+                                              original) && (
+                                              <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-xs px-2 py-1 h-7 text-red-500"
+                                                onClick={() =>
+                                                  removeImageSlot(slot)
+                                                }
+                                              >
+                                                <Trash2 className="w-3 h-3 mr-1" />
+                                                Quitar
+                                              </Button>
+                                            )}
+                                            <input
+                                              id={`file-input-${editingProduct.id}-${slot}`}
+                                              type="file"
+                                              accept="image/*"
+                                              className="hidden"
+                                              onChange={(e) =>
+                                                handleFileSelectSlot(e, slot)
+                                              }
+                                              disabled={isUploadingImage}
+                                            />
+                                            {tempImageFiles[slot] && (
+                                              <p className="text-xs text-blue-600 text-center truncate w-16">
+                                                ✓{" "}
+                                                {tempImageFiles[
+                                                  slot
+                                                ]!.name.substring(0, 8)}
+                                                ...
+                                              </p>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  {isUploadingImage && (
+                                    <p className="text-xs text-orange-600">
+                                      📤 Subiendo imagen...
+                                    </p>
+                                  )}
+
+                                  {/* Bloque PDF Manifiesto */}
                                   <div className="space-y-2">
                                     <Label className="text-xs">
-                                      Imagen del producto
+                                      Manifiesto (PDF)
                                     </Label>
-
-                                    <div className="flex items-center gap-3">
-                                      {/* Preview de la imagen */}
-                                      <img
-                                        src={getImageToShow(producto)}
-                                        alt="Producto"
-                                        className="w-16 h-16 object-cover rounded border"
-                                      />
-
-                                      {/* Controles */}
+                                    <div className="flex items-start gap-3">
+                                      <div className="min-w-[180px] text-sm">
+                                        {tempPdfFile ? (
+                                          <div className="text-blue-700">
+                                            📄 Nuevo PDF:{" "}
+                                            <span className="font-medium">
+                                              {tempPdfFile.name}
+                                            </span>
+                                          </div>
+                                        ) : originalManifiestoUrl &&
+                                          !manifiestoRemoved ? (
+                                          <a
+                                            href={originalManifiestoUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-blue-600 underline"
+                                          >
+                                            Ver PDF actual
+                                          </a>
+                                        ) : (
+                                          <span className="text-muted-foreground">
+                                            Sin PDF
+                                          </span>
+                                        )}
+                                        {manifiestoRemoved && (
+                                          <div className="text-xs text-orange-600 mt-1">
+                                            Se eliminará al guardar
+                                          </div>
+                                        )}
+                                      </div>
                                       <div className="flex flex-col gap-2">
                                         <Button
                                           type="button"
@@ -930,147 +1194,195 @@ export function ProductManagementModal({
                                           onClick={() =>
                                             document
                                               .getElementById(
-                                                `file-input-${editingProduct.id}`
+                                                `pdf-input-${editingProduct.id}`,
                                               )
                                               ?.click()
                                           }
                                           disabled={isUploadingImage}
                                           className="text-blue-600 hover:text-blue-700"
                                         >
-                                          {isUploadingImage ? (
-                                            <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
-                                          ) : (
-                                            <Camera className="w-4 h-4 mr-1" />
-                                          )}
-                                          {tempImageFile
-                                            ? "Cambiar"
-                                            : "Seleccionar"}
+                                          {tempPdfFile
+                                            ? "Cambiar PDF"
+                                            : "Seleccionar PDF"}
                                         </Button>
-
-                                        {/* Solo mostrar botón quitar si hay imagen nueva seleccionada */}
-                                        {tempImageFile && (
+                                        {(tempPdfFile ||
+                                          (originalManifiestoUrl &&
+                                            !manifiestoRemoved)) && (
                                           <Button
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            onClick={removeImage}
+                                            onClick={removePdf}
                                             className="text-red-600 hover:text-red-700"
                                           >
                                             <Trash2 className="w-4 h-4 mr-1" />
-                                            Quitar nueva
+                                            Quitar PDF
                                           </Button>
                                         )}
                                       </div>
                                     </div>
-
-                                    {/* Input oculto para seleccionar archivos */}
                                     <input
-                                      id={`file-input-${editingProduct.id}`}
+                                      id={`pdf-input-${editingProduct.id}`}
                                       type="file"
-                                      accept="image/*"
-                                      onChange={handleFileSelect}
+                                      accept="application/pdf"
+                                      onChange={handlePdfSelect}
                                       className="hidden"
                                       disabled={isUploadingImage}
                                     />
+                                  </div>
 
-                                    {/* Indicador de estado */}
-                                    {tempImageFile && (
-                                      <p className="text-xs text-blue-600 mt-1">
-                                        📄 Nueva imagen seleccionada:{" "}
-                                        {tempImageFile.name}
-                                      </p>
-                                    )}
-                                    {isUploadingImage && (
-                                      <p className="text-xs text-orange-600 mt-1">
-                                        📤 Subiendo imagen...
-                                      </p>
-                                    )}
-                                    {/* --- Bloque PDF Manifiesto --- */}
-                                    <div className="space-y-2">
-                                      <Label className="text-xs">
-                                        Manifiesto (PDF)
-                                      </Label>
-
-                                      <div className="flex items-start gap-3">
-                                        {/* Vista actual: link o estado */}
-                                        <div className="min-w-[180px] text-sm">
-                                          {tempPdfFile ? (
-                                            <div className="text-blue-700">
-                                              📄 Nuevo PDF:{" "}
-                                              <span className="font-medium">
-                                                {tempPdfFile.name}
-                                              </span>
-                                            </div>
-                                          ) : originalManifiestoUrl &&
-                                            !manifiestoRemoved ? (
-                                            <a
-                                              href={originalManifiestoUrl}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              className="text-blue-600 underline"
-                                            >
-                                              Ver PDF actual
-                                            </a>
-                                          ) : (
-                                            <span className="text-muted-foreground">
-                                              Sin PDF
-                                            </span>
-                                          )}
-                                          {manifiestoRemoved && (
-                                            <div className="text-xs text-orange-600 mt-1">
-                                              Se eliminará al guardar
-                                            </div>
-                                          )}
-                                        </div>
-
-                                        {/* Controles */}
-                                        <div className="flex flex-col gap-2">
-                                          <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                              document
-                                                .getElementById(
-                                                  `pdf-input-${editingProduct.id}`
-                                                )
-                                                ?.click()
-                                            }
-                                            disabled={isUploadingImage}
-                                            className="text-blue-600 hover:text-blue-700"
-                                          >
-                                            {tempPdfFile
-                                              ? "Cambiar PDF"
-                                              : "Seleccionar PDF"}
-                                          </Button>
-
-                                          {/* Botón quitar (si hay PDF nuevo o existente) */}
-                                          {(tempPdfFile ||
-                                            (originalManifiestoUrl &&
-                                              !manifiestoRemoved)) && (
-                                            <Button
-                                              type="button"
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={removePdf}
-                                              className="text-red-600 hover:text-red-700"
-                                            >
-                                              <Trash2 className="w-4 h-4 mr-1" />
-                                              Quitar PDF
-                                            </Button>
-                                          )}
-                                        </div>
+                                  {/* ── Campos logística ── */}
+                                  <div className="space-y-2 pt-2 border-t">
+                                    <Label className="text-xs font-medium">
+                                      Logística
+                                    </Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">
+                                          Referencia
+                                        </Label>
+                                        <Input
+                                          value={
+                                            editingProduct.referencia ?? ""
+                                          }
+                                          onChange={(e) =>
+                                            setEditingProduct({
+                                              ...editingProduct,
+                                              referencia: e.target.value,
+                                            })
+                                          }
+                                          placeholder="Cód. proveedor"
+                                          className="text-xs h-8"
+                                        />
                                       </div>
 
-                                      {/* Input oculto para seleccionar PDF */}
-                                      <input
-                                        id={`pdf-input-${editingProduct.id}`}
-                                        type="file"
-                                        accept="application/pdf"
-                                        onChange={handlePdfSelect}
-                                        className="hidden"
-                                        disabled={isUploadingImage}
-                                      />
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">
+                                          Uds. por bulto
+                                        </Label>
+                                        <Input
+                                          type="number"
+                                          value={
+                                            editingProduct.unidadesPorBulto ??
+                                            ""
+                                          }
+                                          onChange={(e) =>
+                                            setEditingProduct({
+                                              ...editingProduct,
+                                              unidadesPorBulto: e.target.value
+                                                ? parseInt(e.target.value)
+                                                : undefined,
+                                            })
+                                          }
+                                          placeholder="Ej: 12"
+                                          className="text-xs h-8"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">
+                                          Peso/bulto (kg)
+                                        </Label>
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          value={
+                                            editingProduct.pesoPorBulto ?? ""
+                                          }
+                                          onChange={(e) =>
+                                            setEditingProduct({
+                                              ...editingProduct,
+                                              pesoPorBulto: e.target.value
+                                                ? parseFloat(e.target.value)
+                                                : undefined,
+                                            })
+                                          }
+                                          placeholder="Ej: 8.5"
+                                          className="text-xs h-8"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">
+                                          Cubicaje/bulto (m³)
+                                        </Label>
+                                        <Input
+                                          type="number"
+                                          step="0.001"
+                                          value={
+                                            editingProduct.cubicajePorBulto ??
+                                            ""
+                                          }
+                                          onChange={(e) =>
+                                            setEditingProduct({
+                                              ...editingProduct,
+                                              cubicajePorBulto: e.target.value
+                                                ? parseFloat(e.target.value)
+                                                : undefined,
+                                            })
+                                          }
+                                          placeholder="Ej: 0.05"
+                                          className="text-xs h-8"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">
+                                          Precio exterior
+                                        </Label>
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          value={
+                                            editingProduct.precioCompraExterior ??
+                                            ""
+                                          }
+                                          onChange={(e) =>
+                                            setEditingProduct({
+                                              ...editingProduct,
+                                              precioCompraExterior: e.target
+                                                .value
+                                                ? parseFloat(e.target.value)
+                                                : undefined,
+                                            })
+                                          }
+                                          placeholder="Ej: 12.50"
+                                          className="text-xs h-8"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">
+                                          Moneda
+                                        </Label>
+                                        <Select
+                                          value={
+                                            editingProduct.monedaCompraExterior ??
+                                            ""
+                                          }
+                                          onValueChange={(value) =>
+                                            setEditingProduct({
+                                              ...editingProduct,
+                                              monedaCompraExterior: value,
+                                            })
+                                          }
+                                        >
+                                          <SelectTrigger className="text-xs h-8">
+                                            <SelectValue placeholder="Moneda" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="USD">
+                                              USD
+                                            </SelectItem>
+                                            <SelectItem value="EUR">
+                                              EUR
+                                            </SelectItem>
+                                            <SelectItem value="CNY">
+                                              CNY
+                                            </SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -1211,8 +1523,8 @@ export function ProductManagementModal({
                                   getTotalStock(producto) > 10
                                     ? "text-green-600"
                                     : getTotalStock(producto) > 0
-                                    ? "text-yellow-600"
-                                    : "text-red-600"
+                                      ? "text-yellow-600"
+                                      : "text-red-600"
                                 }`}
                               >
                                 {getTotalStock(producto)}

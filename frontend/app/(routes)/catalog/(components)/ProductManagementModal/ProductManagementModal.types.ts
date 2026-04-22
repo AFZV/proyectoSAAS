@@ -12,8 +12,15 @@ export interface EditingProduct {
   precioCompra: number;
   precioVenta: number;
   categoriaId: string;
-  imagenUrl?: string; // Campo opcional para actualizar imagen
-  manifiestoUrl?: string; // Campo opcional para actualizar manifiesto
+  imagenUrl: string;
+  manifiestoUrl: string;
+  // ── Campos nuevos ──────────────────
+  referencia?: string;
+  unidadesPorBulto?: number;
+  pesoPorBulto?: number;
+  cubicajePorBulto?: number;
+  precioCompraExterior?: number;
+  monedaCompraExterior?: string;
 }
 
 export interface UpdateProductoDto {
@@ -30,16 +37,21 @@ export interface ProductoBackend {
   nombre: string;
   precioCompra: number;
   precioVenta: number;
+  imagenUrl: string;
+  estado: string;
   categoriaId: string;
-  imagenUrl?: string;
-  manifiestoUrl?: string; // Campo opcional para actualizar manifiesto
-  estado: "activo" | "inactivo";
-  inventario?: Array<{
-    stockActual: number;
-    stockReferenciaOinicial: number;
-  }>;
+  empresaId: string;
+  manifiestoUrl?: string;
+  // ── Campos nuevos ──────────────────
+  referencia?: string;
+  unidadesPorBulto?: number;
+  pesoPorBulto?: number;
+  cubicajePorBulto?: number;
+  precioCompraExterior?: number;
+  monedaCompraExterior?: string;
+  inventario?: { stockActual: number; stockReferenciaOinicial: number }[];
+  imagenes?: { id: string; url: string; orden: number; activo: boolean }[];
 }
-
 export interface Categoria {
   idCategoria: string;
   nombre: string;

@@ -1535,7 +1535,9 @@ export class PedidosService {
       }
 
       // 4) Extraer solo las URLs (ya sabemos que son strings válidas)
-      const urls = productosConManifiesto.map((p) => p.url as string);
+      const urls = [
+        ...new Set(productosConManifiesto.map((p) => p.url as string)),
+      ];
 
       // 5) Fusionar
       const resultado = await this.pdfUploaderService.fusionarPdfsDesdeUrls(
@@ -1623,7 +1625,7 @@ export class PedidosService {
         );
       }
 
-      const urls = manifiestos.map((m) => m.url);
+      const urls = [...new Set(manifiestos.map((m) => m.url))];
 
       // Fusionar
       const resultado = await this.pdfUploaderService.fusionarPdfsDesdeUrls(
@@ -1699,7 +1701,6 @@ export class PedidosService {
     diasCredito: number,
     usuario: UsuarioPayload
   ) {
-    console.log('Dias de credito a asignar:', diasCredito);
     if (!usuario) throw new BadRequestException('El usuario es requerido');
     const { empresaId, rol } = usuario; // Desestructurar rol del usuario
     // Solo admin puede asignar dias de credito

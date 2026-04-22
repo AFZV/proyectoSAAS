@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   InternalServerErrorException,
   UnauthorizedException,
@@ -29,10 +30,11 @@ export class ProductosService {
       ...data,
       nombre: data.nombre,
     };
+    const { imagenes, ...restoData } = data; // separar imagenes
     try {
       const producto = await this.prisma.producto.create({
         data: {
-          ...dataCleaned,
+          ...restoData,
           estado: 'activo', // Por defecto, el producto se crea como activo
           empresaId: usuario.empresaId, // Asignamos la empresa del usuario
           categoriaId: data.categoriaId, // Asignamos la categoría por su ID
@@ -45,6 +47,28 @@ export class ProductosService {
             idProducto: producto.id,
           },
         });
+      // Crear imágenes si vienen
+      if (imagenes && imagenes.length > 0) {
+        const slotOrden: Record<string, number> = {
+          image1: 1,
+          image2: 2,
+          image3: 3,
+        };
+
+        await Promise.all(
+          imagenes.map((img) =>
+            this.prisma.productoImagen.create({
+              data: {
+                productoId: producto.id,
+                url: img.url,
+                orden: slotOrden[img.slot],
+                activo: true,
+              },
+            })
+          )
+        );
+      }
+
       return producto;
     } catch (error: any) {
       console.error('Error al crear el producto:', error);
@@ -72,6 +96,7 @@ export class ProductosService {
               stockReferenciaOinicial: true, // Incluimos el stock inicial
             },
           },
+          imagenes: true,
         },
       });
       const productosOrdenados = productos.sort((a, b) =>
@@ -116,6 +141,7 @@ export class ProductosService {
               stockReferenciaOinicial: true, // Incluimos el stock inicial
             },
           },
+          imagenes: true,
         },
       });
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -324,26 +350,73 @@ export class ProductosService {
     if (!producto) {
       throw new InternalServerErrorException('Producto no encontrado');
     }
+
     try {
-      // Actualizar producto
-      return await this.prisma.producto.update({
+      // 1. Actualizar campos del producto
+      const productoActualizado = await this.prisma.producto.update({
         where: { id: productoId },
         data: {
           nombre: data.nombre,
           precioCompra: data.precioCompra,
           precioVenta: data.precioVenta,
-          categoriaId: data.categoriaId, // Asignamos la categoría por su ID
-          ...(data.imagenUrl !== undefined && { imagenUrl: data.imagenUrl }), //Para actualizar la imagenUrl solo si se proporciona
+          categoriaId: data.categoriaId,
+          ...(data.referencia !== undefined && { referencia: data.referencia }),
+          ...(data.precioCompraExterior !== undefined && {
+            precioCompraExterior: data.precioCompraExterior,
+          }),
+          ...(data.monedaCompraExterior !== undefined && {
+            monedaCompraExterior: data.monedaCompraExterior,
+          }),
+          ...(data.unidadesPorBulto !== undefined && {
+            unidadesPorBulto: data.unidadesPorBulto,
+          }),
+          ...(data.pesoPorBulto !== undefined && {
+            pesoPorBulto: data.pesoPorBulto,
+          }),
+          ...(data.cubicajePorBulto !== undefined && {
+            cubicajePorBulto: data.cubicajePorBulto,
+          }),
+          ...(data.imagenUrl !== undefined && { imagenUrl: data.imagenUrl }),
         },
       });
+
+      // 2. Upsert de imágenes del carrusel si vienen en el payload
+      // data.imagenes = [{ slot: 'image1', url: '...' }, { slot: 'image2', url: '...' }]
+      if (data.imagenes && data.imagenes.length > 0) {
+        const slotOrden: Record<string, number> = {
+          image1: 1,
+          image2: 2,
+          image3: 3,
+        };
+
+        await Promise.all(
+          data.imagenes.map((img) =>
+            this.prisma.productoImagen.upsert({
+              where: {
+                // necesitas un unique en el schema: @@unique([productoId, orden])
+                productoId_orden: {
+                  productoId,
+                  orden: slotOrden[img.slot],
+                },
+              },
+              update: { url: img.url, activo: true },
+              create: {
+                productoId,
+                url: img.url,
+                orden: slotOrden[img.slot],
+                activo: true,
+              },
+            })
+          )
+        );
+      }
+
+      return productoActualizado;
     } catch (error) {
       console.error('Error al actualizar el producto:', error);
-      // Si ya es una HttpException (ForbiddenException, etc), re-lánzala
-      if (error) {
-        throw error;
-      }
-      // Si no, lanza una InternalServerErrorException
-      throw new InternalServerErrorException('Error al actualizar el producto');
+      throw error instanceof HttpException
+        ? error
+        : new InternalServerErrorException('Error al actualizar el producto');
     }
   }
 
@@ -464,13 +537,22 @@ export class ProductosService {
     }
 
     // 3) Preparar nombre/carpeta para el NUEVO PDF
-    const slug = this.slugify(producto.nombre || 'producto');
-    const ext = file.originalname.includes('.')
-      ? file.originalname.substring(file.originalname.lastIndexOf('.'))
-      : '.pdf';
-    const fileName = `manifiesto_${slug}_${Date.now()}${ext}`;
-    const folder = `empresas/${usuario.empresaId}/productos/manifiestos/${producto.id}`;
+    const fileName = file.originalname;
+    const folder = `empresas/${usuario.empresaId}/productos/manifiestos`;
     const key = `${folder}/${fileName}`;
+    const urlCalculada = `${this.hetznerService.baseUrl}/${key}`; // 👈 AGREGAR
+
+    // 👇 AGREGAR este bloque completo
+    const yaExiste = await this.hetznerService.fileExists(key);
+    if (yaExiste) {
+      if (producto.manifiestoUrl !== urlCalculada) {
+        await this.prisma.producto.update({
+          where: { id: producto.id },
+          data: { manifiestoUrl: urlCalculada },
+        });
+      }
+      return { url: urlCalculada, key };
+    }
 
     // 4) Subir (tu uploadFile devuelve SOLO la URL pública)
     const url = await this.hetznerService.uploadFile(

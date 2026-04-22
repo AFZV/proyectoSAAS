@@ -9,6 +9,7 @@ import {
   CheckCircle,
   FileText,
   Edit3,
+  BookOpen,
 } from "lucide-react";
 import { formatValue } from "@/utils/FormartValue";
 import type { Pedido } from "../../types/invoices.types";
@@ -22,6 +23,7 @@ interface CompactViewProps {
   onVerDetalle: (pedido: Pedido) => void;
   onEditarPedido: (pedido: Pedido) => void;
   onDescargarPdf: (pedido: Pedido) => void;
+  onDescargarManifiestos: (pedido: Pedido) => void;
 }
 
 export function RenderCompactView({
@@ -33,6 +35,7 @@ export function RenderCompactView({
   onVerDetalle,
   onEditarPedido,
   onDescargarPdf,
+  onDescargarManifiestos,
 }: CompactViewProps) {
   return (
     <div className="overflow-hidden">
@@ -124,7 +127,7 @@ export function RenderCompactView({
                         {
                           day: "2-digit",
                           month: "2-digit",
-                        }
+                        },
                       )}
                     </div>
 
@@ -196,6 +199,21 @@ export function RenderCompactView({
                       >
                         {/* <MoreHorizontal className="h-4 w-4" /> */}
                       </Button>
+                      {userType === "admin" &&
+                        ["FACTURADO", "ENVIADO"].includes(estadoActual) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDescargarManifiestos(pedido);
+                            }}
+                            className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1"
+                            title="Descargar manifiestos"
+                          >
+                            <BookOpen className="h-4 w-4" />
+                          </Button>
+                        )}
                     </div>
                   </div>
                 </div>

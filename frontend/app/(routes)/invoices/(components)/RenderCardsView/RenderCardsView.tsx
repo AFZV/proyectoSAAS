@@ -12,6 +12,7 @@ import {
   FileText,
   Eye,
   Edit3,
+  BookOpen,
 } from "lucide-react";
 import { formatValue } from "@/utils/FormartValue";
 import type { Pedido } from "../../types/invoices.types";
@@ -26,6 +27,7 @@ interface CardsViewProps {
   onVerDetalle: (pedido: Pedido) => void;
   onEditarPedido: (pedido: Pedido) => void;
   onDescargarPdf: (pedido: Pedido) => void;
+  onDescargarManifiestos: (pedido: Pedido) => void;
 }
 
 export function RenderCardsView({
@@ -38,6 +40,7 @@ export function RenderCardsView({
   onVerDetalle,
   onEditarPedido,
   onDescargarPdf,
+  onDescargarManifiestos,
 }: CardsViewProps) {
   return (
     <div className="grid gap-4 p-4">
@@ -86,8 +89,8 @@ export function RenderCardsView({
                     estadoActual === "ENVIADO"
                       ? "text-green-600"
                       : estadoActual === "CANCELADO"
-                      ? "text-red-600"
-                      : "text-gray-900"
+                        ? "text-red-600"
+                        : "text-gray-900"
                   }`}
                 >
                   {formatValue(pedido.total || 0)}
@@ -149,7 +152,7 @@ export function RenderCardsView({
                     <Calendar className="h-4 w-4 text-gray-400" />
                     <span className="text-sm text-gray-600">
                       {new Date(getFechaParaMostrar(pedido)).toLocaleDateString(
-                        "es-CO"
+                        "es-CO",
                       )}
                     </span>
                   </div>
@@ -230,6 +233,21 @@ export function RenderCardsView({
                     <FileText className="h-4 w-4" />
                   </Button>
                 )}
+                {userType === "admin" &&
+                  ["FACTURADO", "ENVIADO"].includes(estadoActual) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDescargarManifiestos(pedido);
+                      }}
+                      className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 p-1"
+                      title="Descargar manifiestos"
+                    >
+                      <BookOpen className="h-4 w-4" />
+                    </Button>
+                  )}
               </div>
             </div>
           </div>

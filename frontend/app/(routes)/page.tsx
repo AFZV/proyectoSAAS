@@ -133,7 +133,7 @@ export default async function Home() {
         />
       </div>
 
-      {/* Layout Principal - EXACTAMENTE como lo tenías */}
+   
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Gráficas - 3 columnas en desktop */}
         <div className="lg:col-span-3">
@@ -152,7 +152,6 @@ export default async function Home() {
           {/* ✅ Últimos Pedidos - SOLO agregar datos del backend */}
           <LastOrders pedidos={data.ultimosPedidos || []} />
 
-          {/* Widget de Rendimiento - EXACTAMENTE como lo tenías */}
           <div className="bg-card border rounded-xl p-4">
             <div className="flex items-center space-x-2 mb-3">
               <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
@@ -177,7 +176,6 @@ export default async function Home() {
             </div>
           </div>
 
-          {/* Widget de Actividad - EXACTAMENTE como lo tenías */}
           <div className="bg-card border rounded-xl p-4">
             <div className="flex items-center space-x-2 mb-3">
               <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">

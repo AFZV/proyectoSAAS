@@ -3,6 +3,7 @@ import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { lookup as mimeLookup } from 'mime-types';
 import { createReadStream } from 'fs';
@@ -81,5 +82,28 @@ export class HetznerStorageService {
     await this.s3.send(
       new DeleteObjectCommand({ Bucket: this.bucket, Key: key })
     );
+  }
+
+  async deleteSlotFiles(folder: string, slot: string): Promise<void> {
+    const extensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'];
+
+    await Promise.allSettled(
+      extensions.map((ext) => this.deleteByKey(`${folder}/${slot}.${ext}`))
+    );
+  }
+
+  // Pégalo justo antes de deleteByKey
+  async fileExists(key: string): Promise<boolean> {
+    try {
+      await this.s3.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: key })
+      );
+      return true;
+    } catch (err: any) {
+      if (err?.name === 'NotFound' || err?.$metadata?.httpStatusCode === 404) {
+        return false;
+      }
+      throw err;
+    }
   }
 }

@@ -49,26 +49,30 @@ export class HetznerStorageController {
   @UseInterceptors(FileInterceptor('imagen'))
   async uploadProductImage(
     @UploadedFile() file: Express.Multer.File,
+    @Body('productoId') productoId: string,
+    @Body('slot') slot: string,
     @Req() req: UsuarioRequest
   ) {
-    if (!file) {
-      throw new BadRequestException('No se recibió ninguna imagen.');
-    }
-
+    if (!file) throw new BadRequestException('No se recibió ninguna imagen.');
     const usuario = req.usuario;
-
-    if (!usuario?.empresaId) {
-      throw new BadRequestException('Falta empresaId en el usuario.');
+    if (!usuario?.empresaId) throw new BadRequestException('Falta empresaId.');
+    if (!productoId) throw new BadRequestException('Falta productoId.');
+    if (!['image1', 'image2', 'image3'].includes(slot)) {
+      throw new BadRequestException('Slot inválido.');
     }
 
-    const folder = `empresas/${usuario.empresaId}/productos`;
+    const ext = file.originalname.split('.').pop();
+    const fileName = `${slot}.${ext}`;
+    const folder = `empresas/${usuario.empresaId}/productos/${productoId}`;
 
+    // ── Borrar archivos anteriores del mismo slot (cualquier extensión) ──
+    await this.hetznerStorageService.deleteSlotFiles(folder, slot);
     const url = await this.hetznerStorageService.uploadFile(
       file.buffer,
-      file.originalname,
+      fileName,
       folder
     );
 
-    return { url };
+    return { url, slot };
   }
 }
