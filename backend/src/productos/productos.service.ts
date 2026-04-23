@@ -496,6 +496,15 @@ export class ProductosService {
    * Sube y asocia un manifiesto (PDF/imagen) a un producto de la empresa del usuario.
    * Recibe el archivo desde el frontend (multipart/form-data, campo "file").
    */
+
+  private sanitizarNombreArchivo(nombre: string): string {
+    return nombre
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/#/g, '')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .replace(/_+/g, '_');
+  }
   async subirManifiestoProducto(
     usuario: UsuarioPayload,
     productoId: string,
@@ -537,7 +546,8 @@ export class ProductosService {
     }
 
     // 3) Preparar nombre/carpeta para el NUEVO PDF
-    const fileName = file.originalname;
+
+    const fileName = this.sanitizarNombreArchivo(file.originalname);
     const folder = `empresas/${usuario.empresaId}/productos/manifiestos`;
     const key = `${folder}/${fileName}`;
     const urlCalculada = `${this.hetznerService.baseUrl}/${key}`; // 👈 AGREGAR

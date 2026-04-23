@@ -576,45 +576,53 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async descargarPdfComoBuffer(url: string): Promise<Buffer> {
-    // Validación básica de URL en tiempo de ejecución (útil en modo estricto)
+  private normalizarUrl(url: string): string {
     try {
-      // Lanzará si la URL no es válida
+      // 1. Intentar decodificar primero (por si viene encodeada)
+      const decoded = decodeURI(url);
 
-      new URL(url);
+      // 2. Volver a encodear correctamente
+      const reEncoded = encodeURI(decoded);
+
+      return reEncoded;
+    } catch {
+      // fallback si algo raro pasa
+      return encodeURI(url);
+    }
+  }
+
+  private async descargarPdfComoBuffer(url: string): Promise<Buffer> {
+    let safeUrl: string;
+
+    try {
+      safeUrl = this.normalizarUrl(url);
+      new URL(safeUrl);
+
+      if (url !== safeUrl) {
+        this.logger.warn(`⚠️ URL corregida:\n${url}\n→\n${safeUrl}`);
+      }
     } catch {
       throw new Error(`URL inválida: ${url}`);
     }
 
     let res: AxiosResponse<ArrayBuffer>;
     try {
-      res = await axios.get<ArrayBuffer>(url, {
+      res = await axios.get<ArrayBuffer>(safeUrl, {
         responseType: 'arraybuffer',
-        timeout: 120_000,
+        timeout: 30000,
         validateStatus: (status) => status >= 200 && status < 400,
       });
-    } catch (e) {
-      throw new Error(
-        `Error descargando PDF desde ${url}: ${(e as Error).message}`
-      );
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error desconocido';
+      throw new Error(`Error descargando PDF desde ${safeUrl}: ${msg}`);
     }
 
     const buf = Buffer.from(res.data);
     if (buf.length === 0) {
-      throw new Error(`Archivo vacío: ${url}`);
-    }
-
-    // Content-Type con comprobación segura
-    const ctHeader = res.headers?.['content-type'];
-    if (
-      typeof ctHeader === 'string' &&
-      !ctHeader.toLowerCase().includes('application/pdf')
-    ) {
-      this.logger.warn(`⚠️ Content-Type no es PDF (${ctHeader}) para: ${url}`);
+      throw new Error(`Archivo vacío: ${safeUrl}`);
     }
 
     return buf;
   }
-
   // pdf-uploader.service.ts
 }
