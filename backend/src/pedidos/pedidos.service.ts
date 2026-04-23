@@ -1495,7 +1495,18 @@ export class PedidosService {
       // 1) Obtener pedido con productos
       const pedido = await this.prisma.pedido.findUnique({
         where: { id: pedidoId },
-        include: { productos: true },
+        include: {
+          productos: {
+            include: {
+              producto: {
+                select: {
+                  nombre: true,
+                  manifiestoUrl: true,
+                },
+              },
+            },
+          },
+        },
       });
 
       if (!pedido) {
@@ -1514,7 +1525,10 @@ export class PedidosService {
         };
       });
 
-      const productos = await Promise.all(promises);
+      const productos = pedido.productos.map((pp) => ({
+        nombre: pp.producto?.nombre || pp.productoId,
+        url: pp.producto?.manifiestoUrl,
+      }));
 
       // 3) Filtrar solo los que tienen URL válida
       const productosConManifiesto = productos.filter(

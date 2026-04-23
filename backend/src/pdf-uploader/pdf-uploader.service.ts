@@ -489,17 +489,33 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     const buffersValidos: Buffer[] = [];
 
     // 1) Descarga todos los PDFs como Buffer (con manejo de errores por URL)
-    for (const url of urls) {
-      try {
-        const buf = await this.descargarPdfComoBuffer(url);
-        buffersValidos.push(buf);
-        this.logger.log(`📥 PDF descargado ok (${buf.length} bytes): ${url}`);
-      } catch (err) {
-        this.logger.warn(
-          `⚠️ No se pudo descargar PDF: ${url} :: ${String((err as Error)?.message ?? err)}`
-        );
-        fallidos.push(url);
+    const CONCURRENCIA = 6; // 🔥 prueba 4 primero si quieres seguro
+
+    const results: { ok: boolean; buf?: Buffer; url: string }[] = [];
+    let index = 0;
+
+    const workers = new Array(CONCURRENCIA).fill(0).map(async () => {
+      while (index < urls.length) {
+        const currentIndex = index++;
+        const url = urls[currentIndex];
+
+        try {
+          const buf = await this.descargarPdfComoBuffer(url);
+          this.logger.log(`📥 PDF descargado ok (${buf.length} bytes): ${url}`);
+          results[currentIndex] = { ok: true, buf, url };
+        } catch (err) {
+          this.logger.warn(`⚠️ No se pudo descargar PDF: ${url}`);
+          results[currentIndex] = { ok: false, url };
+        }
       }
+    });
+
+    await Promise.all(workers);
+
+    // reconstruir arrays
+    for (const r of results) {
+      if (r?.ok && r.buf) buffersValidos.push(r.buf);
+      else if (r) fallidos.push(r.url);
     }
 
     if (buffersValidos.length === 0) {
@@ -510,23 +526,28 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
     const outDoc = await PDFDocument.create();
 
     // 3) Importa páginas de cada PDF fuente
+    this.logger.log(`🧠 Iniciando merge de ${buffersValidos.length} PDFs`);
     for (let i = 0; i < buffersValidos.length; i += 1) {
       const srcBuf = buffersValidos[i];
+      this.logger.log(`📄 Procesando PDF ${i + 1}/${buffersValidos.length}`);
+
       try {
         const srcDoc = await PDFDocument.load(srcBuf, {
           ignoreEncryption: true,
         });
-        const pageIndices = srcDoc.getPageIndices(); // number[]
-        if (pageIndices.length === 0) {
-          this.logger.warn(`⚠️ PDF sin páginas (#${i + 1}), se omite.`);
-          continue;
-        }
+
+        const pageIndices = srcDoc.getPageIndices();
+
+        if (pageIndices.length === 0) continue;
+
         const pages = await outDoc.copyPages(srcDoc, pageIndices);
+
         for (const p of pages) outDoc.addPage(p);
+
+        // 🔥 LIBERAR MEMORIA INMEDIATAMENTE
+        buffersValidos[i] = null as any;
       } catch (err) {
-        this.logger.warn(
-          `⚠️ No se pudo procesar un PDF (#${i + 1}). Se omite. Motivo: ${String((err as Error)?.message ?? err)}`
-        );
+        this.logger.warn(`⚠️ Error procesando PDF #${i}`);
       }
     }
 
