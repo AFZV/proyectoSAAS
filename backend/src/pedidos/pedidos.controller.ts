@@ -134,7 +134,7 @@ export class PedidosController {
   ) {
     try {
       const resultado =
-        await this.pedidosService.fusionarManifiestosPedido(pedidoId);
+        await this.pedidosService.fusionarManifiestosPedidoSeguro(pedidoId);
 
       // Configurar headers para descarga
       res.setHeader('Content-Type', 'application/pdf');
@@ -149,7 +149,7 @@ export class PedidosController {
     } catch (error: any) {
       res.status(500).json({
         success: false,
-        // error: error?.message ?? 'Error desconocido',
+        error: error?.message ?? 'Error desconocido',
       });
     }
   }

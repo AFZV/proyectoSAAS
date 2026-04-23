@@ -543,11 +543,11 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
         const pages = await outDoc.copyPages(srcDoc, pageIndices);
 
         for (const p of pages) outDoc.addPage(p);
-
-        // 🔥 LIBERAR MEMORIA INMEDIATAMENTE
-        buffersValidos[i] = null as any;
       } catch (err) {
         this.logger.warn(`⚠️ Error procesando PDF #${i}`);
+      } finally {
+        // 🔥 LIBERAR MEMORIA INMEDIATAMENTE SIEMPRE
+        buffersValidos[i] = null as any;
       }
     }
 
@@ -562,10 +562,11 @@ export class PdfUploaderService implements OnModuleInit, OnModuleDestroy {
       : 'manifiestos_fusionados.pdf';
     const filePath = join(os.tmpdir(), fileSafe);
 
-    await fs.writeFile(filePath, buffer);
+    // Se omite guardar a disco porque se enviará como buffer directamente
+    // await fs.writeFile(filePath, buffer);
 
     this.logger.log(
-      `📄 PDF fusionado (pdf-lib): ${filePath} (${buffersValidos.length} documentos, ${fallidos.length} fallidos)`
+      `📄 PDF fusionado (pdf-lib) en memoria. (${buffersValidos.length} documentos, ${fallidos.length} fallidos)`
     );
 
     return {
