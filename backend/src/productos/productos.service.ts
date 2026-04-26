@@ -548,11 +548,10 @@ export class ProductosService {
     // 3) Preparar nombre/carpeta para el NUEVO PDF
 
     const fileName = this.sanitizarNombreArchivo(file.originalname);
-    const folder = `empresas/${usuario.empresaId}/productos/manifiestos`;
+    const folder = `empresas/${usuario.empresaId}/manifiestos/${fileName.charAt(0).toUpperCase()}`;
     const key = `${folder}/${fileName}`;
     const urlCalculada = `${this.hetznerService.baseUrl}/${key}`; // 👈 AGREGAR
 
-    // 👇 AGREGAR este bloque completo
     const yaExiste = await this.hetznerService.fileExists(key);
     if (yaExiste) {
       if (producto.manifiestoUrl !== urlCalculada) {
