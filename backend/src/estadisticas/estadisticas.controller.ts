@@ -2,6 +2,7 @@ import {
   Controller,
   UseGuards,
   Get,
+  Query,
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -22,5 +23,19 @@ export class EstadisticasController {
     if (!req) throw new UnauthorizedException('usuario no autorizado');
     const usuario = req.usuario;
     return this.estadisticasService.getStats(usuario);
+  }
+
+  @Get('recomendacion-compra')
+  getRecomendacionCompra(
+    @Req() req: UsuarioRequest,
+    @Query('periodo') periodo?: string,
+    @Query('diasObjetivo') diasObjetivo?: string
+  ) {
+    if (!req) throw new UnauthorizedException('usuario no autorizado');
+    return this.estadisticasService.getRecomendacionCompra(
+      req.usuario,
+      Math.max(1, parseInt(periodo ?? '30', 10)),
+      Math.max(1, parseInt(diasObjetivo ?? '60', 10))
+    );
   }
 }

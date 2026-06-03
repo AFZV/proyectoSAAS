@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 import { Prisma } from '@prisma/client';
@@ -104,5 +104,115 @@ export class EstadisticasService {
       productos,
       clientes,
     };
+  }
+
+  async getRecomendacionCompra(
+    usuario: UsuarioPayload,
+    periodo: number,
+    diasObjetivo: number
+  ) {
+    if (!usuario) throw new UnauthorizedException('Usuario no encontrado');
+    if (usuario.rol !== 'admin')
+      throw new UnauthorizedException('Solo el administrador puede ver este reporte');
+    const { empresaId } = usuario;
+
+    type RawRow = {
+      id: string;
+      codigo: bigint;
+      nombre: string;
+      categoria: string | null;
+      precioCompra: number;
+      unidadesPorBulto: bigint | null;
+      stockActual: number;
+      unidadesVendidas: bigint;
+      promedioDiario: number;
+    };
+
+    const rows = await this.prisma.$queryRaw<RawRow[]>(
+      Prisma.sql`
+        SELECT
+          p.id,
+          p.codigo,
+          p.nombre,
+          cat.nombre                                           AS categoria,
+          p."precioCompra",
+          p."unidadesPorBulto",
+          COALESCE(i."stockActual", 0)::float                  AS "stockActual",
+          COALESCE(SUM(dp.cantidad), 0)::bigint                AS "unidadesVendidas",
+          COALESCE(SUM(dp.cantidad)::float / ${periodo}, 0)    AS "promedioDiario"
+        FROM "Producto" p
+        LEFT JOIN "Inventario" i
+          ON i."idProducto" = p.id AND i."idEmpresa" = ${empresaId}
+        LEFT JOIN "CategoriasProducto" cat
+          ON cat."idCategoria" = p."categoriaId"
+        LEFT JOIN "DetallePedido" dp
+          ON dp."productoId" = p.id
+        LEFT JOIN "Pedido" ped
+          ON ped.id = dp."pedidoId"
+          AND ped."empresaId" = ${empresaId}
+          AND ped."fechaPedido" >= NOW() - (${periodo} * INTERVAL '1 day')
+        WHERE
+          p."empresaId" = ${empresaId}
+          AND p."estado" = 'activo'
+        GROUP BY
+          p.id, p.codigo, p.nombre, cat.nombre,
+          p."precioCompra", p."unidadesPorBulto", i."stockActual"
+      `
+    );
+
+    const semaforoOrder = { CRITICO: 0, REPONER: 1, OK: 2, SIN_VENTAS: 3 };
+
+    return rows
+      .map((r) => {
+        const stock = Number(r.stockActual);
+        const vendidas = Number(r.unidadesVendidas);
+        const promedio = Number(r.promedioDiario);
+        const upb = r.unidadesPorBulto ? Number(r.unidadesPorBulto) : null;
+        const costo = Number(r.precioCompra);
+
+        const diasStock =
+          promedio > 0 ? Math.round(stock / promedio) : null;
+
+        let semaforo: 'CRITICO' | 'REPONER' | 'OK' | 'SIN_VENTAS';
+        if (vendidas === 0) {
+          semaforo = 'SIN_VENTAS';
+        } else if (stock <= 0 || diasStock === null || diasStock <= 15) {
+          semaforo = 'CRITICO';
+        } else if (diasStock <= 30) {
+          semaforo = 'REPONER';
+        } else {
+          semaforo = 'OK';
+        }
+
+        const unidadesNecesarias = Math.ceil(promedio * diasObjetivo);
+        const unidadesRecomendadas = Math.max(0, unidadesNecesarias - stock);
+        const bultosRecomendados =
+          upb && upb > 0 ? Math.ceil(unidadesRecomendadas / upb) : null;
+
+        return {
+          id: r.id,
+          codigo: Number(r.codigo),
+          nombre: r.nombre,
+          categoria: r.categoria ?? null,
+          precioCompra: costo,
+          unidadesPorBulto: upb,
+          stockActual: stock,
+          unidadesVendidas: vendidas,
+          promedioDiario: Number(promedio.toFixed(2)),
+          diasStock,
+          semaforo,
+          unidadesRecomendadas,
+          bultosRecomendados,
+          inversionEstimada: Math.round(unidadesRecomendadas * costo),
+        };
+      })
+      .sort((a, b) => {
+        const diff = semaforoOrder[a.semaforo] - semaforoOrder[b.semaforo];
+        if (diff !== 0) return diff;
+        if (a.diasStock === null && b.diasStock === null) return 0;
+        if (a.diasStock === null) return 1;
+        if (b.diasStock === null) return -1;
+        return a.diasStock - b.diasStock;
+      });
   }
 }

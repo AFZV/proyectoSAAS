@@ -115,8 +115,34 @@
     line-height: 1.35;
   }
 
-      .resumen {
+      .resumen-logistico {
         margin-top: 14px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 20px;
+        font-size: 11px;
+      }
+      .resumen-logistico .logistica-item {
+        background-color: #f0f6ff;
+        border: 1px solid #cce0ff;
+        border-radius: 4px;
+        padding: 6px 12px;
+        text-align: center;
+        min-width: 90px;
+      }
+      .resumen-logistico .logistica-item span {
+        display: block;
+        font-size: 9.5px;
+        color: #555;
+        margin-bottom: 2px;
+      }
+      .resumen-logistico .logistica-item strong {
+        font-size: 12px;
+        color: #007bff;
+      }
+
+      .resumen {
+        margin-top: 10px;
         text-align: right;
         font-size: 12px;
         font-weight: bold;
@@ -169,6 +195,11 @@
       </div>
     </div>
 
+    <%
+      const hasBultos = productos.some(function(p) { return p.bultosEquivalentes != null; });
+      const hasPeso = productos.some(function(p) { return p.pesoTotal != null; });
+      const hasCubicaje = productos.some(function(p) { return p.cubicajeTotal != null; });
+    %>
     <div class="section">
       <h3>Detalle del Pedido</h3>
       <table>
@@ -176,17 +207,23 @@
           <tr>
             <th>Ítem</th>
             <th>Producto</th>
-            <th>Cantidad</th>
+            <th>Unidades</th>
+            <% if (hasBultos) { %><th>Bultos</th><% } %>
+            <% if (hasPeso) { %><th>Peso (kg)</th><% } %>
+            <% if (hasCubicaje) { %><th>Cubicaje (m³)</th><% } %>
             <th>Precio Unitario</th>
             <th>Subtotal</th>
           </tr>
         </thead>
         <tbody>
-          <% productos.forEach((producto, index) => { %>
+          <% productos.forEach(function(producto, index) { %>
             <tr>
               <td><%= index + 1 %></td>
               <td><%= producto.nombre %></td>
               <td><%= producto.cantidad %></td>
+              <% if (hasBultos) { %><td><%= producto.bultosEquivalentes != null ? producto.bultosEquivalentes.toFixed(2) : "—" %></td><% } %>
+              <% if (hasPeso) { %><td><%= producto.pesoTotal != null ? producto.pesoTotal.toFixed(2) + " kg" : "—" %></td><% } %>
+              <% if (hasCubicaje) { %><td><%= producto.cubicajeTotal != null ? producto.cubicajeTotal.toFixed(3) + " m³" : "—" %></td><% } %>
               <td>$<%= producto.precio.toLocaleString("es-CO") %></td>
               <td>$<%= producto.subtotal.toLocaleString("es-CO") %></td>
             </tr>
@@ -203,6 +240,33 @@
   </div>
 <% } %>
 
+
+    <% if (
+      (typeof totalUnidades !== "undefined" && totalUnidades > 0) ||
+      (typeof totalPesoKg !== "undefined" && totalPesoKg > 0) ||
+      (typeof totalCubicajeM3 !== "undefined" && totalCubicajeM3 > 0)
+    ) { %>
+    <div class="resumen-logistico">
+      <% if (typeof totalUnidades !== "undefined" && totalUnidades > 0) { %>
+      <div class="logistica-item">
+        <span>Unidades totales</span>
+        <strong><%= totalUnidades.toLocaleString("es-CO") %></strong>
+      </div>
+      <% } %>
+      <% if (typeof totalPesoKg !== "undefined" && totalPesoKg > 0) { %>
+      <div class="logistica-item">
+        <span>Peso total</span>
+        <strong><%= totalPesoKg.toFixed(2) %> kg</strong>
+      </div>
+      <% } %>
+      <% if (typeof totalCubicajeM3 !== "undefined" && totalCubicajeM3 > 0) { %>
+      <div class="logistica-item">
+        <span>Cubicaje total</span>
+        <strong><%= totalCubicajeM3.toFixed(3) %> m³</strong>
+      </div>
+      <% } %>
+    </div>
+    <% } %>
 
     <div class="resumen">
       Total Pedido: $<%= total.toLocaleString("es-CO") %>

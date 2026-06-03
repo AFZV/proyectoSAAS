@@ -4,7 +4,10 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { lookup as mimeLookup } from 'mime-types';
 import { createReadStream } from 'fs';
 
@@ -90,6 +93,52 @@ export class HetznerStorageService {
     await Promise.allSettled(
       extensions.map((ext) => this.deleteByKey(`${folder}/${slot}.${ext}`))
     );
+  }
+
+  async uploadPrivateBuffer(
+    buffer: Buffer,
+    fileName: string,
+    folder: string,
+  ): Promise<string> {
+    const fileKey = `${folder}/${fileName}`;
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: fileKey,
+        Body: buffer,
+        ContentType: 'application/sql',
+      }),
+    );
+    return fileKey;
+  }
+
+  async listFolder(
+    folder: string,
+  ): Promise<{ key: string; size: number; lastModified: Date }[]> {
+    const result = await this.s3.send(
+      new ListObjectsV2Command({
+        Bucket: this.bucket,
+        Prefix: `${folder}/`,
+      }),
+    );
+    return (result.Contents ?? [])
+      .filter((obj) => obj.Key && obj.Key !== `${folder}/`)
+      .map((obj) => ({
+        key: obj.Key!,
+        size: obj.Size ?? 0,
+        lastModified: obj.LastModified ?? new Date(),
+      }))
+      .sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
+  }
+
+  async getSignedDownloadUrl(key: string, expiresInSeconds = 3600): Promise<string> {
+    const fileName = key.split('/').pop() ?? 'respaldo.sql';
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ResponseContentDisposition: `attachment; filename="${fileName}"`,
+    });
+    return getSignedUrl(this.s3, command, { expiresIn: expiresInSeconds });
   }
 
   // Pégalo justo antes de deleteByKey

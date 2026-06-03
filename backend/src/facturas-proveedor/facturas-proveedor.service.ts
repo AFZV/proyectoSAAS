@@ -10,13 +10,14 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { UsuarioPayload } from 'src/types/usuario-payload';
 type MovimientoProveedor = {
   id: string;
-  fecha: string; // "YYYY-MM-DD"
+  fecha: string;
   tipo: 'Factura' | 'Pago' | 'Nota crédito' | 'Ajuste';
   numero: string;
-  monto: number; // + para facturas/ajustes de débito, - para pagos/notas crédito
-  saldo: number; // saldo acumulado después del movimiento
-  descripcion?: string; // Descripción del pago, si aplica
-  vencimiento?: Date | string; // Fecha de vencimiento, si aplica
+  monto: number;
+  saldo: number;
+  descripcion?: string;
+  vencimiento?: Date | string;
+  detalles?: { facturaNumero: string; valor: number }[];
 };
 function ymd(d: Date) {
   const y = d.getFullYear();
@@ -146,79 +147,113 @@ export class FacturasProveedorService {
       throw new NotFoundException('No hay facturas para este proveedor');
     }
 
-    // Construimos una línea por cada FACTURA y por cada PAGO de esa factura
-    const eventos: Array<{
+    function formatYMDLocal(date: Date) {
+      const off = date.getTimezoneOffset();
+      const local = new Date(date.getTime() - off * 60_000);
+      return local.toISOString().slice(0, 10);
+    }
+
+    type EventoRaw = {
       id: string;
       fecha: Date;
       tipo: 'Factura' | 'Pago';
       numero: string;
       monto: number;
       descripcion?: string | null;
-      vencimiento?: Date | null; // <-- NUEVO
-    }> = [];
+      vencimiento?: Date | null;
+      pagoId?: string;
+      facturaNumeroDetalle?: string;
+    };
 
-    function formatYMDLocal(date: Date) {
-      // evita el corrimiento de UTC
-      const off = date.getTimezoneOffset();
-      const local = new Date(date.getTime() - off * 60_000);
-      return local.toISOString().slice(0, 10);
-    }
+    const eventosRaw: EventoRaw[] = [];
+
     for (const f of facturas) {
-      // 1) Evento FACTURA (monto positivo)
-      eventos.push({
+      // Evento FACTURA
+      eventosRaw.push({
         id: f.idFacturaProveedor,
         fecha: new Date(f.fechaEmision),
         tipo: 'Factura',
         numero: f.numero,
         monto: Number(f.total ?? 0),
         descripcion: f.notas,
-        vencimiento: f.fechaVencimiento ?? null, // <-- LEE DE LA BDD
+        vencimiento: f.fechaVencimiento ?? null,
       });
 
-      // 2) Eventos PAGO (monto negativo)
-      //    Usamos el neto del detalle: valor - descuento (si aplica)
-      const detalles = (f.pagos ?? []).map((d) => {
+      // Eventos PAGO raw (uno por detalle, se agruparán luego)
+      for (const d of f.pagos ?? []) {
         const neto = Number(d.valor ?? 0) - Number(d.descuento ?? 0);
-        return {
+        eventosRaw.push({
           id: d.idDetallePagoProveedor,
-          fecha: new Date(d.pago?.fecha ?? f.fechaEmision), // fallback seguro
-          tipo: 'Pago' as const,
-          numero: `PAGO-${(d.pagoId || '').slice(0, 5)} / ${f.numero}`,
-          monto: -neto, // pagos restan
+          fecha: new Date(d.pago?.fecha ?? f.fechaEmision),
+          tipo: 'Pago',
+          numero: `PAGO-${(d.pagoId || '').slice(0, 5).toUpperCase()}`,
+          monto: -neto,
           descripcion: d.pago?.descripcion || null,
-        };
-      });
-
-      // Ordena pagos por fecha por si vienen desordenados
-      detalles.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-      eventos.push(...detalles);
+          pagoId: d.pagoId,
+          facturaNumeroDetalle: f.numero,
+        });
+      }
     }
 
-    // Mezclamos todo y ordenamos globalmente por fecha, y en empate: Factura antes que Pago
-    eventos.sort((a, b) => {
+    // Agrupar pagos que comparten el mismo pagoId en un solo evento
+    const pagoMerge = new Map<
+      string,
+      { evento: EventoRaw; detalles: { facturaNumero: string; valor: number }[] }
+    >();
+
+    const eventosFinales: Array<
+      EventoRaw & { detalles?: { facturaNumero: string; valor: number }[] }
+    > = [];
+
+    for (const e of eventosRaw) {
+      if (e.tipo === 'Pago' && e.pagoId) {
+        if (pagoMerge.has(e.pagoId)) {
+          const entry = pagoMerge.get(e.pagoId)!;
+          entry.evento.monto += e.monto;
+          entry.detalles.push({
+            facturaNumero: e.facturaNumeroDetalle!,
+            valor: Math.abs(e.monto),
+          });
+        } else {
+          pagoMerge.set(e.pagoId, {
+            evento: { ...e, id: e.pagoId }, // el id del grupo es el pagoId
+            detalles: [{ facturaNumero: e.facturaNumeroDetalle!, valor: Math.abs(e.monto) }],
+          });
+        }
+      } else {
+        eventosFinales.push(e);
+      }
+    }
+
+    for (const { evento, detalles } of pagoMerge.values()) {
+      eventosFinales.push({ ...evento, detalles });
+    }
+
+    // Ordenar: fecha asc, Factura antes que Pago en empate
+    eventosFinales.sort((a, b) => {
       const df = a.fecha.getTime() - b.fecha.getTime();
       if (df !== 0) return df;
-      // Prioriza "Factura" sobre "Pago" en la misma fecha
       if (a.tipo === b.tipo) return 0;
       return a.tipo === 'Factura' ? -1 : 1;
     });
 
-    // Calculamos el saldo acumulado
+    // Saldo acumulado
     let saldo = 0;
-    const movimientos: MovimientoProveedor[] = eventos.map((e) => {
+    const movimientos: MovimientoProveedor[] = eventosFinales.map((e) => {
       saldo += e.monto;
       return {
         id: e.id,
         fecha: e.fecha.toISOString().slice(0, 10),
         tipo: e.tipo,
         numero: e.numero,
-        monto: Math.round(e.monto), // o deja número tal cual si manejas decimales
-        saldo: Math.round(saldo), // idem: ajusta a tus necesidades (Float con 2 decimales?)
+        monto: Math.round(e.monto),
+        saldo: Math.round(saldo),
         descripcion: e.descripcion || undefined,
         vencimiento:
           e.tipo === 'Factura' && e.vencimiento
             ? formatYMDLocal(e.vencimiento)
             : undefined,
+        detalles: e.detalles,
       };
     });
 
@@ -407,18 +442,12 @@ export class FacturasProveedorService {
     if (!usuario) throw new BadRequestException('Usuario no autenticado');
     const { empresaId } = usuario;
 
-    const desde = inicioDeHoyBogota(); // inicio del día (incluye “hoy”)
-    const hasta = finEnNDiasBogota(30); // próximos 30 días
-
     const facturas = await this.prisma.facturaProveedor.findMany({
       where: {
         empresaId,
         saldo: { gt: 0 },
-        OR: [
-          { fechaVencimiento: { lt: desde } }, // VENCIDAS
-          { fechaVencimiento: { gte: desde, lte: hasta } }, // POR VENCER (incluye hoy)
-        ],
-        // estado: { not: 'ANULADA' },
+        estado: { not: 'ANULADA' },
+        fechaVencimiento: { not: null },
       },
       orderBy: { fechaVencimiento: 'asc' },
       include: { proveedor: true },

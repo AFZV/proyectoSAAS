@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Req } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -23,14 +23,20 @@ export class DashboardController {
   }
 
   @Get('ventas')
-  async getResumenVentas(@Req() req: UsuarioRequest) {
-    const usuario = req.usuario;
-    return await this.dashboardService.getDataGraphiscVentas(usuario);
+  async getResumenVentas(
+    @Req() req: UsuarioRequest,
+    @Query('year') year?: string,
+  ) {
+    const yearNum = year ? parseInt(year, 10) : new Date().getFullYear();
+    return await this.dashboardService.getDataGraphiscVentas(req.usuario, yearNum);
   }
 
   @Get('cobros')
-  async getResumenCobros(@Req() req: UsuarioRequest) {
-    const usuario = req.usuario;
-    return await this.dashboardService.getDataGraphicsCobros(usuario);
+  async getResumenCobros(
+    @Req() req: UsuarioRequest,
+    @Query('year') year?: string,
+  ) {
+    const yearNum = year ? parseInt(year, 10) : new Date().getFullYear();
+    return await this.dashboardService.getDataGraphicsCobros(req.usuario, yearNum);
   }
 }

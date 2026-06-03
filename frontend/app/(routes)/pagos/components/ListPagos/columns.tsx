@@ -102,10 +102,11 @@ export type MovimientoProveedor = {
   fecha: string | Date;
   tipo: "Factura" | "Pago" | "Nota crédito" | "Ajuste";
   numero: string;
-  monto: number; // positivo para facturas/ajustes de débito, negativo para pagos/notas crédito
-  saldo: number; // saldo resultante luego del movimiento
-  descripcion?: string; // descripción del pago, si aplica
-  vencimiento?: string | Date; // fecha de vencimiento, si aplica
+  monto: number;
+  saldo: number;
+  descripcion?: string;
+  vencimiento?: string | Date;
+  detalles?: { facturaNumero: string; valor: number }[];
 };
 function getTipoBadgeVariant(tipo: MovimientoProveedor["tipo"]) {
   // Variantes con énfasis en tu acento azul
@@ -159,7 +160,16 @@ export default function ProveedorVerHistory({
 }: Props) {
   const { toast } = useToast();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const { getToken } = useAuth();
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
   const router = useRouter();
   const handleEliminar = async (m: MovimientoProveedor) => {
     const cfg = getDeleteConfig(m);
@@ -314,7 +324,7 @@ export default function ProveedorVerHistory({
             <TableBody>
               {movimientos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-28 text-center">
+                  <TableCell colSpan={8} className="h-28 text-center">
                     <div className="text-sm text-muted-foreground">
                       No hay movimientos registrados para este proveedor.
                     </div>
@@ -329,101 +339,161 @@ export default function ProveedorVerHistory({
                   const montoPositivo = m.monto > 0;
                   const esPagoONota = m.monto < 0;
                   const vencimiento = m.vencimiento;
+                  const tieneDetalles =
+                    m.detalles && m.detalles.length > 1;
+                  const expandido = expandedIds.has(m.id);
 
                   return (
-                    <TableRow
-                      key={m.id}
-                      className="hover:bg-blue-50/40 odd:bg-muted/20 even:bg-background transition-colors"
-                    >
-                      <TableCell className="p-2 align-middle text-sm whitespace-nowrap">
-                        {fecha.toLocaleDateString("es-CO", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                        })}
-                      </TableCell>
-                      <TableCell className="p-2 align-middle text-sm whitespace-nowrap">
-                        {vencimiento?.toLocaleString("es-CO", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                        })}
-                      </TableCell>
-
-                      <TableCell className="p-2 align-middle">
-                        <Badge
-                          variant={getTipoBadgeVariant(m.tipo)}
+                    <React.Fragment key={m.id}>
+                      <TableRow
+                        className={cn(
+                          "hover:bg-blue-50/40 odd:bg-muted/20 even:bg-background transition-colors",
+                          tieneDetalles && "cursor-pointer"
+                        )}
+                        onClick={
+                          tieneDetalles
+                            ? () => toggleExpand(m.id)
+                            : undefined
+                        }
+                      >
+                        <TableCell className="p-2 align-middle text-sm whitespace-nowrap">
+                          {fecha.toLocaleDateString("es-CO", {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                          })}
+                        </TableCell>
+                        <TableCell className="p-2 align-middle text-sm whitespace-nowrap">
+                          {vencimiento
+                            ? new Date(vencimiento).toLocaleDateString(
+                                "es-CO",
+                                {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                }
+                              )
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="p-2 align-middle">
+                          <Badge
+                            variant={getTipoBadgeVariant(m.tipo)}
+                            className={cn(
+                              "rounded-md",
+                              m.tipo === "Factura" &&
+                                "bg-green-200 text-green-800",
+                              m.tipo === "Pago" &&
+                                "border-red-300 text-red-700 hover:bg-red-50",
+                              m.tipo === "Nota crédito" &&
+                                "bg-blue-50 text-blue-800",
+                              m.tipo === "Ajuste" && "bg-red-50 text-red-700"
+                            )}
+                          >
+                            {m.tipo}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="p-2 align-middle text-sm">
+                          {m.descripcion ? (
+                            <span className="italic text-muted-foreground">
+                              {m.descripcion}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="p-2 align-middle text-sm">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono">{m.numero}</span>
+                            {tieneDetalles && (
+                              <Badge
+                                variant="secondary"
+                                className="text-xs px-1.5 py-0 h-4"
+                              >
+                                {m.detalles!.length} fact.
+                              </Badge>
+                            )}
+                            {tieneDetalles && (
+                              <span className="text-muted-foreground text-xs">
+                                {expandido ? "▲" : "▼"}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell
                           className={cn(
-                            "rounded-md",
-                            m.tipo === "Factura" &&
-                              "bg-green-200 text-green-800",
-                            m.tipo === "Pago" &&
-                              "border-red-300 text-red-700 hover:bg-red-50",
-                            m.tipo === "Nota crédito" &&
-                              "bg-blue-50 text-blue-800",
-                            m.tipo === "Ajuste" && "bg-red-50 text-red-700"
+                            "p-2 align-middle text-right tabular-nums font-semibold",
+                            esPagoONota
+                              ? "text-red-700"
+                              : montoPositivo
+                              ? "text-green-700"
+                              : "text-muted-foreground"
                           )}
                         >
-                          {m.tipo}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="p-2 align-middle text-sm">
-                        {m.descripcion ? (
-                          <span className="italic text-muted-foreground">
-                            {m.descripcion}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
+                          {formatValue(m.monto)}
+                        </TableCell>
+                        <TableCell className="p-2 align-middle text-right tabular-nums">
+                          {formatValue(m.saldo)}
+                        </TableCell>
+                        <TableCell
+                          className="p-2 align-middle text-right"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-red-600 hover:text-red-800"
+                                  onClick={() => handleEliminar(m)}
+                                  title="Eliminar"
+                                  disabled={deletingId === m.id}
+                                >
+                                  <Trash className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p>Eliminar</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                      </TableRow>
 
-                      <TableCell className="p-2 align-middle text-sm">
-                        <span className="font-mono">{m.numero}</span>
-                      </TableCell>
-
-                      <TableCell
-                        className={cn(
-                          "p-2 align-middle text-right tabular-nums font-semibold",
-                          esPagoONota
-                            ? "text-red-700"
-                            : montoPositivo
-                            ? "text-green-700"
-                            : "text-muted-foreground"
-                        )}
-                      >
-                        {typeof (globalThis as any).formatValue === "function"
-                          ? (globalThis as any).formatValue(m.monto)
-                          : formatValue(m.monto)}
-                      </TableCell>
-
-                      <TableCell className="p-2 align-middle text-right tabular-nums">
-                        {typeof (globalThis as any).formatValue === "function"
-                          ? (globalThis as any).formatValue(m.saldo)
-                          : formatValue(m.saldo)}
-                      </TableCell>
-
-                      <TableCell className="p-2 align-middle text-right">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-red-600 hover:text-red-800"
-                                onClick={() => handleEliminar(m)}
-                                title="Eliminar"
-                                disabled={deletingId === m.id}
-                              >
-                                <Trash className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              <p>Eliminar</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </TableCell>
-                    </TableRow>
+                      {/* Sub-filas de facturas cubiertas por este pago */}
+                      {tieneDetalles &&
+                        expandido &&
+                        m.detalles!.map((d, i) => (
+                          <TableRow
+                            key={`${m.id}-det-${i}`}
+                            className="bg-red-50/30 border-l-2 border-red-200"
+                          >
+                            <TableCell className="p-2 pl-6 text-xs text-muted-foreground">
+                              {/* misma fecha del pago */}
+                              {fecha.toLocaleDateString("es-CO", {
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                              })}
+                            </TableCell>
+                            <TableCell />
+                            <TableCell className="p-2">
+                              <span className="text-xs text-muted-foreground italic">
+                                ↳ detalle
+                              </span>
+                            </TableCell>
+                            <TableCell />
+                            <TableCell className="p-2 text-xs font-mono text-muted-foreground">
+                              Fact. {d.facturaNumero}
+                            </TableCell>
+                            <TableCell className="p-2 text-right text-xs tabular-nums text-red-600 font-medium">
+                              -{formatValue(d.valor)}
+                            </TableCell>
+                            <TableCell />
+                            <TableCell />
+                          </TableRow>
+                        ))}
+                    </React.Fragment>
                   );
                 })
               )}

@@ -65,11 +65,23 @@ export class ResumenPedidoDto {
 
   @IsString()
   telefonoEmpresa: string;
+
+  @IsOptional()
+  @IsNumber()
+  totalUnidades?: number;
+
+  @IsOptional()
+  @IsNumber()
+  totalPesoKg?: number;
+
+  @IsOptional()
+  @IsNumber()
+  totalCubicajeM3?: number;
 }
 
 export class ProductoResumenDto {
   @IsString()
-  nombre: string; // Nombre del producto
+  nombre: string;
 
   @IsNumber()
   cantidad: number;
@@ -78,5 +90,17 @@ export class ProductoResumenDto {
   precio: number;
 
   @IsNumber()
-  subtotal: number; // cantidad * precio
+  subtotal: number;
+
+  @IsOptional()
+  @IsNumber()
+  bultosEquivalentes?: number; // cantidad / unidadesPorBulto
+
+  @IsOptional()
+  @IsNumber()
+  pesoTotal?: number; // bultosEquivalentes * pesoPorBulto
+
+  @IsOptional()
+  @IsNumber()
+  cubicajeTotal?: number; // bultosEquivalentes * cubicajePorBulto
 }

@@ -95,94 +95,63 @@ export class DashboardService {
     };
   }
 
-  /**
-   * Gráfico de cobros por mes
-   */
-  async getDataGraphicsCobros(usuario: UsuarioPayload) {
-    if (!usuario) throw new Error('Usuario no encontrado');
+  private readonly MESES = [
+    'enero','febrero','marzo','abril','mayo','junio',
+    'julio','agosto','septiembre','octubre','noviembre','diciembre',
+  ];
 
+  /**
+   * Gráfico de cobros por mes filtrado por año
+   */
+  async getDataGraphicsCobros(usuario: UsuarioPayload, year: number) {
+    if (!usuario) throw new Error('Usuario no encontrado');
     const { id: usuarioId, empresaId, rol } = usuario;
+
+    const inicio = new Date(year, 0, 1);
+    const fin = new Date(year, 11, 31, 23, 59, 59, 999);
 
     const recaudos = await this.prisma.recibo.findMany({
       where:
         rol === 'admin'
-          ? { usuario: { empresaId } }
-          : { usuario: { empresaId }, usuarioId },
+          ? { usuario: { empresaId }, Fechacrecion: { gte: inicio, lte: fin } }
+          : { usuario: { empresaId }, usuarioId, Fechacrecion: { gte: inicio, lte: fin } },
       include: { detalleRecibo: { select: { valorTotal: true } } },
     });
 
-    const meses = [
-      'enero',
-      'febrero',
-      'marzo',
-      'abril',
-      'mayo',
-      'junio',
-      'julio',
-      'agosto',
-      'septiembre',
-      'octubre',
-      'noviembre',
-      'diciembre',
-    ];
-
-    const cobrosPorMes = meses.map((m) => ({ Mes: m, cobros: 0 }));
-
+    const cobrosPorMes = this.MESES.map((m) => ({ Mes: m, cobros: 0 }));
     recaudos.forEach((rec) => {
-      const mesIndex = new Date(rec.Fechacrecion).getMonth();
-      const totalRecibo = rec.detalleRecibo.reduce(
-        (sum, d) => sum + d.valorTotal,
-        0
+      const idx = new Date(rec.Fechacrecion).getMonth();
+      cobrosPorMes[idx].cobros += rec.detalleRecibo.reduce(
+        (s, d) => s + d.valorTotal, 0
       );
-      cobrosPorMes[mesIndex].cobros += totalRecibo;
     });
-
     return cobrosPorMes;
   }
 
   /**
-   * Gráfico de ventas por mes
+   * Gráfico de ventas por mes filtrado por año
    */
-  async getDataGraphiscVentas(usuario: UsuarioPayload) {
+  async getDataGraphiscVentas(usuario: UsuarioPayload, year: number) {
     if (!usuario) throw new Error('Usuario no encontrado');
-
     const { id: usuarioId, empresaId, rol } = usuario;
+
+    const inicio = new Date(year, 0, 1);
+    const fin = new Date(year, 11, 31, 23, 59, 59, 999);
 
     const ventas = await this.prisma.pedido.groupBy({
       by: ['fechaPedido'],
       _sum: { total: true },
       where:
         rol === 'admin'
-          ? { empresaId, estados: { some: { estado: 'FACTURADO' } } }
-          : {
-              empresaId,
-              usuarioId,
-              estados: { some: { estado: 'FACTURADO' } },
-            },
+          ? { empresaId, fechaPedido: { gte: inicio, lte: fin }, estados: { some: { estado: 'FACTURADO' } } }
+          : { empresaId, usuarioId, fechaPedido: { gte: inicio, lte: fin }, estados: { some: { estado: 'FACTURADO' } } },
     });
 
-    const meses = [
-      'enero',
-      'febrero',
-      'marzo',
-      'abril',
-      'mayo',
-      'junio',
-      'julio',
-      'agosto',
-      'septiembre',
-      'octubre',
-      'noviembre',
-      'diciembre',
-    ];
-
-    const ventasPorMes = meses.map((m) => ({ Mes: m, ventas: 0 }));
-
-    ventas.forEach((venta) => {
-      const mesIndex = new Date(venta.fechaPedido).getMonth();
-      ventasPorMes[mesIndex].ventas += Number(venta._sum.total || 0);
+    const ventasPorMes = this.MESES.map((m) => ({ Mes: m, ventas: 0 }));
+    ventas.forEach((v) => {
+      const idx = new Date(v.fechaPedido).getMonth();
+      ventasPorMes[idx].ventas += Number(v._sum.total || 0);
     });
-
     return ventasPorMes;
   }
 

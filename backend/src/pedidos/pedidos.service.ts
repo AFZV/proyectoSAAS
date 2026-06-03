@@ -69,12 +69,38 @@ export class PedidosService {
       fecha: new Date(),
       vendedor: pedido.usuario?.nombre || '',
       observaciones: pedido.observaciones ?? '',
-      productos: pedido.productos.map((i) => ({
-        nombre: i.producto.nombre,
-        cantidad: i.cantidad,
-        precio: i.precio,
-        subtotal: i.cantidad * i.precio,
-      })),
+      productos: pedido.productos.map((i) => {
+        const upb = i.producto.unidadesPorBulto;
+        const bultos = upb != null && upb > 0 ? i.cantidad / upb : undefined;
+        return {
+          nombre: i.producto.nombre,
+          cantidad: i.cantidad,
+          precio: i.precio,
+          subtotal: i.cantidad * i.precio,
+          bultosEquivalentes: bultos,
+          pesoTotal: bultos != null && i.producto.pesoPorBulto != null
+            ? bultos * i.producto.pesoPorBulto
+            : undefined,
+          cubicajeTotal: bultos != null && i.producto.cubicajePorBulto != null
+            ? bultos * i.producto.cubicajePorBulto
+            : undefined,
+        };
+      }),
+      totalUnidades: pedido.productos.reduce((s, p) => s + p.cantidad, 0),
+      totalPesoKg: pedido.productos.some((p) => p.producto.pesoPorBulto != null && p.producto.unidadesPorBulto != null)
+        ? pedido.productos.reduce((s, p) => {
+            const upb = p.producto.unidadesPorBulto;
+            const ppb = p.producto.pesoPorBulto;
+            return s + (upb != null && upb > 0 && ppb != null ? (p.cantidad / upb) * ppb : 0);
+          }, 0)
+        : undefined,
+      totalCubicajeM3: pedido.productos.some((p) => p.producto.cubicajePorBulto != null && p.producto.unidadesPorBulto != null)
+        ? pedido.productos.reduce((s, p) => {
+            const upb = p.producto.unidadesPorBulto;
+            const cpb = p.producto.cubicajePorBulto;
+            return s + (upb != null && upb > 0 && cpb != null ? (p.cantidad / upb) * cpb : 0);
+          }, 0)
+        : undefined,
       logoUrl: pedido.empresa.logoUrl,
       total,
     };
@@ -316,7 +342,14 @@ export class PedidosService {
           include: {
             productos: {
               include: {
-                producto: { select: { nombre: true } },
+                producto: {
+                  select: {
+                    nombre: true,
+                    unidadesPorBulto: true,
+                    pesoPorBulto: true,
+                    cubicajePorBulto: true,
+                  },
+                },
               },
               orderBy: { producto: { nombre: 'asc' } },
             },
@@ -439,12 +472,38 @@ export class PedidosService {
               fecha: new Date(),
               vendedor: pedido.usuario.nombre,
               observaciones: pedido.observaciones ?? '',
-              productos: pedido.productos.map((item) => ({
-                nombre: item.producto.nombre,
-                cantidad: item.cantidad,
-                precio: item.precio,
-                subtotal: item.cantidad * item.precio,
-              })),
+              productos: pedido.productos.map((item) => {
+                const upb = item.producto.unidadesPorBulto;
+                const bultos = upb != null && upb > 0 ? item.cantidad / upb : undefined;
+                return {
+                  nombre: item.producto.nombre,
+                  cantidad: item.cantidad,
+                  precio: item.precio,
+                  subtotal: item.cantidad * item.precio,
+                  bultosEquivalentes: bultos,
+                  pesoTotal: bultos != null && item.producto.pesoPorBulto != null
+                    ? bultos * item.producto.pesoPorBulto
+                    : undefined,
+                  cubicajeTotal: bultos != null && item.producto.cubicajePorBulto != null
+                    ? bultos * item.producto.cubicajePorBulto
+                    : undefined,
+                };
+              }),
+              totalUnidades: pedido.productos.reduce((s, p) => s + p.cantidad, 0),
+              totalPesoKg: pedido.productos.some((p) => p.producto.pesoPorBulto != null && p.producto.unidadesPorBulto != null)
+                ? pedido.productos.reduce((s, p) => {
+                    const upb = p.producto.unidadesPorBulto;
+                    const ppb = p.producto.pesoPorBulto;
+                    return s + (upb != null && upb > 0 && ppb != null ? (p.cantidad / upb) * ppb : 0);
+                  }, 0)
+                : undefined,
+              totalCubicajeM3: pedido.productos.some((p) => p.producto.cubicajePorBulto != null && p.producto.unidadesPorBulto != null)
+                ? pedido.productos.reduce((s, p) => {
+                    const upb = p.producto.unidadesPorBulto;
+                    const cpb = p.producto.cubicajePorBulto;
+                    return s + (upb != null && upb > 0 && cpb != null ? (p.cantidad / upb) * cpb : 0);
+                  }, 0)
+                : undefined,
               logoUrl: pedido.empresa.logoUrl,
               total: pedido.productos.reduce(
                 (sum, item) => sum + item.cantidad * item.precio,

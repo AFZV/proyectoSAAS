@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
@@ -38,6 +39,7 @@ import { AuthPublicModule } from './auth-public/auth-public.module';
 @Module({
   imports: [
     // Rate Limiting: 10 requests por minuto por IP
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       {
         ttl: 60000, // 60 segundos

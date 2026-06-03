@@ -4,6 +4,7 @@ import { CarrouselProducts } from "./components/CarrouselProducts";
 import { getToken } from "@/lib/getToken";
 import { InactiveClients } from "./components/InactiveClients/InactiveClients";
 import { HeaderEstadisticas } from "./components/HeaderEstadisticas";
+import { RecomendacionCompra } from "./components/RecomendacionCompra";
 import { Card, CardContent } from "@/components/ui/card";
 
 async function fetchStats(token: string) {
@@ -16,6 +17,16 @@ async function fetchStats(token: string) {
   );
   if (!res.ok) throw new Error("NO TIENE ACCESO");
   return res.json();
+}
+
+async function fetchRol(token: string): Promise<string> {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/auth/usuario-actual`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+  );
+  if (!res.ok) return "";
+  const u = await res.json();
+  return (u.rol as string) ?? "";
 }
 
 export default async function EstadisticasPage() {
@@ -35,6 +46,9 @@ export default async function EstadisticasPage() {
       </div>
     );
   }
+
+  const rol = await fetchRol(token);
+  const isAdmin = rol === "admin";
 
   const productsLow = data?.ProductsLowStock ?? [];
   const products = data?.productos ?? [];
@@ -72,6 +86,13 @@ export default async function EstadisticasPage() {
           />
         </Suspense>
       </section>
+
+      {/* Recomendación de compra — solo admin */}
+      {isAdmin && (
+        <section>
+          <RecomendacionCompra />
+        </section>
+      )}
 
       {/* Clientes inactivos */}
       <section>

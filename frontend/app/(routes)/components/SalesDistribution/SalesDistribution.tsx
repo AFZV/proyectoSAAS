@@ -1,124 +1,157 @@
-import { CustomIcon } from "@/components/CustomIcon";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { BarChart, TrendingUp, TrendingDown } from "lucide-react";
 import { GraphicsVentas } from "../Graphics";
 import { GraphicsRecaudos } from "../GraphicsRecaudos";
-import { getToken } from "@/lib/getToken";
+import { cn } from "@/lib/utils";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-type SalesDistributionProps = {
+const currentYear = new Date().getFullYear();
+const YEARS = Array.from(
+  { length: currentYear - 2022 },
+  (_, i) => 2023 + i
+).reverse(); // más reciente primero
+
+type VentasMes = { Mes: string; ventas: number };
+type CobrosMes = { Mes: string; cobros: number };
+
+type Props = {
   variacionVentas?: number | string;
   variacionCobros?: number | string;
 };
 
-export async function SalesDistribution({
-  variacionVentas,
-  variacionCobros,
-}: SalesDistributionProps) {
-  const token = await getToken();
+function VariacionBadge({ valor }: { valor?: number | string }) {
+  if (valor === undefined || valor === null) return null;
+  const n =
+    typeof valor === "number"
+      ? valor
+      : parseFloat(String(valor).replace("%", "").trim());
+  if (Number.isNaN(n)) return null;
+  const neg = n < 0;
+  const Icono = neg ? TrendingDown : TrendingUp;
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1 text-xs px-2 py-1 rounded-full",
+        neg
+          ? "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/20"
+          : n === 0
+          ? "text-muted-foreground bg-muted/30"
+          : "text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-900/20"
+      )}
+    >
+      <Icono className="h-3 w-3" />
+      <span>{n.toFixed(2)}%</span>
+    </div>
+  );
+}
 
-  const resventas = await fetch(`${BACKEND_URL}/dashboard/ventas`, {
-    headers: { Authorization: `Bearer ${token}` },
-    next: { revalidate: 0 },
-  });
-  const dataVentas = await resventas.json();
+function YearSelector({
+  year,
+  onChange,
+}: {
+  year: number;
+  onChange: (y: number) => void;
+}) {
+  return (
+    <select
+      value={year}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="text-xs border border-border rounded-md px-2 py-1 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+    >
+      {YEARS.map((y) => (
+        <option key={y} value={y}>
+          {y}
+        </option>
+      ))}
+    </select>
+  );
+}
 
-  const resCobros = await fetch(`${BACKEND_URL}/dashboard/cobros`, {
-    headers: { Authorization: `Bearer ${token}` },
-    next: { revalidate: 0 },
-  });
-  const dataCobros = await resCobros.json();
+export function SalesDistribution({ variacionVentas, variacionCobros }: Props) {
+  const { getToken } = useAuth();
+  const [year, setYear] = useState(currentYear);
+  const [dataVentas, setDataVentas] = useState<VentasMes[]>([]);
+  const [dataCobros, setDataCobros] = useState<CobrosMes[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // 👉 Función auxiliar para decidir icono/color
-  const renderVariacion = (valor?: number | string) => {
-    if (valor === undefined || valor === null) return null;
-
-    // Normalizar a número (soporta " -54.6% ", "-54.6", 0, 12.3, etc.)
-    const n =
-      typeof valor === "number"
-        ? valor
-        : parseFloat(String(valor).replace("%", "").trim());
-
-    if (Number.isNaN(n)) return null;
-
-    const esNegativo = n < 0;
-    const esCero = n === 0;
-
-    // Icono y color según signo (comportamiento natural)
-    const Icono = esNegativo ? TrendingDown : TrendingUp;
-    const colorClass = esNegativo
-      ? "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/20"
-      : esCero
-      ? "text-muted-foreground bg-muted/30 dark:bg-muted/10"
-      : "text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-900/20";
-
-    // Formatear porcentaje mostrado
-    const mostrar = `${n.toFixed(2)}%`;
-
-    return (
-      <div
-        className={`flex items-center space-x-1 text-xs px-2 py-1 rounded-full ${colorClass}`}
-      >
-        <Icono className="h-3 w-3" />
-        <span>{mostrar}</span>
-      </div>
-    );
-  };
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const token = await getToken();
+        const headers = { Authorization: `Bearer ${token}` };
+        const [rv, rc] = await Promise.all([
+          fetch(`${API}/dashboard/ventas?year=${year}`, { headers }),
+          fetch(`${API}/dashboard/cobros?year=${year}`, { headers }),
+        ]);
+        if (!cancelled) {
+          setDataVentas(rv.ok ? await rv.json() : []);
+          setDataCobros(rc.ok ? await rc.json() : []);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year]);
 
   return (
     <div className="space-y-4">
       {/* Gráfico de Ventas */}
       <div className="bg-card border rounded-xl p-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
             <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <BarChart
-                className="h-4 w-4 text-blue-600 dark:text-blue-400"
-                strokeWidth={1.5}
-              />
+              <BarChart className="h-4 w-4 text-blue-600 dark:text-blue-400" strokeWidth={1.5} />
             </div>
             <div>
               <h3 className="font-semibold text-sm text-foreground">
                 Distribución de Ventas
               </h3>
               <p className="text-xs text-muted-foreground">
-                Evolución mensual de ventas
+                Evolución mensual · {year}
               </p>
             </div>
           </div>
-
-          {renderVariacion(variacionVentas)}
+          <div className="flex items-center gap-3 flex-wrap">
+            <YearSelector year={year} onChange={setYear} />
+            <VariacionBadge valor={variacionVentas} />
+          </div>
         </div>
-
-        <div className="h-[240px] w-full">
+        <div className={cn("h-[240px] w-full transition-opacity", loading && "opacity-40 pointer-events-none")}>
           <GraphicsVentas data={dataVentas} />
         </div>
       </div>
 
       {/* Gráfico de Cobros */}
       <div className="bg-card border rounded-xl p-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
             <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <BarChart
-                className="h-4 w-4 text-green-600 dark:text-green-400"
-                strokeWidth={1.5}
-              />
+              <BarChart className="h-4 w-4 text-green-600 dark:text-green-400" strokeWidth={1.5} />
             </div>
             <div>
               <h3 className="font-semibold text-sm text-foreground">
                 Distribución de Cobros
               </h3>
               <p className="text-xs text-muted-foreground">
-                Recaudos mensuales realizados
+                Recaudos mensuales · {year}
               </p>
             </div>
           </div>
-
-          {renderVariacion(variacionCobros)}
+          <div className="flex items-center gap-3 flex-wrap">
+            <YearSelector year={year} onChange={setYear} />
+            <VariacionBadge valor={variacionCobros} />
+          </div>
         </div>
-
-        <div className="h-[240px] w-full">
+        <div className={cn("h-[240px] w-full transition-opacity", loading && "opacity-40 pointer-events-none")}>
           <GraphicsRecaudos data={dataCobros} />
         </div>
       </div>
