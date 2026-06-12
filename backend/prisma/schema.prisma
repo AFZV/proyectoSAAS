@@ -44,6 +44,8 @@ model Empresa {
   PagoProveedor PagoProveedor[]
 
   FacturaProveedor FacturaProveedor[]
+
+  auditLogs AuditLog[]
 }
 
 model Usuario {
@@ -68,6 +70,8 @@ model Usuario {
   movimientosCartera   MovimientosCartera[]
   //clientes Cliente[]
   PagoProveedor        PagoProveedor[]
+
+  auditLogs AuditLog[]
 
   @@index([empresaId])
   @@index([clienteId])
@@ -509,4 +513,26 @@ enum MetodoPagoProvEnum {
   TARJETA
   CHEQUE
   OTRO
+}
+
+// ── Auditoría ────────────────────────────────────────────────────
+model AuditLog {
+  id            String   @id @default(uuid())
+  empresaId     String
+  usuarioId     String
+  usuarioNombre String   @db.Text
+  accion        String   @db.Text
+  entidad       String   @db.Text
+  entidadId     String   @db.Text
+  detalle       Json?
+  ip            String?  @db.Text
+  creadoEn      DateTime @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([empresaId, creadoEn])
+  @@index([empresaId, entidad])
+  @@index([usuarioId])
+  @@index([entidadId])
 }

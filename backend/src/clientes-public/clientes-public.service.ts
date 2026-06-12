@@ -32,7 +32,6 @@ export class ClientesPublicService {
                             select: {
                                 id: true,
                                 nombreComercial: true,
-                                nit: true,
                             },
                         },
                     },
@@ -68,7 +67,6 @@ export class ClientesPublicService {
                 empresas: cliente.empresas.map((e) => ({
                     id: e.empresa.id,
                     nombre: e.empresa.nombreComercial,
-                    nit: e.empresa.nit,
                 })),
             },
         };
@@ -83,10 +81,6 @@ export class ClientesPublicService {
             select: {
                 id: true,
                 nombreComercial: true,
-                nit: true,
-                telefono: true,
-                direccion: true,
-                logoUrl: true,
             },
             orderBy: {
                 nombreComercial: 'asc',

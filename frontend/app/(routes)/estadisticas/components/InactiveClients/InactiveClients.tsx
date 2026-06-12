@@ -1,6 +1,4 @@
 "use client";
-// ————————————————————————————————————————————————————————————————
-// File: app/(dashboard)/estadisticas/components/InactiveClients/InactiveClients.tsx
 import * as React from "react";
 import { Users, Search, FileDown } from "lucide-react";
 import { Cliente, TableClients } from "./table";
@@ -15,9 +13,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Paginator } from "@/components/Paginator/Paginator";
+
+const PAGE_SIZE = 20;
 
 export function InactiveClients({ clientes }: { clientes: Cliente[] }) {
   const [query, setQuery] = React.useState("");
+  const [page, setPage] = React.useState(0);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -29,7 +31,16 @@ export function InactiveClients({ clientes }: { clientes: Cliente[] }) {
     );
   }, [clientes, query]);
 
+  // Resetear página cuando cambia el filtro de búsqueda
+  React.useEffect(() => {
+    setPage(0);
+  }, [query]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
   function exportCSV() {
+    // El CSV exporta TODOS los filtrados, no solo la página actual
     const headers = [
       "NIT",
       "NOMBRE",
@@ -58,14 +69,12 @@ export function InactiveClients({ clientes }: { clientes: Cliente[] }) {
       .map((r) =>
         r.map((x) => `"${String(x ?? "").replaceAll('"', '""')}"`).join(",")
       )
-      .join("");
+      .join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `clientes_inactivos_${new Date()
-      .toISOString()
-      .slice(0, 10)}.csv`;
+    a.download = `clientes_inactivos_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -85,7 +94,7 @@ export function InactiveClients({ clientes }: { clientes: Cliente[] }) {
                   Revisa y activa contactos con seguimiento comercial.
                 </CardDescription>
               </div>
-              <Badge variant="secondary" className="self-start">
+              <Badge variant="secondary" className="self-start shrink-0">
                 {clientes.length} en total
               </Badge>
             </div>
@@ -112,9 +121,20 @@ export function InactiveClients({ clientes }: { clientes: Cliente[] }) {
                 <p>No hay clientes que coincidan con la búsqueda.</p>
               </div>
             ) : (
-              <div className="overflow-auto">
-                <TableClients clientes={filtered} />
-              </div>
+              <>
+                <div className="overflow-auto">
+                  <TableClients clientes={paginated} />
+                </div>
+                <div className="px-4 pb-4">
+                  <Paginator
+                    page={page}
+                    totalPages={totalPages}
+                    totalItems={filtered.length}
+                    pageSize={PAGE_SIZE}
+                    onPageChange={setPage}
+                  />
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

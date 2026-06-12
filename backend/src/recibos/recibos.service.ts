@@ -12,8 +12,10 @@ import { ResendService } from 'src/resend/resend.service';
 
 import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 import { ResumenReciboDto } from 'src/pdf-uploader/dto/resumen-recibo.dto';
-import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { emitirAudit } from 'src/auditoria/auditoria.helper';
+import { AuditAccion, AuditEntidad } from 'src/auditoria/auditoria.events';
 import { ExportRecaudosDto } from './dto/export-recibo.dto';
 import * as ExcelJS from 'exceljs';
 
@@ -23,8 +25,8 @@ export class RecibosService {
     private prisma: PrismaService,
     private pdfUploaderService: PdfUploaderService,
     private resendService: ResendService,
-    private cloudinaryService: CloudinaryService,
-    private hetznerStorageService: HetznerStorageService
+    private hetznerStorageService: HetznerStorageService,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   //helper para validar que el saldo a abonar o actualizar en un recibo no supere el saldo actual
@@ -326,6 +328,8 @@ export class RecibosService {
 
       return creado;
     });
+
+    emitirAudit(this.eventEmitter, usuario, AuditAccion.CREAR, AuditEntidad.RECIBO, recibo.id, { totalAbonado });
 
     // ---- PDF/Envío (asincrónico, no bloquea la respuesta) ----
     setImmediate(() => {
@@ -772,6 +776,22 @@ export class RecibosService {
       reciboActualizado.Fechacrecion
     );
 
+    const cambiosRecibo: Record<string, unknown>[] = [];
+    if (recibo.tipo !== tipo) {
+      cambiosRecibo.push({ tipo: 'metodoPago', antes: recibo.tipo, despues: tipo });
+    }
+    if ((recibo.concepto ?? '') !== (concepto ?? '')) {
+      cambiosRecibo.push({ tipo: 'concepto', antes: recibo.concepto, despues: concepto });
+    }
+    const totalAntes = recibo.detalleRecibo.reduce((s, d) => s + Number(d.valorTotal || 0), 0);
+    const totalDespues = (data.pedidos ?? []).reduce((s, p) => s + (p.valorAplicado || 0), 0);
+    if (totalAntes !== totalDespues && totalDespues > 0) {
+      cambiosRecibo.push({ tipo: 'total', antes: totalAntes, despues: totalDespues });
+    }
+    if (cambiosRecibo.length > 0) {
+      emitirAudit(this.eventEmitter, usuario, AuditAccion.ACTUALIZAR, AuditEntidad.RECIBO, id, { cambios: cambiosRecibo });
+    }
+
     return {
       mensaje: 'Recibo actualizado con éxito',
       recibo: reciboActualizado,
@@ -901,6 +921,8 @@ export class RecibosService {
 
       return updated.revisado; // devolvemos boolean
     });
+
+    emitirAudit(this.eventEmitter, usuario, AuditAccion.REVISAR, AuditEntidad.RECIBO, id, { revisado: result });
 
     return result;
   }

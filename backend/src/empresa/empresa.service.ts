@@ -7,15 +7,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { UpdateEmpresaDto } from './dto/update-empresa.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
-import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { formatearTexto } from 'src/lib/formatearTexto';
 
 @Injectable()
 export class EmpresaService {
-  constructor(
-    private prisma: PrismaService,
-    private cloudinary: CloudinaryService
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   // Crear una empresa
   async create(data: CreateEmpresaDto) {

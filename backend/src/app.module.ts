@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { AuditoriaModule } from './auditoria/auditoria.module';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
-import { PrismaController } from './prisma/prisma.controller';
 import { UsuarioModule } from './usuario/usuario.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 
@@ -26,7 +27,6 @@ import { PedidosModule } from './pedidos/pedidos.module';
 import { BalanceModule } from './balance/balance.module';
 import { PdfUploaderModule } from './pdf-uploader/pdf-uploader.module';
 import { ResendModule } from './resend/resend.module';
-import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { RespaldosModule } from './respaldos/respaldos.module';
 import { ImportarModule } from './importar/importar.module';
 import { HetznerStorageModule } from './hetzner-storage/hetzner-storage.module';
@@ -40,12 +40,15 @@ import { AuthPublicModule } from './auth-public/auth-public.module';
   imports: [
     // Rate Limiting: 10 requests por minuto por IP
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot({ wildcard: false, maxListeners: 20 }),
     ThrottlerModule.forRoot([
       {
-        ttl: 60000, // 60 segundos
-        limit: 20, // 10 requests máximo
+        name: 'global',
+        ttl: 60000,
+        limit: 200, // 200 req/min para uso normal de la app
       },
     ]),
+    AuditoriaModule,
     PrismaModule,
     UsuarioModule,
     DashboardModule,
@@ -67,11 +70,7 @@ import { AuthPublicModule } from './auth-public/auth-public.module';
     BalanceModule,
 
     PdfUploaderModule,
-
     ResendModule,
-
-    CloudinaryModule,
-
     RespaldosModule,
 
     ImportarModule,
@@ -79,7 +78,6 @@ import { AuthPublicModule } from './auth-public/auth-public.module';
     FacturasProveedorModule,
     PagosProveedorModule,
   ],
-  controllers: [PrismaController],
   providers: [
     {
       provide: APP_GUARD,

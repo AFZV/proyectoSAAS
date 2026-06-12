@@ -21,8 +21,8 @@ export class SuperadminGuard implements CanActivate {
     const payload = await verificarTokenClerk(authHeader);
     const userId = payload.sub;
 
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { codigo: userId },
+    const usuario = await this.prisma.usuario.findFirst({
+      where: { codigo: userId, estado: 'activo' },
       select: {
         id: true,
         rol: true,

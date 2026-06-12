@@ -23,6 +23,9 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { ShoppingCart, AlertTriangle, PackageCheck, Eye, EyeOff } from "lucide-react";
 import { formatValue } from "@/utils/FormartValue";
+import { Paginator } from "@/components/Paginator/Paginator";
+
+const PAGE_SIZE = 20;
 
 type Semaforo = "CRITICO" | "REPONER" | "OK" | "SIN_VENTAS";
 
@@ -106,6 +109,7 @@ export function RecomendacionCompra() {
   const [data, setData] = useState<RecomendacionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [mostrarSinVentas, setMostrarSinVentas] = useState(false);
+  const [page, setPage] = useState(0);
 
   async function fetchData(p: number, obj: number) {
     setLoading(true);
@@ -127,6 +131,11 @@ export function RecomendacionCompra() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo, diasObjetivo]);
 
+  // Resetear página cuando cambian los filtros
+  useEffect(() => {
+    setPage(0);
+  }, [periodo, diasObjetivo, mostrarSinVentas]);
+
   const visible = mostrarSinVentas
     ? data
     : data.filter((d) => d.semaforo !== "SIN_VENTAS");
@@ -134,10 +143,10 @@ export function RecomendacionCompra() {
   const criticos = data.filter((d) => d.semaforo === "CRITICO");
   const reponer = data.filter((d) => d.semaforo === "REPONER");
   const accionables = [...criticos, ...reponer];
-  const totalInversion = accionables.reduce(
-    (s, d) => s + d.inversionEstimada,
-    0
-  );
+  const totalInversion = accionables.reduce((s, d) => s + d.inversionEstimada, 0);
+
+  const totalPages = Math.ceil(visible.length / PAGE_SIZE);
+  const paginated = visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const hasBultos = visible.some((d) => d.bultosRecomendados !== null);
 
   return (
@@ -213,9 +222,7 @@ export function RecomendacionCompra() {
                 Críticos (≤ 15 días)
               </span>
             </div>
-            <p className="text-2xl font-bold text-red-700">
-              {criticos.length}
-            </p>
+            <p className="text-2xl font-bold text-red-700">{criticos.length}</p>
             <p className="text-xs text-red-500 mt-0.5">
               productos requieren acción inmediata
             </p>
@@ -228,9 +235,7 @@ export function RecomendacionCompra() {
                 Reponer pronto (16–30 días)
               </span>
             </div>
-            <p className="text-2xl font-bold text-amber-700">
-              {reponer.length}
-            </p>
+            <p className="text-2xl font-bold text-amber-700">{reponer.length}</p>
             <p className="text-xs text-amber-500 mt-0.5">
               productos por agotarse pronto
             </p>
@@ -281,112 +286,129 @@ export function RecomendacionCompra() {
             No hay productos que requieran atención en este período.
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-md border border-blue-100">
-            <Table>
-              <TableHeader className="bg-blue-50/70">
-                <TableRow>
-                  <TableHead className="text-xs text-blue-600 uppercase w-24">
-                    Estado
-                  </TableHead>
-                  <TableHead className="text-xs text-blue-600 uppercase">
-                    Producto
-                  </TableHead>
-                  <TableHead className="text-xs text-blue-600 uppercase text-right">
-                    Stock
-                  </TableHead>
-                  <TableHead className="text-xs text-blue-600 uppercase text-right">
-                    Vendidos ({periodo}d)
-                  </TableHead>
-                  <TableHead className="text-xs text-blue-600 uppercase text-right">
-                    Prom/día
-                  </TableHead>
-                  <TableHead className="text-xs text-blue-600 uppercase text-right">
-                    Días restantes
-                  </TableHead>
-                  <TableHead className="text-xs text-blue-600 uppercase text-right">
-                    A pedir (uds)
-                  </TableHead>
-                  {hasBultos && (
-                    <TableHead className="text-xs text-blue-600 uppercase text-right">
-                      A pedir (bultos)
+          <>
+            <div className="overflow-x-auto rounded-md border border-blue-100">
+              <Table>
+                <TableHeader className="bg-blue-50/70">
+                  <TableRow>
+                    <TableHead className="text-xs text-blue-600 uppercase w-24">
+                      Estado
                     </TableHead>
-                  )}
-                  <TableHead className="text-xs text-blue-600 uppercase text-right">
-                    Inversión est.
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visible.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    className={cn(
-                      "transition-colors",
-                      item.semaforo === "CRITICO" &&
-                        "bg-red-50/40 hover:bg-red-50/70",
-                      item.semaforo === "REPONER" &&
-                        "bg-amber-50/40 hover:bg-amber-50/70",
-                      item.semaforo === "OK" && "hover:bg-green-50/30",
-                      item.semaforo === "SIN_VENTAS" &&
-                        "opacity-60 hover:opacity-80"
-                    )}
-                  >
-                    <TableCell className="py-2.5">
-                      <SemaforoBadge s={item.semaforo} />
-                    </TableCell>
-                    <TableCell className="py-2.5">
-                      <div className="font-medium text-sm leading-tight">
-                        {item.nombre}
-                      </div>
-                      {item.categoria && (
-                        <div className="text-xs text-muted-foreground">
-                          {item.categoria}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right tabular-nums text-sm">
-                      {item.stockActual.toLocaleString("es-CO")}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right tabular-nums text-sm">
-                      {item.unidadesVendidas.toLocaleString("es-CO")}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right tabular-nums text-sm text-muted-foreground">
-                      {item.promedioDiario.toFixed(1)}
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right">
-                      <DiasStockCell
-                        dias={item.diasStock}
-                        semaforo={item.semaforo}
-                      />
-                    </TableCell>
-                    <TableCell className="py-2.5 text-right tabular-nums font-semibold text-sm">
-                      {item.unidadesRecomendadas > 0
-                        ? item.unidadesRecomendadas.toLocaleString("es-CO")
-                        : <span className="text-muted-foreground font-normal">—</span>}
-                    </TableCell>
+                    <TableHead className="text-xs text-blue-600 uppercase">
+                      Producto
+                    </TableHead>
+                    <TableHead className="text-xs text-blue-600 uppercase text-right">
+                      Stock
+                    </TableHead>
+                    <TableHead className="text-xs text-blue-600 uppercase text-right">
+                      Vendidos ({periodo}d)
+                    </TableHead>
+                    <TableHead className="text-xs text-blue-600 uppercase text-right">
+                      Prom/día
+                    </TableHead>
+                    <TableHead className="text-xs text-blue-600 uppercase text-right">
+                      Días restantes
+                    </TableHead>
+                    <TableHead className="text-xs text-blue-600 uppercase text-right">
+                      A pedir (uds)
+                    </TableHead>
                     {hasBultos && (
-                      <TableCell className="py-2.5 text-right tabular-nums font-semibold text-sm">
-                        {item.bultosRecomendados !== null && item.bultosRecomendados > 0
-                          ? item.bultosRecomendados.toLocaleString("es-CO")
-                          : <span className="text-muted-foreground font-normal">—</span>}
-                      </TableCell>
+                      <TableHead className="text-xs text-blue-600 uppercase text-right">
+                        A pedir (bultos)
+                      </TableHead>
                     )}
-                    <TableCell className="py-2.5 text-right tabular-nums text-sm">
-                      {item.inversionEstimada > 0
-                        ? formatValue(item.inversionEstimada)
-                        : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
+                    <TableHead className="text-xs text-blue-600 uppercase text-right">
+                      Inversión est.
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {paginated.map((item) => (
+                    <TableRow
+                      key={item.id}
+                      className={cn(
+                        "transition-colors",
+                        item.semaforo === "CRITICO" &&
+                          "bg-red-50/40 hover:bg-red-50/70",
+                        item.semaforo === "REPONER" &&
+                          "bg-amber-50/40 hover:bg-amber-50/70",
+                        item.semaforo === "OK" && "hover:bg-green-50/30",
+                        item.semaforo === "SIN_VENTAS" &&
+                          "opacity-60 hover:opacity-80"
+                      )}
+                    >
+                      <TableCell className="py-2.5">
+                        <SemaforoBadge s={item.semaforo} />
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <div className="font-medium text-sm leading-tight">
+                          {item.nombre}
+                        </div>
+                        {item.categoria && (
+                          <div className="text-xs text-muted-foreground">
+                            {item.categoria}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right tabular-nums text-sm">
+                        {item.stockActual.toLocaleString("es-CO")}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right tabular-nums text-sm">
+                        {item.unidadesVendidas.toLocaleString("es-CO")}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right tabular-nums text-sm text-muted-foreground">
+                        {item.promedioDiario.toFixed(1)}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right">
+                        <DiasStockCell
+                          dias={item.diasStock}
+                          semaforo={item.semaforo}
+                        />
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right tabular-nums font-semibold text-sm">
+                        {item.unidadesRecomendadas > 0 ? (
+                          item.unidadesRecomendadas.toLocaleString("es-CO")
+                        ) : (
+                          <span className="text-muted-foreground font-normal">—</span>
+                        )}
+                      </TableCell>
+                      {hasBultos && (
+                        <TableCell className="py-2.5 text-right tabular-nums font-semibold text-sm">
+                          {item.bultosRecomendados !== null &&
+                          item.bultosRecomendados > 0 ? (
+                            item.bultosRecomendados.toLocaleString("es-CO")
+                          ) : (
+                            <span className="text-muted-foreground font-normal">—</span>
+                          )}
+                        </TableCell>
+                      )}
+                      <TableCell className="py-2.5 text-right tabular-nums text-sm">
+                        {item.inversionEstimada > 0 ? (
+                          formatValue(item.inversionEstimada)
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <Paginator
+              page={page}
+              totalPages={totalPages}
+              totalItems={visible.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
+            />
+          </>
         )}
 
         <p className="text-xs text-muted-foreground">
-          * Inversión estimada calculada con precio de compra registrado.
-          La columna <strong>A pedir (bultos)</strong> solo aparece cuando al menos un producto tiene{" "}
-          <em>unidades por bulto</em> configurado.
+          * Inversión estimada calculada con precio de compra registrado. La
+          columna <strong>A pedir (bultos)</strong> solo aparece cuando al menos
+          un producto tiene <em>unidades por bulto</em> configurado.
         </p>
       </CardContent>
     </Card>

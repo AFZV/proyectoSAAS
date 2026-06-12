@@ -1,8 +1,9 @@
 "use client";
-import Link from "next/link";
 import { SideBarItemProps } from "./SideBarItem.types";
 import { cn } from "@/lib/utils";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 export function SideBarItem(props: SideBarItemProps) {
   const { item } = props;
@@ -10,11 +11,18 @@ export function SideBarItem(props: SideBarItemProps) {
   const pathName = usePathname();
   const router = useRouter();
   const activePath = pathName === href;
+  const [isPending, setIsPending] = useState(false);
 
-  // ✅ Manejar navegación explícitamente
+  // Cuando la ruta cambia, limpia el estado de carga
+  useEffect(() => {
+    setIsPending(false);
+  }, [pathName]);
+
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (activePath) return;
+    setIsPending(true);
     router.push(href);
   };
 
@@ -30,17 +38,20 @@ export function SideBarItem(props: SideBarItemProps) {
     >
       <Icon
         className={cn(
-          "h-4 w-4 transition-colors duration-200",
+          "h-4 w-4 transition-colors duration-200 shrink-0",
           activePath ? "text-white" : "text-muted-foreground group-hover:text-accent-foreground"
         )}
         strokeWidth={1.5}
       />
       <span className="truncate">{label}</span>
 
-      {/* ✅ Punto blanco indicador */}
-      {activePath && (
-        <div className="ml-auto h-2 w-2 rounded-full bg-white/90" />
-      )}
+      <div className="ml-auto shrink-0">
+        {isPending && !activePath ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin opacity-70" />
+        ) : activePath ? (
+          <div className="h-2 w-2 rounded-full bg-white/90" />
+        ) : null}
+      </div>
     </button>
   );
 }

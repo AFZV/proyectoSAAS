@@ -56,7 +56,7 @@ async function subirLogoEmpresa(
 
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/cloudinary/upload/logo-empresa`,
+      `${process.env.NEXT_PUBLIC_API_URL}/hetzner-storage/upload/logo-empresa`,
       {
         method: "POST",
         headers: {

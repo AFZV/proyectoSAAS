@@ -17,12 +17,17 @@ import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.servi
 import { promises as fs } from 'fs';
 import { GenerarCatalogoPorIdsDto } from './dto/generar-catalogo-por-ids.dto';
 import { format } from 'date-fns';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { emitirAudit } from 'src/auditoria/auditoria.helper';
+import { AuditAccion, AuditEntidad } from 'src/auditoria/auditoria.events';
+
 @Injectable()
 export class ProductosService {
   constructor(
     private prisma: PrismaService,
     private pdfUploaderService: PdfUploaderService,
-    private hetznerService: HetznerStorageService
+    private hetznerService: HetznerStorageService,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   async create(usuario: UsuarioPayload, data: CreateProductoDto) {
@@ -69,6 +74,7 @@ export class ProductosService {
         );
       }
 
+      emitirAudit(this.eventEmitter, usuario, AuditAccion.CREAR, AuditEntidad.PRODUCTO, producto.id, { nombre: producto.nombre });
       return producto;
     } catch (error: any) {
       console.error('Error al crear el producto:', error);
@@ -313,7 +319,7 @@ export class ProductosService {
 
     return { url, key };
   }
-  async UpdateEstadoProduct(productoId: string) {
+  async UpdateEstadoProduct(productoId: string, usuario: UsuarioPayload) {
     const producto = await this.prisma.producto.findUnique({
       where: { id: productoId },
     });
@@ -323,26 +329,25 @@ export class ProductosService {
     }
 
     try {
-      // Obtener el estado del producto
       const nuevoEstado = producto.estado === 'activo' ? 'inactivo' : 'activo';
 
-      // Actualizar producto
       await this.prisma.producto.update({
         where: { id: productoId },
         data: { estado: nuevoEstado },
       });
+
+      emitirAudit(this.eventEmitter, usuario, AuditAccion.CAMBIO_ESTADO, AuditEntidad.PRODUCTO, productoId, { estadoAnterior: producto.estado, nuevoEstado });
     } catch (error: any) {
       console.error('Error al Actualizar el estado  del producto:', error);
 
       if (error.getStatus && typeof error.getStatus === 'function') {
         throw error;
       }
-      // Si no, lanza una InternalServerErrorException
       throw new InternalServerErrorException('Error al Actualizar  el estado');
     }
   }
 
-  async UpdateProducto(productoId: string, data: UpdateProductoDto) {
+  async UpdateProducto(productoId: string, data: UpdateProductoDto, usuario: UsuarioPayload) {
     const producto = await this.prisma.producto.findUnique({
       where: { id: productoId },
     });
@@ -411,6 +416,10 @@ export class ProductosService {
         );
       }
 
+      emitirAudit(this.eventEmitter, usuario, AuditAccion.ACTUALIZAR, AuditEntidad.PRODUCTO, productoId, {
+        antes: { precioVenta: producto.precioVenta, precioCompra: producto.precioCompra, nombre: producto.nombre },
+        despues: { precioVenta: data.precioVenta, precioCompra: data.precioCompra, nombre: data.nombre },
+      });
       return productoActualizado;
     } catch (error) {
       console.error('Error al actualizar el producto:', error);

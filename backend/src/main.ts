@@ -7,28 +7,14 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-  //  Permitir CORS solo desde el frontend en desarrollo
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
+    : ['http://localhost:3000'];
+
   app.enableCors({
-    origin: [
-      'http://g844cwsocsw44ck8s88oocgg.69.62.65.126.sslip.io',
-      'http://g844cwsocsw44ck8s88oocgg.69.62.65.126.sslip.io:3000',
-      'https://g844cwsocsw44ck8s88oocgg.69.62.65.126.sslip.io',
-      'http://localhost:3000',
-      'https://bgacloudsaas.com',
-      'https://www.bgacloudsaas.com',
-      'https://c4s4w8s0skksoo8g484k8o0g.69.62.65.126.sslip.io',
-      'http://c4s4w8s0skksoo8g484k8o0g.69.62.65.126.sslip.io',
-      'https://jndistribuidora.bgacloudsaas.com',
-      'http://jndistribuidora.bgacloudsaas.com',
-      'https://pruebas.bgacloudsaas.com',
-      'http://pruebas.bgacloudsaas.com',
-      'https://consultants.bgacloudsaas.com',
-      'http://consultants.bgacloudsaas.com',
-      'https://bodegabebe.bgacloudsaas.com',
-      'http://bodegabebe.bgacloudsaas.com',
-    ],
+    origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: '*',
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
     preflightContinue: false,
     optionsSuccessStatus: 204,

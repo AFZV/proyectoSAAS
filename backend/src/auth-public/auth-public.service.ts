@@ -8,6 +8,12 @@ import { ClerkService } from '../clerk/clerk.service';
 import { AsignarPasswordDto } from './dto/asignar-password.dto';
 import { RegistroClienteDto } from './dto/registro-cliente.dto';
 
+// Si hay INSTANCE_EMPRESA_ID en env, ignoramos el empresaId enviado por el cliente
+// para evitar que alguien se registre bajo una empresa distinta
+function resolverEmpresaId(dtoEmpresaId: string): string {
+  return process.env.INSTANCE_EMPRESA_ID ?? dtoEmpresaId;
+}
+
 @Injectable()
 export class AuthPublicService {
   constructor(
@@ -19,6 +25,7 @@ export class AuthPublicService {
    * CASO 1: Cliente existente asigna contraseña
    */
   async asignarPasswordClienteExistente(dto: AsignarPasswordDto) {
+    const empresaId = resolverEmpresaId(dto.empresaId);
     return this.prisma.$transaction(async (tx) => {
       // 1. Limpiar y validar NIT
       const nitLimpio = dto.nit.replace(/\D/g, '');
@@ -63,17 +70,18 @@ export class AuthPublicService {
           password: dto.password,
           firstName: cliente.nombre,
           lastName: cliente.apellidos,
-          phoneNumber: cliente.telefono,
         });
         clerkUserId = clerkUser.clerkUserId;
-      } catch (error) {
-        throw new BadRequestException('Error creando cuenta en Clerk');
+      } catch (error: any) {
+        throw new BadRequestException(
+          error?.message ?? 'Error creando cuenta. Intenta con otra contraseña.'
+        );
       }
 
       // 6. Buscar el ADMIN de la empresa seleccionada
       const adminEmpresa = await tx.usuario.findFirst({
         where: {
-          empresaId: dto.empresaId,
+          empresaId,
           rol: 'admin',
           estado: 'activo',
         },
@@ -97,7 +105,7 @@ export class AuthPublicService {
             telefono: cliente.telefono,
             correo: cliente.email,
             rol: 'CLIENTE',
-            empresaId: dto.empresaId,
+            empresaId,
             estado: 'activo',
           },
         });
@@ -107,12 +115,12 @@ export class AuthPublicService {
           where: {
             clienteId_empresaId: {
               clienteId: cliente.id,
-              empresaId: dto.empresaId,
+              empresaId,
             },
           },
           create: {
             clienteId: cliente.id,
-            empresaId: dto.empresaId,
+            empresaId,
             usuarioId: adminEmpresa.id,
           },
           update: {
@@ -143,6 +151,7 @@ export class AuthPublicService {
    * CASO 2: Cliente nuevo autoregistro completo
    */
   async registrarClienteNuevo(dto: RegistroClienteDto) {
+    const empresaId = resolverEmpresaId(dto.empresaId);
     return this.prisma.$transaction(async (tx) => {
       // 1. Limpiar y validar NIT
       const nitLimpio = dto.nit.replace(/\D/g, '');
@@ -175,17 +184,18 @@ export class AuthPublicService {
           password: dto.password,
           firstName: dto.nombre,
           lastName: dto.apellidos,
-          phoneNumber: dto.telefono,
         });
         clerkUserId = clerkUser.clerkUserId;
-      } catch (error) {
-        throw new BadRequestException('Error creando cuenta en Clerk');
+      } catch (error: any) {
+        throw new BadRequestException(
+          error?.message ?? 'Error creando cuenta. Intenta con otra contraseña.'
+        );
       }
 
       // 5. Buscar admin de empresa
       const adminEmpresa = await tx.usuario.findFirst({
         where: {
-          empresaId: dto.empresaId,
+          empresaId,
           rol: 'admin',
           estado: 'activo',
         },
@@ -225,7 +235,7 @@ export class AuthPublicService {
             telefono: dto.telefono,
             correo: dto.email,
             rol: 'CLIENTE',
-            empresaId: dto.empresaId,
+            empresaId,
             estado: 'activo',
           },
         });
@@ -234,7 +244,7 @@ export class AuthPublicService {
         await tx.clienteEmpresa.create({
           data: {
             clienteId: cliente.id,
-            empresaId: dto.empresaId,
+            empresaId,
             usuarioId: adminEmpresa.id,
           },
         });

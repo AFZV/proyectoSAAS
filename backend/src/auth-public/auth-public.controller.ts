@@ -1,10 +1,11 @@
 import { Controller, Post, Body } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthPublicService } from './auth-public.service';
 import { AsignarPasswordDto } from './dto/asignar-password.dto';
 import { RegistroClienteDto } from './dto/registro-cliente.dto';
-//import { LoginTestDto } from './dto/login-test.dto'; //para pruebas con Clerk
-//import { ClerkService } from '../clerk/clerk.service'; para pruebas con Clerk
 
+// Límite estricto: máx 5 intentos por minuto por IP en endpoints públicos de registro
+@Throttle({ default: { ttl: 60000, limit: 5 } })
 @Controller('auth/public')
 export class AuthPublicController {
   constructor(

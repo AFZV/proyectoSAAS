@@ -17,6 +17,7 @@ import {
   FileBarChart,
   FileUp,
   Calendar,
+  ClipboardList,
 } from "lucide-react";
 
 export const dataGeneralSideBar = [
@@ -115,6 +116,11 @@ export const dataHerramientasSideBar = [
     icon: FileUp,
     label: "Importar",
     href: "/importar",
+  },
+  {
+    icon: ClipboardList,
+    label: "Auditoría",
+    href: "/auditoria",
   },
 ];
 

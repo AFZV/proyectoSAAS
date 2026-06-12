@@ -3,8 +3,8 @@ import { Noto_Sans_Display } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
-
 import { ClerkProvider } from "@clerk/nextjs";
+import NextTopLoader from "nextjs-toploader";
 
 const noto = Noto_Sans_Display({ subsets: ["latin"] });
 
@@ -30,6 +30,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            <NextTopLoader color="#2563eb" height={3} showSpinner={false} />
             {children}
             <Toaster />
           </ThemeProvider>

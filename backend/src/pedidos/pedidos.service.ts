@@ -12,9 +12,11 @@ import { FilterPedidoDto } from './dto/filter-pedido.dto';
 import { ResumenPedidoDto } from 'src/pdf-uploader/dto/resumen-pedido.dto';
 import { PdfUploaderService } from 'src/pdf-uploader/pdf-uploader.service';
 
-import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { ResendService } from 'src/resend/resend.service';
 import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { emitirAudit } from 'src/auditoria/auditoria.helper';
+import { AuditAccion, AuditEntidad } from 'src/auditoria/auditoria.events';
 import {
   Cliente,
   DetallePedido,
@@ -39,9 +41,9 @@ export class PedidosService {
   constructor(
     private prisma: PrismaService,
     private pdfUploaderService: PdfUploaderService,
-    private cloudinaryService: CloudinaryService,
     private resend: ResendService,
-    private hetznerStorage: HetznerStorageService
+    private hetznerStorage: HetznerStorageService,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   private async generarYSubirPDFPedido(pedido: PedidoParaPDF) {
@@ -253,6 +255,16 @@ export class PedidosService {
       );
     });
 
+    emitirAudit(
+      this.eventEmitter, usuario, AuditAccion.CREAR, AuditEntidad.PEDIDO, pedidoId,
+      {
+        cliente: pedidoCreado?.cliente?.rasonZocial
+          ?? `${pedidoCreado?.cliente?.nombre ?? ''} ${pedidoCreado?.cliente?.apellidos ?? ''}`.trim(),
+        total: totalCalculado,
+        totalItems: pedidoCreado?.productos?.length ?? 0,
+      }
+    );
+
     return pedidoCreado;
   }
 
@@ -331,6 +343,8 @@ export class PedidosService {
           data: { pedidoId, estado: estadoNormalizado },
         }),
       ]);
+
+      emitirAudit(this.eventEmitter, usuario, AuditAccion.CAMBIO_ESTADO, AuditEntidad.PEDIDO, pedidoId, { nuevoEstado: estadoNormalizado });
 
       return estadoCreado;
     }
@@ -451,6 +465,8 @@ export class PedidosService {
       const estadoCreado = res[res.length - 1]; // el último es nuevoEstado
       await anexarObs();
 
+      emitirAudit(this.eventEmitter, usuario, AuditAccion.CAMBIO_ESTADO, AuditEntidad.PEDIDO, pedidoId, { nuevoEstado: 'FACTURADO', total: pedido.total });
+
       // Generar y subir el PDF sin bloquear la respuesta
       setImmediate(() => {
         void (async () => {
@@ -523,14 +539,6 @@ export class PedidosService {
               folder
             );
 
-            // const { url } = await this.cloudinaryService.uploadPdf({
-            //   buffer: pdfBuffer.buffer,
-            //   fileName: `pedido_${pedido.id}.pdf`,
-            //   empresaNit: pedido.empresaId, // si tienes nit directo usa ese
-            //   empresaNombre: resumen.cliente,
-            //   usuarioNombre: resumen.vendedor,
-            //   tipo: 'pedidos',
-            // });
             await this.prisma.pedido.update({
               where: { id: pedido.id },
               data: { pdfUrl: url, fechaActualizado: new Date() },
@@ -601,6 +609,8 @@ export class PedidosService {
         }),
       ]);
       await anexarObs();
+
+      emitirAudit(this.eventEmitter, usuario, AuditAccion.CAMBIO_ESTADO, AuditEntidad.PEDIDO, pedidoId, { nuevoEstado: 'ENVIADO', guiaTransporte });
 
       return estadoNuevo;
     }
@@ -693,6 +703,8 @@ export class PedidosService {
         data: { guiaTransporte: '', flete: 0, total: 0 },
       });
 
+      emitirAudit(this.eventEmitter, usuario, AuditAccion.CAMBIO_ESTADO, AuditEntidad.PEDIDO, pedidoId, { nuevoEstado: 'CANCELADO' });
+
       return pedidoActualizado;
     }
     await anexarObs();
@@ -702,6 +714,9 @@ export class PedidosService {
         data: { pedidoId, estado: estadoNormalizado },
       }),
     ]);
+
+    emitirAudit(this.eventEmitter, usuario, AuditAccion.CAMBIO_ESTADO, AuditEntidad.PEDIDO, pedidoId, { nuevoEstado: estadoNormalizado });
+
     return estadoCreado;
   }
 
@@ -855,7 +870,7 @@ export class PedidosService {
       );
     }
 
-    const { estadoPrevio } = await this.prisma.$transaction(
+    const { estadoPrevio, clienteAntes, productosAntes, totalAntes } = await this.prisma.$transaction(
       async (tx) => {
         const pedidoPrevio = await tx.pedido.findUnique({
           where: { id: pedidoId, empresaId },
@@ -863,6 +878,7 @@ export class PedidosService {
             estados: { orderBy: { fechaEstado: 'desc' }, take: 1 },
             cliente: true,
             usuario: { select: { nombre: true, telefono: true } },
+            productos: { include: { producto: { select: { nombre: true } } } },
           },
         });
         if (!pedidoPrevio)
@@ -1040,7 +1056,12 @@ export class PedidosService {
           });
         }
 
-        return { estadoPrevio };
+        return {
+          estadoPrevio,
+          clienteAntes: pedidoPrevio!.cliente,
+          productosAntes: pedidoPrevio!.productos,
+          totalAntes: pedidoPrevio!.total,
+        };
       },
       { timeout: 20000, maxWait: 10000 }
     );
@@ -1108,6 +1129,42 @@ export class PedidosService {
         estados: { orderBy: { fechaEstado: 'desc' } },
       },
     });
+
+    // Calcular diff entre estado previo y estado final
+    const cambios: Record<string, unknown>[] = [];
+
+    const nombreCliente = (c: { rasonZocial?: string | null; nombre?: string | null; apellidos?: string | null } | null) =>
+      (c?.rasonZocial?.trim() || `${c?.nombre ?? ''} ${c?.apellidos ?? ''}`.trim()) || 'Sin nombre';
+
+    if (clienteAntes?.id !== pedidoFinal?.clienteId) {
+      cambios.push({ tipo: 'cliente', antes: nombreCliente(clienteAntes), despues: nombreCliente(pedidoFinal?.cliente ?? null) });
+    }
+
+    const mapAntes = new Map((productosAntes ?? []).map((p) => [p.productoId, p]));
+    const mapDespues = new Map((pedidoFinal?.productos ?? []).map((p) => [p.productoId, p]));
+
+    for (const [pid, pA] of mapAntes) {
+      const pD = mapDespues.get(pid);
+      if (!pD) {
+        cambios.push({ tipo: 'item_eliminado', nombre: (pA as any).producto?.nombre ?? pid, cantidad: pA.cantidad });
+      } else if (pA.cantidad !== pD.cantidad) {
+        cambios.push({ tipo: 'cantidad_cambiada', nombre: (pA as any).producto?.nombre ?? pid, antes: pA.cantidad, despues: pD.cantidad });
+      }
+    }
+    for (const [pid, pD] of mapDespues) {
+      if (!mapAntes.has(pid)) {
+        cambios.push({ tipo: 'item_agregado', nombre: (pD as any).producto?.nombre ?? pid, cantidad: pD.cantidad });
+      }
+    }
+
+    if (Number(totalAntes) !== Number(pedidoFinal?.total)) {
+      cambios.push({ tipo: 'total', antes: Number(totalAntes), despues: Number(pedidoFinal?.total) });
+    }
+
+    if (cambios.length > 0) {
+      emitirAudit(this.eventEmitter, usuario, AuditAccion.ACTUALIZAR, AuditEntidad.PEDIDO, pedidoId, { cambios });
+    }
+
     return pedidoFinal!;
   }
 

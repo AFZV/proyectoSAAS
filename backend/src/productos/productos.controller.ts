@@ -70,10 +70,10 @@ export class ProductosController {
   @Roles('admin')
   @Patch('update/:productoId')
   async update(
-    @Param('productoId') productoId: string
-    // @Body() data: UpdateProductoDto
+    @Param('productoId') productoId: string,
+    @Req() req: UsuarioRequest
   ) {
-    await this.productosService.UpdateEstadoProduct(productoId);
+    await this.productosService.UpdateEstadoProduct(productoId, req.usuario);
     return { message: 'Estado actualizado con exito' };
   }
 
@@ -82,12 +82,14 @@ export class ProductosController {
   @Put('update/:productoId')
   async updateall(
     @Param('productoId') productoId: string,
-    @Body() data: UpdateProductoDto
+    @Body() data: UpdateProductoDto,
+    @Req() req: UsuarioRequest
   ) {
     //Se actualiza el producto usando el servicio
     const producto = await this.productosService.UpdateProducto(
       productoId,
-      data
+      data,
+      req.usuario
     );
     //Se retorna un mensaje de éxito y el producto actualizado
     return {

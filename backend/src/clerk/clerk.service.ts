@@ -20,22 +20,22 @@ export class ClerkService {
     password: string;
     firstName: string;
     lastName: string;
-    phoneNumber?: string;
   }) {
     try {
-      // Generar username a partir del email (parte antes del @)
-      const username = data.email
+      // Generate a username from email prefix, Clerk-safe (alphanumeric + _ + -)
+      const baseUsername = data.email
         .split('@')[0]
         .toLowerCase()
-        .replace(/[^a-z0-9]/g, '');
+        .replace(/[^a-z0-9_-]/g, '_')
+        .slice(0, 20);
+      const username = `${baseUsername}_${Date.now().toString(36)}`;
 
       const user = await this.clerkClient.users.createUser({
         emailAddress: [data.email],
         password: data.password,
-        username: username, // ← AGREGADO: username requerido por Clerk
         firstName: data.firstName,
         lastName: data.lastName,
-        phoneNumbers: data.phoneNumber ? [data.phoneNumber] : [],
+        username,
         publicMetadata: {
           rol: 'CLIENTE',
           autoregistrado: true,
@@ -49,33 +49,21 @@ export class ClerkService {
         createdAt: user.createdAt,
       };
     } catch (error: any) {
-      // Log diferenciado por ambiente
-      if (process.env.NODE_ENV === 'development') {
-        console.error('❌ Error completo creando usuario en Clerk:', error);
-        console.error('❌ Error status:', error.status);
-        console.error('❌ Error code:', error.code);
-        console.error(
-          '❌ Error errors:',
-          JSON.stringify(error.errors, null, 2)
-        );
-      } else {
-        // En producción, log minimal con trace ID
-        console.error('Error creando usuario en Clerk:', {
-          traceId: error.clerkTraceId,
-          status: error.status,
-        });
-      }
+      // Log siempre con los detalles necesarios para diagnosticar
+      console.error('Error creando usuario en Clerk:', {
+        status: error.status,
+        traceId: error.clerkTraceId,
+        errors: error.errors ?? [],
+      });
 
-      // Manejar errores específicos de Clerk
-      if (error.errors && Array.isArray(error.errors)) {
-        const errorMessages = error.errors
-          .map((e: any) => e.message)
-          .join(', ');
-        throw new BadRequestException(`Error en Clerk: ${errorMessages}`);
+      // Devolver el mensaje real de Clerk si existe
+      if (error.errors && Array.isArray(error.errors) && error.errors.length > 0) {
+        const msg = error.errors.map((e: any) => e.longMessage ?? e.message).join('. ');
+        throw new BadRequestException(msg);
       }
 
       throw new BadRequestException(
-        'Error creando usuario en Clerk. Verifica que el email no esté duplicado.'
+        'Error creando cuenta. Verifica que el email no esté duplicado.'
       );
     }
   }
