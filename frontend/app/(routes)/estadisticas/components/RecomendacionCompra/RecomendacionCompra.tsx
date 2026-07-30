@@ -21,9 +21,10 @@ import {
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { ShoppingCart, AlertTriangle, PackageCheck, Eye, EyeOff } from "lucide-react";
+import { ShoppingCart, AlertTriangle, PackageCheck, Eye, EyeOff, Search } from "lucide-react";
 import { formatValue } from "@/utils/FormartValue";
 import { Paginator } from "@/components/Paginator/Paginator";
+import { Input } from "@/components/ui/input";
 
 const PAGE_SIZE = 20;
 
@@ -109,6 +110,7 @@ export function RecomendacionCompra() {
   const [data, setData] = useState<RecomendacionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [mostrarSinVentas, setMostrarSinVentas] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
   const [page, setPage] = useState(0);
 
   async function fetchData(p: number, obj: number) {
@@ -134,11 +136,18 @@ export function RecomendacionCompra() {
   // Resetear página cuando cambian los filtros
   useEffect(() => {
     setPage(0);
-  }, [periodo, diasObjetivo, mostrarSinVentas]);
+  }, [periodo, diasObjetivo, mostrarSinVentas, busqueda]);
 
-  const visible = mostrarSinVentas
-    ? data
-    : data.filter((d) => d.semaforo !== "SIN_VENTAS");
+  const visible = (mostrarSinVentas ? data : data.filter((d) => d.semaforo !== "SIN_VENTAS"))
+    .filter((d) => {
+      const q = busqueda.toLowerCase().trim();
+      if (!q) return true;
+      return (
+        d.nombre.toLowerCase().includes(q) ||
+        (d.categoria ?? "").toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
   const criticos = data.filter((d) => d.semaforo === "CRITICO");
   const reponer = data.filter((d) => d.semaforo === "REPONER");
@@ -257,12 +266,24 @@ export function RecomendacionCompra() {
           </div>
         </div>
 
-        {/* Toggle sin ventas */}
-        <div className="flex justify-end">
+        {/* Buscador + toggle sin ventas */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre o categoría..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="pl-9 h-9"
+            />
+          </div>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {visible.length} producto(s)
+          </span>
           <Button
             variant="ghost"
             size="sm"
-            className="text-xs text-muted-foreground gap-1.5"
+            className="text-xs text-muted-foreground gap-1.5 ml-auto"
             onClick={() => setMostrarSinVentas((v) => !v)}
           >
             {mostrarSinVentas ? (

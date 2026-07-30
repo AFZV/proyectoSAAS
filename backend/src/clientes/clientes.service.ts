@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
@@ -148,6 +149,7 @@ export class ClienteService {
             contains: filtro,
             mode: 'insensitive',
           },
+          ...(rol !== 'admin' && { estado: true }), // no-admin no ve inactivos
         },
       },
       include: {
@@ -175,11 +177,11 @@ export class ClienteService {
 
     const { empresaId, rol, id: usuarioId } = usuario;
 
-    // admin y bodega -> toda la empresa; vendedor -> solo asignados a ese usuario
+    // admin y bodega -> toda la empresa; vendedor -> solo asignados a ese usuario (solo activos)
     const where =
       rol === 'admin' || rol === 'bodega'
         ? { empresas: { some: { empresaId } } }
-        : { empresas: { some: { empresaId, usuarioId } } };
+        : { empresas: { some: { empresaId, usuarioId } }, estado: true };
 
     const items = await this.prisma.cliente.findMany({
       where,
@@ -245,7 +247,7 @@ export class ClienteService {
 
     const { id: usuarioId, rol, empresaId } = usuario;
 
-    // Consultar los clientes según el rol y suuario
+    // Consultar los clientes según el rol y usuario; no-admin solo ve activos
     const clientes = await this.prisma.clienteEmpresa.findMany({
       where:
         rol === 'admin'
@@ -253,6 +255,7 @@ export class ClienteService {
           : {
               empresaId,
               usuarioId,
+              cliente: { estado: true },
             },
       include: {
         cliente: {
@@ -267,6 +270,7 @@ export class ClienteService {
             email: true,
             departamento: true,
             direccion: true,
+            estado: true,
           },
         },
         usuario: {
@@ -367,6 +371,18 @@ export class ClienteService {
 
     // Opcional: para otros roles devolver vacío
     return [];
+  }
+
+  async cambiarEstadoCliente(clienteId: string, estado: boolean, usuario: UsuarioPayload) {
+    if (usuario.rol !== 'admin') throw new ForbiddenException('Solo administradores pueden cambiar el estado del cliente');
+
+    const cliente = await this.prisma.cliente.findUnique({ where: { id: clienteId } });
+    if (!cliente) throw new NotFoundException('Cliente no encontrado');
+
+    return this.prisma.cliente.update({
+      where: { id: clienteId },
+      data: { estado },
+    });
   }
 
   // Método para crear cliente desde registro público (sin autenticación)

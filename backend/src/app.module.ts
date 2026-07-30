@@ -33,6 +33,7 @@ import { HetznerStorageModule } from './hetzner-storage/hetzner-storage.module';
 import { FacturasProveedorModule } from './facturas-proveedor/facturas-proveedor.module';
 import { PagosProveedorModule } from './pagos-proveedor/pagos-proveedor.module';
 import { ClerkModule } from './clerk/clerk.module';
+import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
 import { ClientesPublicModule } from './clientes-public/clientes-public.module';
 import { AuthPublicModule } from './auth-public/auth-public.module';
 
@@ -77,6 +78,7 @@ import { AuthPublicModule } from './auth-public/auth-public.module';
     HetznerStorageModule,
     FacturasProveedorModule,
     PagosProveedorModule,
+    OrdenesCompraModule,
   ],
   providers: [
     {

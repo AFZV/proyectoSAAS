@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpDown, Edit3, Eye, MoreHorizontal, Copy } from "lucide-react";
+import { ArrowUpDown, Edit3, Eye, MoreHorizontal, Copy, UserX, UserCheck } from "lucide-react";
 import { ColumnDef, type Column } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { FormUpdateCliente } from "../FormUpdateCliente/FormUpdateCliente";
 
 // Tipo actualizado según tu backend
@@ -177,8 +179,10 @@ function ClienteDetalles({
 }
 
 // Componente de acciones para cada fila
-function ClienteActions({ cliente }: { cliente: Cliente }) {
+function ClienteActions({ cliente, isAdmin }: { cliente: Cliente; isAdmin: boolean }) {
   const { toast } = useToast();
+  const { getToken } = useAuth();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDetalles, setShowDetalles] = useState(false);
   const [showEditar, setShowEditar] = useState(false);
@@ -206,6 +210,35 @@ function ClienteActions({ cliente }: { cliente: Cliente }) {
       toast({
         title: "Error",
         description: "No se pudo copiar el NIT",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleEstado = async () => {
+    try {
+      const token = await getToken();
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/clientes/${cliente.id}/estado`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ estado: !cliente.estado }),
+        }
+      );
+      if (!res.ok) throw new Error("Error al cambiar estado");
+      toast({
+        title: cliente.estado ? "Cliente inactivado" : "Cliente activado",
+        description: `${cliente.nombre} ${cliente.apellidos} fue ${cliente.estado ? "inactivado" : "activado"} correctamente`,
+      });
+      router.refresh();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo cambiar el estado",
         variant: "destructive",
       });
     }
@@ -259,6 +292,27 @@ function ClienteActions({ cliente }: { cliente: Cliente }) {
             <Copy className="mr-2 h-4 w-4" />
             Copiar NIT
           </DropdownMenuItem>
+
+          {isAdmin && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={async (e) => {
+                  e.preventDefault();
+                  setMenuOpen(false);
+                  await handleToggleEstado();
+                }}
+                className={cliente.estado ? "text-red-600 focus:text-red-600" : "text-green-600 focus:text-green-600"}
+              >
+                {cliente.estado ? (
+                  <UserX className="mr-2 h-4 w-4" />
+                ) : (
+                  <UserCheck className="mr-2 h-4 w-4" />
+                )}
+                {cliente.estado ? "Inactivar cliente" : "Activar cliente"}
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -468,11 +522,12 @@ export const columns: ColumnDef<Cliente>[] = [
   {
     id: "actions",
     header: () => <div className="text-right">Acciones</div>,
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
+      const isAdmin = (table.options.meta as { isAdmin?: boolean })?.isAdmin ?? false;
       const cliente = row.original;
       return (
         <div className="text-right">
-          <ClienteActions cliente={cliente} />
+          <ClienteActions cliente={cliente} isAdmin={isAdmin} />
         </div>
       );
     },

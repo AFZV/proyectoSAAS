@@ -30,6 +30,8 @@ import {
   FacturaCompra,
   FacturaProveedor,
   ProductoImagen,
+  OrdenCompra,
+  DetalleOrdenCompra,
 } from '@prisma/client';
 
 interface BackupData {
@@ -58,6 +60,8 @@ interface BackupData {
   facturaCompra?: FacturaCompra[];
   facturaProveedor?: FacturaProveedor[];
   productoImagenes?: ProductoImagen[];
+  ordenesCompra?: OrdenCompra[];
+  detallesOrdenCompra?: DetalleOrdenCompra[];
 }
 
 const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
@@ -205,6 +209,12 @@ export class RespaldosService {
       facturaProveedor: await this.prisma.facturaProveedor.findMany({
         where: { empresaId },
       }),
+      ordenesCompra: await this.prisma.ordenCompra.findMany({
+        where: { empresaId },
+      }),
+      detallesOrdenCompra: await this.prisma.detalleOrdenCompra.findMany({
+        where: { orden: { empresaId } },
+      }),
     };
 
     const sqlScript = this.generarSQLConUpsert(backupData);
@@ -307,6 +317,8 @@ export class RespaldosService {
     if (data.facturaCompra?.length) generarInsert('FacturaCompra', data.facturaCompra, 'idFacturaCompra');
     if (data.pagosProveedor?.length) generarInsert('PagoProveedor', data.pagosProveedor, 'idPagoProveedor');
     if (data.detallesPagoProveedor?.length) generarInsert('DetallePagoProveedor', data.detallesPagoProveedor, 'idDetallePagoProveedor');
+    if (data.ordenesCompra?.length) generarInsert('OrdenCompra', data.ordenesCompra, 'id');
+    if (data.detallesOrdenCompra?.length) generarInsert('DetalleOrdenCompra', data.detallesOrdenCompra, 'id');
 
     lines.push('SET session_replication_role = DEFAULT;');
     lines.push('COMMIT;');

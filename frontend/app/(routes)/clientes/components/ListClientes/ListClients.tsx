@@ -1,7 +1,7 @@
 import { Cliente, columns } from "./columns";
 import { DataTable } from "./data-table";
 import { getToken } from "@/lib/getToken";
-import { AlertCircle, Users } from "lucide-react";
+import { Users } from "lucide-react";
 
 export async function getClientes(): Promise<Cliente[]> {
   try {
@@ -32,13 +32,13 @@ export async function getClientes(): Promise<Cliente[]> {
   }
 }
 
-export default async function ListClientsPage() {
+export default async function ListClientsPage({ rol }: { rol: string }) {
   const data = await getClientes();
+  const isAdmin = rol === "admin";
+
   return (
     <section className="min-h-screen bg-background text-foreground px-4 py-6">
       <div className="max-w-6xl mx-auto">
-        {/* Estadísticas rápidas - Siempre visible (Solo 3 tarjetas) */}
-
         {/* Tabla de datos - SIEMPRE VISIBLE */}
         <div className="bg-card rounded-lg border">
           <div className="p-6">
@@ -53,7 +53,7 @@ export default async function ListClientsPage() {
                 </div>
               )}
             </div>
-            <DataTable columns={columns} data={data} />
+            <DataTable columns={columns} data={data} isAdmin={isAdmin} />
           </div>
         </div>
 

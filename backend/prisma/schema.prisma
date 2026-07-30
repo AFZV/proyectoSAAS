@@ -40,6 +40,7 @@ model Empresa {
   movimientoInventario MovimientoInventario[]
   categorias           CategoriasProducto[]
   proveedoresEmpresa   ProveedorEmpresa[]
+  ordenesCompra        OrdenCompra[]
 
   PagoProveedor PagoProveedor[]
 
@@ -136,6 +137,7 @@ model Producto {
   inventario           Inventario[]
   detalleCompra        DetalleCompra[]
   movimientoInventario MovimientoInventario[]
+  detallesOrdenCompra  DetalleOrdenCompra[]
 
    // ── Carrusel ────────────────────────────────────────
   imagenes         ProductoImagen[]
@@ -236,6 +238,7 @@ model Proveedores {
 
   compras          Compras[]
   proveedorEmpresa ProveedorEmpresa[]
+  ordenesCompra    OrdenCompra[]
 
   PagoProveedor PagoProveedor[]
 
@@ -513,6 +516,48 @@ enum MetodoPagoProvEnum {
   TARJETA
   CHEQUE
   OTRO
+}
+
+// ── Órdenes de Compra ────────────────────────────────────────────
+enum EstadoOrdenCompra {
+  BORRADOR
+  ENVIADA
+  CONFIRMADA
+  CANCELADA
+}
+
+model OrdenCompra {
+  id            String            @id @default(uuid())
+  empresaId     String
+  proveedorId   String
+  fechaCreacion DateTime          @default(now())
+  estado        EstadoOrdenCompra @default(BORRADOR)
+  observaciones String?           @db.Text
+
+  empresa   Empresa     @relation(fields: [empresaId], references: [id])
+  proveedor Proveedores @relation(fields: [proveedorId], references: [idProveedor])
+  detalles  DetalleOrdenCompra[]
+
+  @@index([empresaId])
+  @@index([proveedorId])
+}
+
+model DetalleOrdenCompra {
+  id             String  @id @default(uuid())
+  ordenId        String
+  productoId     String
+  cantidad       Int
+  precioUnitario Float   @db.DoublePrecision
+  moneda         String  @default("COP")
+  bultos         Float   @db.DoublePrecision
+  pesoTotal      Float   @db.DoublePrecision
+  cubicaje       Float   @db.DoublePrecision
+
+  orden    OrdenCompra @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  producto Producto    @relation(fields: [productoId], references: [id])
+
+  @@index([ordenId])
+  @@index([productoId])
 }
 
 // ── Auditoría ────────────────────────────────────────────────────

@@ -15,7 +15,7 @@ import { UsuarioRequest } from 'src/types/request-with-usuario';
 import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { UpdateClienteDto } from './dto/update-cliente.dto';
+import { UpdateClienteDto, ToggleEstadoDto } from './dto/update-cliente.dto';
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('clientes')
 export class ClienteController {
@@ -81,6 +81,16 @@ export class ClienteController {
       idCliente,
       usuario
     );
+  }
+
+  @Roles('admin')
+  @Patch(':idCliente/estado')
+  async cambiarEstado(
+    @Param('idCliente') idCliente: string,
+    @Body() body: ToggleEstadoDto,
+    @Req() req: UsuarioRequest
+  ) {
+    return this.clienteService.cambiarEstadoCliente(idCliente, body.estado, req.usuario);
   }
 
   @Roles('vendedor', 'admin')

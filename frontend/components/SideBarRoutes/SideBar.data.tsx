@@ -18,6 +18,7 @@ import {
   FileUp,
   Calendar,
   ClipboardList,
+  PackageSearch,
 } from "lucide-react";
 
 export const dataGeneralSideBar = [
@@ -77,6 +78,11 @@ export const dataInventarioSideBar = [
     icon: CreditCard,
     label: "Compras",
     href: "/compras",
+  },
+  {
+    icon: PackageSearch,
+    label: "Órdenes de Compra",
+    href: "/ordenes-compra",
   },
 ];
 
