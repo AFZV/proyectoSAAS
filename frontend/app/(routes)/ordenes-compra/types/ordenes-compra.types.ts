@@ -19,6 +19,7 @@ export interface ProductoParaOC {
   pesoPorBulto?: number;
   cubicajePorBulto?: number;
   stock: number;
+  stockReferencia?: number;
   categoria?: string;
 }
 

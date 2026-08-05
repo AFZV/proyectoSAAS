@@ -108,20 +108,23 @@ export async function getProductosParaOC(
       : [];
     const catMap = new Map(categorias.map((c) => [c.idCategoria, c.nombre]));
 
-    return (productos as any[]).map((p) => ({
-      id: p.id,
-      nombre: p.nombre,
-      referencia: p.referencia,
-      imagenUrl: p.imagenUrl,
-      precioCompra: p.precioCompra,
-      precioCompraExterior: p.precioCompraExterior,
-      monedaCompraExterior: p.monedaCompraExterior,
-      unidadesPorBulto: p.unidadesPorBulto,
-      pesoPorBulto: p.pesoPorBulto,
-      cubicajePorBulto: p.cubicajePorBulto,
-      stock: p.inventario?.[0]?.stockActual ?? 0,
-      categoria: catMap.get(p.categoriaId) ?? "",
-    }));
+    return (productos as any[])
+      .filter((p) => p.estado === "activo") // por si acaso: nunca mostrar inactivos en la OC
+      .map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        referencia: p.referencia,
+        imagenUrl: p.imagenUrl,
+        precioCompra: p.precioCompra,
+        precioCompraExterior: p.precioCompraExterior,
+        monedaCompraExterior: p.monedaCompraExterior,
+        unidadesPorBulto: p.unidadesPorBulto,
+        pesoPorBulto: p.pesoPorBulto,
+        cubicajePorBulto: p.cubicajePorBulto,
+        stock: p.inventario?.[0]?.stockActual ?? 0,
+        stockReferencia: p.inventario?.[0]?.stockReferenciaOinicial ?? undefined,
+        categoria: catMap.get(p.categoriaId) ?? "",
+      }));
   } catch {
     return [];
   }

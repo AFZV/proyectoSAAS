@@ -51,6 +51,50 @@ function getPrecioDisplay(p: ProductoParaOC) {
   return `COP ${p.precioCompra.toLocaleString("es-CO", { minimumFractionDigits: 0 })}`;
 }
 
+// Umbral alineado con RecomendacionCompra (estadisticas.service.ts): <=30% del stock
+// de referencia se considera stock bajo.
+type StockStatus = "agotado" | "critico" | "bajo" | "normal";
+
+function getStockStatus(stock: number, stockReferencia?: number): StockStatus {
+  if (stock <= 0) return "agotado";
+  if (stockReferencia && stockReferencia > 0) {
+    const ratio = stock / stockReferencia;
+    if (ratio <= 0.15) return "critico";
+    if (ratio <= 0.3) return "bajo";
+  }
+  return "normal";
+}
+
+const STOCK_STATUS_STYLES: Record<
+  StockStatus,
+  { label: string | null; overlay: string; ring: string; text: string }
+> = {
+  agotado: {
+    label: "Agotado",
+    overlay: "bg-red-600 text-white",
+    ring: "ring-1 ring-red-300 border-red-200",
+    text: "text-red-600 font-semibold",
+  },
+  critico: {
+    label: "Stock crítico",
+    overlay: "bg-orange-500 text-white",
+    ring: "ring-1 ring-orange-200 border-orange-200",
+    text: "text-orange-600 font-semibold",
+  },
+  bajo: {
+    label: "Stock bajo",
+    overlay: "bg-amber-400 text-amber-950",
+    ring: "ring-1 ring-amber-200 border-amber-200",
+    text: "text-amber-600 font-medium",
+  },
+  normal: {
+    label: null,
+    overlay: "",
+    ring: "",
+    text: "text-muted-foreground",
+  },
+};
+
 function buildCartItem(producto: ProductoParaOC, cantidad: number): CartOCItem {
   return {
     productoId: producto.id,
@@ -76,13 +120,15 @@ function ProductCardOC({
   onSetCantidad: (n: number) => void;
 }) {
   const inCart = cantidad > 0;
+  const stockStatus = getStockStatus(producto.stock, producto.stockReferencia);
+  const stockStyle = STOCK_STATUS_STYLES[stockStatus];
 
   return (
     <Card
       className={`overflow-hidden transition-all duration-200 ${
         inCart
           ? "ring-2 ring-blue-500 ring-offset-1 border-blue-300"
-          : "hover:border-blue-200 hover:shadow-md"
+          : `hover:shadow-md ${stockStyle.ring || "hover:border-blue-200"}`
       }`}
     >
       <CardContent className="p-0 flex flex-col h-full">
@@ -114,6 +160,14 @@ function ProductCardOC({
               </Badge>
             </div>
           )}
+          {/* Leyenda de urgencia por nivel de stock */}
+          {stockStyle.label && (
+            <div
+              className={`absolute bottom-0 inset-x-0 py-1 text-center text-[10px] font-bold uppercase tracking-wide ${stockStyle.overlay}`}
+            >
+              {stockStyle.label}
+            </div>
+          )}
         </div>
 
         {/* Info */}
@@ -135,8 +189,8 @@ function ProductCardOC({
             </p>
           )}
           <div className="flex items-center gap-1 mt-auto">
-            <Package className="w-3 h-3 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">
+            <Package className={`w-3 h-3 ${stockStyle.text}`} />
+            <span className={`text-xs ${stockStyle.text}`}>
               Stock: {producto.stock}
             </span>
           </div>
