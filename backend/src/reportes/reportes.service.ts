@@ -4,20 +4,18 @@ import { UsuarioPayload } from 'src/types/usuario-payload';
 import { CrearReporteInvDto } from './dto/crear-reporte-inventario.dto';
 import { CrearReporteClienteCiudadDto } from './dto/crear-reporte-clientciudad-dto';
 import { CrearReporteVentasProductoDto } from './dto/crear-reporte-ventas-producto.dto';
+import { normalizarRangoBogota } from 'src/common/utils/timezone.util';
 
 @Injectable()
 export class ReportesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
-  /** Ajustar rango de fechas al día completo */
+  /**
+   * Normaliza el rango de fechas al día completo en hora Bogotá (UTC-5).
+   * Usa el helper centralizado de timezone para evitar desfase del servidor.
+   */
   private normalizarRango(fechaInicio: string | Date, fechaFin: string | Date) {
-    const inicio = new Date(fechaInicio);
-    inicio.setHours(0, 0, 0, 0);
-
-    const fin = new Date(fechaFin);
-    fin.setHours(23, 59, 59, 999);
-
-    return { inicio, fin };
+    return normalizarRangoBogota(fechaInicio, fechaFin);
   }
 
   /** ✅ Inventario con stock */
@@ -213,7 +211,12 @@ export class ReportesService {
     }));
   }
 
-  /** ✅ Pedidos por rango */
+  /**
+   * ✅ Pedidos FACTURADOS por rango de fechas.
+   * REGLA: El rango filtra por la fecha en que el pedido fue FACTURADO
+   * (fechaEstado del estado FACTURADO), no por la fecha de creación del pedido.
+   * Esto garantiza consistencia con el gráfico de ventas del dashboard.
+   */
   async pedidosAll(usuario: UsuarioPayload, data: CrearReporteInvDto) {
     const { inicio, fin } = this.normalizarRango(
       data.fechaInicio,
@@ -223,15 +226,27 @@ export class ReportesService {
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         empresaId: usuario.empresaId,
-        fechaPedido: { gte: inicio, lte: fin },
         total: { gt: 0 },
-        estados: { some: { estado: 'FACTURADO' } },
+        // Filtra por fecha de FACTURACIÓN, no de creación
+        estados: {
+          some: {
+            estado: 'FACTURADO',
+            fechaEstado: { gte: inicio, lte: fin },
+          },
+        },
       },
       include: {
         cliente: {
           select: { nombre: true, apellidos: true, rasonZocial: true },
         },
         usuario: { select: { nombre: true } },
+        // Traer fecha exacta de facturación para mostrar en el reporte
+        estados: {
+          where: { estado: 'FACTURADO' },
+          orderBy: { fechaEstado: 'desc' },
+          take: 1,
+          select: { fechaEstado: true },
+        },
       },
     });
 
@@ -240,12 +255,12 @@ export class ReportesService {
       nombre: p.cliente.nombre,
       apellidos: p.cliente.apellidos,
       rasonZocial: p.cliente.rasonZocial,
-      fecha: p.fechaActualizado || p.fechaPedido,
+      // Mostrar fecha de facturación (no de creación)
+      fecha: p.estados[0]?.fechaEstado ?? p.fechaPedido,
       total: p.total,
       vendedor: p.usuario.nombre,
       flete: p.flete || 0,
       comision: p.comisionVendedor || 0,
-      //proximamente descuento: p.descuento || 0, // <-- cuando agregues el campo descuento en pedidos
     }));
   }
 
@@ -844,9 +859,8 @@ export class ReportesService {
         cliente:
           `${d.pedido.cliente.nombre} ${d.pedido.cliente.apellidos}`.trim(),
         rasonZocial: d.pedido.cliente.rasonZocial,
-        vendedor: `${d.pedido.usuario?.nombre || ''} ${
-          d.pedido.usuario?.apellidos || ''
-        }`.trim(),
+        vendedor: `${d.pedido.usuario?.nombre || ''} ${d.pedido.usuario?.apellidos || ''
+          }`.trim(),
         codigoProducto: d.producto?.codigo,
         nombreProducto: d.producto?.nombre,
         cantidad,

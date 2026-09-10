@@ -12,7 +12,7 @@ import { EstadoFacturaProvEnum } from '@prisma/client';
 
 @Injectable()
 export class PagosProveedorService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
   private calcularEstadoFactura(
     total: number,
     saldo: number
@@ -26,28 +26,18 @@ export class PagosProveedorService {
       throw new BadRequestException('no autorizado');
     }
     const { empresaId } = usuario;
-    // 1) Obtener pago y facturas afectadas (antes de borrar)
 
-    ///obtener el detalle ya que el id que se enviaa es el del detalle
-
-    const idPago = await this.prisma.detallePagoProveedor.findUnique({
-      where: {
-        idDetallePagoProveedor: idPagoProveedor,
-      },
-      select: {
-        pagoId: true,
-      },
-    });
-    if (!idPago) throw new Error('no existe el pago');
-    const id = idPago.pagoId;
+    // Buscar el pago directamente
     const pago = await this.prisma.pagoProveedor.findUnique({
-      where: { idPagoProveedor: id },
+      where: { idPagoProveedor },
       select: { idPagoProveedor: true, empresaId: true },
     });
     if (!pago) throw new NotFoundException('Pago no encontrado');
     if (empresaId && pago.empresaId !== empresaId) {
       throw new ForbiddenException('No tienes acceso a este recurso');
     }
+
+    const id = pago.idPagoProveedor;
 
     const detalles = await this.prisma.detallePagoProveedor.findMany({
       where: { pagoId: id },
@@ -60,14 +50,12 @@ export class PagosProveedorService {
       await tx.pagoProveedor.delete({ where: { idPagoProveedor: id } });
 
       for (const facturaId of facturaIds) {
-        // Traer total y estado actual de la factura
         const factura = await tx.facturaProveedor.findUnique({
           where: { idFacturaProveedor: facturaId },
           select: { total: true, estado: true },
         });
         if (!factura) continue;
 
-        // Sumar abonos remanentes (después de borrar el pago)
         const abonos = await tx.detallePagoProveedor.aggregate({
           where: { facturaId },
           _sum: { valor: true, descuento: true },
@@ -77,7 +65,6 @@ export class PagosProveedorService {
           (abonos._sum.valor ?? 0) - (abonos._sum.descuento ?? 0);
         const nuevoSaldo = Math.max(factura.total - totalAbonos, 0);
 
-        // Si la factura estaba ANULADA, preserva ese estado
         const nuevoEstado =
           factura.estado === EstadoFacturaProvEnum.ANULADA
             ? EstadoFacturaProvEnum.ANULADA
