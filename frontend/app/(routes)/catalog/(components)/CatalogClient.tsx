@@ -630,6 +630,7 @@ export function CatalogClient({
           productosEnStock={productosEnStock}
           onToggleSelectionMode={handleToggleSelectionMode}
           isSelectionMode={isSelectionMode}
+          userType={userType}
         />
       )}
 

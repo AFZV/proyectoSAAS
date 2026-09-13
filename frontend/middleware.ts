@@ -2,7 +2,7 @@ import { authMiddleware } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 export default authMiddleware({
-  publicRoutes: ["/sign-in", "/sign-up"],
+  publicRoutes: ["/sign-in", "/sign-up", "/catalogo-publico/(.*)"],
 
   async afterAuth(auth, req) {
     // Si el usuario está autenticado y va a la raíz "/"

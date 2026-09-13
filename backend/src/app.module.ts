@@ -36,6 +36,7 @@ import { ClerkModule } from './clerk/clerk.module';
 import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
 import { ClientesPublicModule } from './clientes-public/clientes-public.module';
 import { AuthPublicModule } from './auth-public/auth-public.module';
+import { CatalogoPublicoModule } from './catalogo-publico/catalogo-publico.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { AuthPublicModule } from './auth-public/auth-public.module';
     ClerkModule,
     ClientesPublicModule,
     AuthPublicModule,
+    CatalogoPublicoModule,
     RecibosModule,
     ProductosModule,
     EstadisticasModule,

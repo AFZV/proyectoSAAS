@@ -10,5 +10,6 @@ import { HetznerStorageModule } from 'src/hetzner-storage/hetzner-storage.module
   controllers: [ProductosController],
   providers: [ProductosService],
   imports: [AuthModule, PrismaModule, PdfUploaderModule, HetznerStorageModule],
+  exports: [ProductosService],
 })
 export class ProductosModule {}

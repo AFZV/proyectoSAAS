@@ -17,9 +17,12 @@ import {
   DownloadIcon,
   Tags,
   ImageIcon,
+  Palette,
+  Share2,
 } from "lucide-react";
 import { ProductManagementModal } from "../ProductManagementModal/ProductManagementModal";
 import { FormCreateProduct } from "../FormCreateProduct/FormCreateProduct";
+import { CatalogoConfigModal } from "../CatalogoConfigModal/CatalogoConfigModal";
 import { useAuth } from "@clerk/nextjs";
 import { Loading } from "@/components/Loading";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +34,7 @@ interface HeaderCatalogProps {
   productosEnStock?: number;
   onToggleSelectionMode?: () => void;
   isSelectionMode?: boolean;
+  userType?: string;
 }
 
 type Categoria = { idCategoria: string; nombre: string };
@@ -40,8 +44,10 @@ export function HeaderCatalog({
   totalProductos = 0,
   productosEnStock = 0,
   onToggleSelectionMode,
+  userType,
   isSelectionMode = false,
 }: HeaderCatalogProps) {
+  const isAdmin = userType === "admin";
   const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
@@ -50,6 +56,9 @@ export function HeaderCatalog({
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaIdSel, setCategoriaIdSel] = useState<string>("");
   const [loadingCategorias, setLoadingCategorias] = useState(false);
+
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [sharingLink, setSharingLink] = useState(false);
 
   const [loading, setLoading] = useState<boolean>(false);
   const { getToken } = useAuth();
@@ -212,6 +221,44 @@ export function HeaderCatalog({
     }
   };
 
+  const compartirCatalogo = async () => {
+    const token = await getToken();
+    if (!token) {
+      toast({
+        title: "Sin acceso",
+        description: "Inicia sesión de nuevo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSharingLink(true);
+    try {
+      const { url, expiresAt } =
+        await catalogService.generarLinkCompartirCatalogo(token);
+
+      await navigator.clipboard.writeText(url);
+
+      const fecha = new Date(expiresAt).toLocaleString("es-CO", {
+        dateStyle: "short",
+        timeStyle: "short",
+      });
+
+      toast({
+        title: "✅ Link del catálogo copiado",
+        description: `Válido hasta ${fecha}. Cualquiera con este enlace puede ver el catálogo, sin iniciar sesión.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Error al generar el link",
+        description: e?.message ?? "Inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setSharingLink(false);
+    }
+  };
+
   if (loading) return <Loading title="Cargando PDF" />;
 
   return (
@@ -305,6 +352,29 @@ export function HeaderCatalog({
               PDF por categoría
             </Button>
 
+            {/* ⬇️ nuevo botón: Personalizar catálogo público (solo admin) */}
+            {isAdmin && (
+              <Button
+                onClick={() => setIsConfigModalOpen(true)}
+                variant="ghost"
+                size="sm"
+                className="text-white hover:bg-white/10 border border-white/20 hover:border-white/30 transition-all duration-200 w-full sm:w-auto"
+              >
+                <Palette className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Personalizar</span>
+              </Button>
+            )}
+
+            {/* ⬇️ nuevo botón: Compartir catálogo público (link firmado, 48h) */}
+            <Button
+              onClick={compartirCatalogo}
+              disabled={sharingLink}
+              className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-purple-500/25 w-full sm:w-auto"
+            >
+              <Share2 className="w-4 h-4" />
+              {sharingLink ? "Generando..." : "Compartir catálogo"}
+            </Button>
+
             {/* ⬇️ nuevo botón: Seleccionar Fotos */}
             <Button
               onClick={onToggleSelectionMode}
@@ -320,6 +390,14 @@ export function HeaderCatalog({
           </div>
         </div>
       </div>
+
+      {/* Modal personalizar catálogo público (solo admin) */}
+      {isAdmin && (
+        <CatalogoConfigModal
+          isOpen={isConfigModalOpen}
+          onClose={() => setIsConfigModalOpen(false)}
+        />
+      )}
 
       {/* Modal gestión de productos */}
       <ProductManagementModal

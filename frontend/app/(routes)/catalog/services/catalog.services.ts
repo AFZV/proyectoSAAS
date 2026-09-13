@@ -8,6 +8,7 @@ import type {
   CreateProductoDto,
   UpdateProductoDto,
   CreateCategoriaProductoDto,
+  CatalogoConfig,
 } from "../types/catalog.types";
 
 export class CatalogService {
@@ -290,6 +291,52 @@ export class CatalogService {
         body: JSON.stringify({ productoIds }),
       },
     );
+  }
+
+  // 🎨 PERSONALIZACIÓN DEL CATÁLOGO PÚBLICO
+  async getCatalogoConfig(token: string): Promise<CatalogoConfig> {
+    return this.makeRequest("/productos/catalogo/config", token);
+  }
+
+  async updateCatalogoConfig(
+    token: string,
+    config: Partial<CatalogoConfig>,
+  ): Promise<CatalogoConfig> {
+    return this.makeRequest("/productos/catalogo/config", token, {
+      method: "PUT",
+      body: JSON.stringify(config),
+    });
+  }
+
+  async subirBannerCatalogo(
+    token: string,
+    file: File,
+  ): Promise<{ url: string; key: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(
+      `${this.baseUrl}/productos/catalogo/banner`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      throw new Error(error?.message || "Error al subir el banner");
+    }
+
+    return response.json();
+  }
+
+  // 🔗 LINK PÚBLICO COMPARTIBLE (válido 48h, sin login)
+  async generarLinkCompartirCatalogo(
+    token: string,
+  ): Promise<{ url: string; expiresAt: string }> {
+    return this.makeRequest("/productos/catalogo/compartir", token);
   }
 }
 

@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/actualizar-producto.dto';
 import { UsuarioPayload } from 'src/types/usuario-payload';
@@ -16,6 +17,8 @@ import { formatearTexto } from 'src/lib/formatearTexto';
 import { HetznerStorageService } from 'src/hetzner-storage/hetzner-storage.service';
 import { promises as fs } from 'fs';
 import { GenerarCatalogoPorIdsDto } from './dto/generar-catalogo-por-ids.dto';
+import { UpdateCatalogoConfigDto } from './dto/update-catalogo-config.dto';
+import { signCatalogShareToken } from 'src/lib/catalogShareToken';
 import { format } from 'date-fns';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { emitirAudit } from 'src/auditoria/auditoria.helper';
@@ -319,6 +322,217 @@ export class ProductosService {
 
     return { url, key };
   }
+
+  /// CONFIGURACIÓN DE MARCA DEL CATÁLOGO PÚBLICO (logo, colores, banner, etc.)
+  async obtenerCatalogoConfig(usuario: UsuarioPayload) {
+    if (!usuario) throw new BadRequestException('no permitido');
+
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: usuario.empresaId },
+      select: { logoUrl: true, catalogoConfig: true },
+    });
+    if (!empresa) throw new BadRequestException('empresa no encontrada');
+
+    return {
+      logoUrl: empresa.logoUrl,
+      ...((empresa.catalogoConfig as Record<string, unknown>) ?? {}),
+    };
+  }
+
+  async actualizarCatalogoConfig(
+    usuario: UsuarioPayload,
+    dto: UpdateCatalogoConfigDto
+  ) {
+    if (!usuario) throw new BadRequestException('no permitido');
+    if (usuario.rol !== 'admin')
+      throw new UnauthorizedException('usuario no autorizado');
+
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: usuario.empresaId },
+      select: { catalogoConfig: true },
+    });
+    if (!empresa) throw new BadRequestException('empresa no encontrada');
+
+    // Merge sobre la config existente. Solo pisamos claves que de verdad vinieron
+    // en el DTO (un campo undefined —no tocado por el usuario— nunca borra lo ya guardado).
+    const configActual = (empresa.catalogoConfig as Record<string, unknown>) ?? {};
+    const configNueva = { ...configActual };
+    for (const [key, value] of Object.entries(dto)) {
+      if (value !== undefined) configNueva[key] = value;
+    }
+
+    const actualizada = await this.prisma.empresa.update({
+      where: { id: usuario.empresaId },
+      data: { catalogoConfig: configNueva as Prisma.InputJsonValue },
+      select: { catalogoConfig: true },
+    });
+
+    emitirAudit(
+      this.eventEmitter,
+      usuario,
+      AuditAccion.ACTUALIZAR,
+      AuditEntidad.EMPRESA,
+      usuario.empresaId,
+      { catalogoConfig: configNueva }
+    );
+
+    return actualizada.catalogoConfig;
+  }
+
+  async subirBannerCatalogo(
+    usuario: UsuarioPayload,
+    file: Express.Multer.File
+  ): Promise<{ url: string; key: string }> {
+    if (!usuario) throw new BadRequestException('no permitido');
+    if (usuario.rol !== 'admin')
+      throw new UnauthorizedException('usuario no autorizado');
+    if (!file?.buffer?.length) throw new BadRequestException('archivo inválido');
+
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: usuario.empresaId },
+      select: { catalogoConfig: true },
+    });
+    const configActual = (empresa?.catalogoConfig as Record<string, unknown>) ?? {};
+
+    // Borra el banner previo si existía (best-effort, no bloquea el flujo)
+    const bannerUrlPrevia = configActual.bannerUrl as string | undefined;
+    if (bannerUrlPrevia) {
+      try {
+        const prevKey = this.getKeyFromPublicUrl(
+          bannerUrlPrevia,
+          this.hetznerService.baseUrl
+        );
+        if (prevKey) await this.hetznerService.deleteByKey(prevKey);
+      } catch (err: any) {
+        console.warn('⚠️ No se pudo eliminar el banner previo:', err?.message || err);
+      }
+    }
+
+    const fileName = this.sanitizarNombreArchivo(file.originalname);
+    const folder = `catalogos/${usuario.empresaId}/banner`;
+    const url = await this.hetznerService.uploadFile(file.buffer, fileName, folder);
+    const key = `${folder}/${fileName}`;
+
+    const configNueva = { ...configActual, bannerUrl: url };
+    await this.prisma.empresa.update({
+      where: { id: usuario.empresaId },
+      data: { catalogoConfig: configNueva },
+    });
+
+    emitirAudit(
+      this.eventEmitter,
+      usuario,
+      AuditAccion.SUBIR_ARCHIVO,
+      AuditEntidad.EMPRESA,
+      usuario.empresaId,
+      { bannerUrl: url }
+    );
+
+    return { url, key };
+  }
+
+  /// Link público (sin login) para compartir el catálogo, válido 48h
+  async generarCatalogoCompartirLink(
+    usuario: UsuarioPayload
+  ): Promise<{ url: string; expiresAt: string }> {
+    if (!usuario) throw new BadRequestException('no permitido');
+    const rolesPermitidos = ['admin', 'vendedor'];
+    if (!rolesPermitidos.includes(usuario.rol)) {
+      throw new UnauthorizedException('usuario no autorizado');
+    }
+
+    const horas = 48;
+    const token = signCatalogShareToken(usuario.empresaId, horas);
+    const frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl) {
+      throw new InternalServerErrorException('FRONTEND_URL no configurado');
+    }
+
+    const expiresAt = new Date(
+      Date.now() + horas * 3600 * 1000
+    ).toISOString();
+
+    emitirAudit(
+      this.eventEmitter,
+      usuario,
+      AuditAccion.CREAR,
+      AuditEntidad.EMPRESA,
+      usuario.empresaId,
+      { accion: 'compartir_catalogo_publico', expiresAt }
+    );
+
+    return {
+      url: `${frontendUrl}/catalogo-publico/${token}`,
+      expiresAt,
+    };
+  }
+
+  /// Datos del catálogo público (sin usuario autenticado — el llamador ya validó el token/empresaId)
+  async obtenerCatalogoPublicoPorEmpresa(empresaId: string) {
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: empresaId },
+      select: {
+        nombreComercial: true,
+        logoUrl: true,
+        catalogoConfig: true,
+        estado: true,
+      },
+    });
+    if (!empresa || empresa.estado !== 'activa') {
+      throw new BadRequestException('catálogo no disponible');
+    }
+
+    const [productos, categorias] = await Promise.all([
+      this.prisma.producto.findMany({
+        where: {
+          empresaId,
+          estado: 'activo',
+          inventario: { some: { stockActual: { gt: 0 } } },
+        },
+        orderBy: { nombre: 'asc' },
+        include: {
+          inventario: {
+            where: { idEmpresa: empresaId },
+            select: { stockActual: true },
+          },
+          categoria: { select: { nombre: true } },
+          imagenes: true,
+        },
+      }),
+      this.prisma.categoriasProducto.findMany({
+        where: { empresaId },
+        select: { idCategoria: true, nombre: true },
+      }),
+    ]);
+
+    const config = (empresa.catalogoConfig as Record<string, unknown>) ?? {};
+    // Por defecto se muestran (solo se ocultan si el admin lo desactivó explícitamente)
+    const mostrarPrecio = config.mostrarPrecio !== false;
+    const mostrarStock = config.mostrarStock !== false;
+
+    return {
+      empresa: {
+        nombre: empresa.nombreComercial,
+        logoUrl: empresa.logoUrl,
+        config,
+      },
+      categorias,
+      // precio/stock se omiten server-side (no solo se ocultan en la UI) cuando el
+      // admin desactiva el toggle, para no filtrarlos igual en la respuesta JSON.
+      productos: productos.map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        precio: mostrarPrecio ? (p.precioVenta ?? 0) : null,
+        categoria: p.categoria?.nombre ?? 'Sin categoría',
+        imagenUrl: p.imagenUrl ?? '',
+        stock: mostrarStock
+          ? p.inventario.reduce((acc, inv) => acc + (inv.stockActual || 0), 0)
+          : null,
+        imagenes: p.imagenes ?? [],
+      })),
+    };
+  }
+
   async UpdateEstadoProduct(productoId: string, usuario: UsuarioPayload) {
     const producto = await this.prisma.producto.findUnique({
       where: { id: productoId },

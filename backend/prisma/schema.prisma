@@ -28,6 +28,7 @@ model Empresa {
   creado          DateTime @default(now())
   actualizado     DateTime @updatedAt
   estado          String   @db.Text
+  catalogoConfig  Json?
 
   pedidos              Pedido[]
   compras              Compras[]
