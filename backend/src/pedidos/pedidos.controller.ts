@@ -38,6 +38,27 @@ export class PedidosController {
     return this.pedidosService.crearPedido(data, usuario);
   }
 
+  // Carrito armado en el catálogo público (llegó por WhatsApp) -> pantalla de revisión
+  @Roles('admin', 'vendedor')
+  @Get('importar/:token')
+  resolverPedidoImportado(
+    @Param('token') token: string,
+    @Req() req: UsuarioRequest
+  ) {
+    return this.pedidosService.resolverPedidoImportado(req.usuario, token);
+  }
+
+  // Confirma el pedido importado — el token se "reclama" atómicamente, no se puede reusar
+  @Roles('admin', 'vendedor')
+  @Post('importar/:token')
+  crearPedidoImportado(
+    @Param('token') token: string,
+    @Body() data: CreatePedidoDto,
+    @Req() req: UsuarioRequest
+  ) {
+    return this.pedidosService.crearPedidoImportado(req.usuario, token, data);
+  }
+
   @Roles('admin', 'bodega')
   @Post('estado')
   crearEstado(@Body() data: CrearEstadoPedidoDto, @Req() req: UsuarioRequest) {

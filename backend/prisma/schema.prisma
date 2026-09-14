@@ -325,6 +325,20 @@ model Pedido {
 
 }
 
+// Registro de uso de un link de "importar pedido desde WhatsApp" (ver pedidoImportToken.ts).
+// Sin relaciones/FK a propósito — es solo un log de idempotencia, no necesita integridad
+// referencial. tokenHash único = el mecanismo real que bloquea reusar el mismo link dos veces.
+model PedidoImportUsado {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  empresaId String
+  pedidoId  String?
+  usuarioId String
+  creadoEn  DateTime @default(now())
+
+  @@index([empresaId])
+}
+
 model EstadoPedido {
   id          String   @id @default(uuid())
   pedidoId    String

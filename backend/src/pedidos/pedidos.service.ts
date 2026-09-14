@@ -28,6 +28,10 @@ import {
 } from '@prisma/client';
 import { UpdateEnvioDto } from './dto/update-envio-pedido.dto';
 import { GetPedidosPaginadosDto } from './dto/get-pedidos-paginados.dto';
+import {
+  verifyPedidoImportToken,
+  hashPedidoImportToken,
+} from 'src/lib/pedidoImportToken';
 type PedidoParaPDF = Prisma.PedidoGetPayload<{
   include: {
     cliente: true;
@@ -120,6 +124,131 @@ export class PedidosService {
       data: { pdfUrl: url },
     });
     return url;
+  }
+
+  /// Resuelve el token de un carrito armado en el catálogo público (llegó por WhatsApp) a
+  /// datos ACTUALES de producto — no se confía en nada que pudiera venir viejo en el token,
+  /// solo en los ids + cantidades. El front arma la pantalla de revisión con esto.
+  async resolverPedidoImportado(usuario: UsuarioPayload, token: string) {
+    if (!usuario) throw new BadRequestException('no permitido');
+
+    const payload = verifyPedidoImportToken(token);
+    if (!payload) {
+      throw new BadRequestException('El enlace no es válido o ya expiró');
+    }
+    if (payload.empresaId !== usuario.empresaId) {
+      throw new UnauthorizedException(
+        'Este enlace pertenece a otra empresa'
+      );
+    }
+
+    const yaUsado = await this.prisma.pedidoImportUsado.findUnique({
+      where: { tokenHash: hashPedidoImportToken(token) },
+      select: { id: true },
+    });
+    if (yaUsado) {
+      throw new BadRequestException('Este pedido ya fue importado anteriormente');
+    }
+
+    const ids = payload.items.map((i) => i.productoId);
+    const productos = await this.prisma.producto.findMany({
+      where: { id: { in: ids }, empresaId: usuario.empresaId },
+      include: {
+        inventario: {
+          where: { idEmpresa: usuario.empresaId },
+          select: { stockActual: true },
+        },
+        categoria: { select: { nombre: true } },
+      },
+    });
+    const productoPorId = new Map(productos.map((p) => [p.id, p]));
+
+    const items = payload.items.map((item) => {
+      const producto = productoPorId.get(item.productoId);
+      if (!producto || producto.estado !== 'activo') {
+        return {
+          productoId: item.productoId,
+          nombre: null,
+          disponible: false,
+          cantidad: item.cantidad,
+          precio: null,
+          stock: null,
+          imagenUrl: null,
+        };
+      }
+      return {
+        productoId: producto.id,
+        nombre: producto.nombre,
+        disponible: true,
+        cantidad: item.cantidad,
+        precio: producto.precioVenta ?? 0,
+        stock: producto.inventario.reduce(
+          (acc, inv) => acc + (inv.stockActual || 0),
+          0
+        ),
+        imagenUrl: producto.imagenUrl ?? '',
+        categoria: producto.categoria?.nombre ?? 'Sin categoría',
+      };
+    });
+
+    return { items };
+  }
+
+  /// Crea el pedido a partir de un carrito importado, "reclamando" el token de forma atómica
+  /// ANTES de crear nada: el índice único de tokenHash es lo que realmente impide reusar el
+  /// mismo link dos veces (incluso ante dos requests casi simultáneos desde equipos distintos),
+  /// no solo el chequeo de lectura en resolverPedidoImportado.
+  async crearPedidoImportado(
+    usuario: UsuarioPayload,
+    token: string,
+    data: CreatePedidoDto
+  ) {
+    if (!usuario) throw new BadRequestException('no permitido');
+
+    const payload = verifyPedidoImportToken(token);
+    if (!payload) {
+      throw new BadRequestException('El enlace no es válido o ya expiró');
+    }
+    if (payload.empresaId !== usuario.empresaId) {
+      throw new UnauthorizedException('Este enlace pertenece a otra empresa');
+    }
+
+    const tokenHash = hashPedidoImportToken(token);
+    try {
+      await this.prisma.pedidoImportUsado.create({
+        data: {
+          tokenHash,
+          empresaId: usuario.empresaId,
+          usuarioId: usuario.id,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException(
+          'Este pedido ya fue importado anteriormente'
+        );
+      }
+      throw error;
+    }
+
+    // El token ya quedó "reclamado" — si crearPedido falla de aquí en adelante (ej. cliente mal
+    // vinculado), el link queda inutilizable sin que se haya creado el pedido. Es un compromiso
+    // deliberado: preferimos fallar cerrado (nunca un duplicado) a dejar una ventana de carrera
+    // reabriendo el link tras un error. En ese caso el vendedor arma el pedido a mano igual.
+    const pedido = await this.crearPedido(data, usuario);
+
+    if (pedido) {
+      await this.prisma.pedidoImportUsado
+        .update({ where: { tokenHash }, data: { pedidoId: pedido.id } })
+        .catch(() => {
+          /* solo trazabilidad, no bloquea el flujo si falla */
+        });
+    }
+
+    return pedido;
   }
 
   ///crea un pedido en la bdd y sus relaciones

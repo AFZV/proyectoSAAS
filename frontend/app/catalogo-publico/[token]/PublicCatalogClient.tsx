@@ -20,12 +20,16 @@ import type {
 
 interface PublicCatalogClientProps {
   data: CatalogoPublicoResponse;
+  shareToken: string;
 }
 
 // id del producto -> cantidad en el carrito
 type Carrito = Record<string, number>;
 
-export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
+export function PublicCatalogClient({
+  data,
+  shareToken,
+}: PublicCatalogClientProps) {
   const { empresa, categorias, productos } = data;
   const config = empresa.config ?? {};
   const colorPrimario = config.colorPrimario || "#2563eb";
@@ -39,6 +43,7 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
   const [carrito, setCarrito] = useState<Carrito>({});
   const [carritoAbierto, setCarritoAbierto] = useState(false);
   const [nombreCliente, setNombreCliente] = useState("");
+  const [enviando, setEnviando] = useState(false);
 
   const categoriaNombrePorId = useMemo(
     () => new Map(categorias.map((c) => [c.idCategoria, c.nombre])),
@@ -116,10 +121,36 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
     return `https://wa.me/${config.whatsappContacto}?text=${texto}`;
   };
 
-  // Arma el mensaje del carrito. Incluye una línea REF con los ids y cantidades en un
-  // formato compacto y estable, pensada para que a futuro la app pueda leer este mensaje
-  // (pegado o reenviado) y montar el pedido automáticamente sin digitarlo de nuevo.
-  const construirMensajeCarrito = () => {
+  // Le pide al backend un link firmado para IMPORTAR este carrito como pedido dentro de la
+  // app (el vendedor/admin lo toca desde WhatsApp, ya logueado, y solo elige el cliente).
+  // Autorizado por el mismo shareToken del catálogo — no requiere login para generarlo.
+  const pedirLinkDePedido = async (): Promise<string | null> => {
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/public/catalogo/${shareToken}/pedido-link`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: itemsCarrito.map((i) => ({
+              productoId: i.producto.id,
+              cantidad: i.cantidad,
+            })),
+          }),
+        },
+      );
+      if (!res.ok) return null;
+      const { url } = await res.json();
+      return url ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Arma el mensaje del carrito: texto legible + (si se pudo generar) el link para importar
+  // el pedido directo en la app, y como respaldo la línea REF con ids y cantidades en un
+  // formato compacto, por si el link no se pudo generar o el mensaje se reenvía sin él.
+  const construirMensajeCarrito = (linkPedido: string | null) => {
     const lineas = itemsCarrito.map((item, i) => {
       const subtotal =
         item.producto.precio !== null
@@ -134,6 +165,9 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
       "",
       lineas.join("\n"),
       totalCarrito !== null ? `\n*Total: ${formatValue(totalCarrito)}*` : null,
+      linkPedido
+        ? `\n👉 Importar este pedido en la app:\n${linkPedido}`
+        : null,
       "\n— código interno, no borrar (permite montar el pedido en el sistema) —",
       `REF:CATPED:1:${itemsCarrito
         .map((i) => `${i.producto.id}:${i.cantidad}`)
@@ -143,14 +177,20 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
     return partes.join("\n");
   };
 
-  const enviarCarritoPorWhatsapp = () => {
+  const enviarCarritoPorWhatsapp = async () => {
     if (!config.whatsappContacto || itemsCarrito.length === 0) return;
-    const texto = encodeURIComponent(construirMensajeCarrito());
-    window.open(
-      `https://wa.me/${config.whatsappContacto}?text=${texto}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
+    setEnviando(true);
+    try {
+      const linkPedido = await pedirLinkDePedido();
+      const texto = encodeURIComponent(construirMensajeCarrito(linkPedido));
+      window.open(
+        `https://wa.me/${config.whatsappContacto}?text=${texto}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -488,12 +528,12 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
                 )}
                 <button
                   onClick={enviarCarritoPorWhatsapp}
-                  disabled={!config.whatsappContacto}
+                  disabled={!config.whatsappContacto || enviando}
                   className="w-full flex items-center justify-center gap-2 text-white rounded-md py-2.5 font-medium disabled:opacity-40"
                   style={{ backgroundColor: colorSecundario }}
                 >
                   <MessageCircle className="w-4 h-4" />
-                  Enviar pedido por WhatsApp
+                  {enviando ? "Preparando..." : "Enviar pedido por WhatsApp"}
                 </button>
                 {!config.whatsappContacto && (
                   <p className="text-xs text-red-500 text-center">
