@@ -27,6 +27,7 @@ import { CreateCategoriaProductoDto } from './dto/create-categoria-producto.dto'
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as multer from 'multer';
 import { GenerarCatalogoPorIdsDto } from './dto/generar-catalogo-por-ids.dto';
+import { UpdateCatalogoConfigDto } from './dto/update-catalogo-config.dto';
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('productos')
@@ -153,6 +154,55 @@ export class ProductosController {
     );
     return { url, key };
   }
+  @Roles('admin', 'vendedor')
+  @Get('catalogo/compartir')
+  async generarCatalogoCompartirLink(@Req() req: UsuarioRequest) {
+    return this.productosService.generarCatalogoCompartirLink(req.usuario);
+  }
+
+  // Configuración de marca del catálogo público (logo, colores, banner, mensaje, whatsapp)
+  @Roles('admin')
+  @Get('catalogo/config')
+  async obtenerCatalogoConfig(@Req() req: UsuarioRequest) {
+    return this.productosService.obtenerCatalogoConfig(req.usuario);
+  }
+
+  @Roles('admin')
+  @Put('catalogo/config')
+  async actualizarCatalogoConfig(
+    @Req() req: UsuarioRequest,
+    @Body() dto: UpdateCatalogoConfigDto
+  ) {
+    return this.productosService.actualizarCatalogoConfig(req.usuario, dto);
+  }
+
+  @Roles('admin')
+  @Post('catalogo/banner')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5 MB
+      },
+    })
+  )
+  async subirBannerCatalogo(
+    @Req() req: UsuarioRequest,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new FileTypeValidator({
+            fileType: /^image\/(png|jpeg|jpg|webp)$/,
+          }),
+        ],
+      })
+    )
+    file: Express.Multer.File
+  ) {
+    return this.productosService.subirBannerCatalogo(req.usuario, file);
+  }
+
   // productos.controller.ts
   @Roles('admin', 'vendedor')
   @Get('catalogo/link/categoria/:categoriaId')

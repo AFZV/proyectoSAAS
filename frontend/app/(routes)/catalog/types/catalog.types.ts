@@ -82,3 +82,46 @@ export interface UpdateProductoDto {
 export interface CreateCategoriaProductoDto {
   nombre: string;
 }
+
+// 🎨 Configuración de marca del catálogo público compartible
+export interface CatalogoConfig {
+  logoUrl?: string;
+  colorPrimario?: string;
+  colorSecundario?: string;
+  bannerUrl?: string;
+  mensajeBienvenida?: string;
+  whatsappContacto?: string;
+  avisoDestacado?: string;
+  colorFondo?: string;
+  colorMarcoImagenes?: string;
+  mostrarPrecio?: boolean;
+  mostrarStock?: boolean;
+  permitirCarrito?: boolean;
+}
+
+// Item del carrito del catálogo público (independiente del carrito interno autenticado)
+export interface CarritoPublicoItem {
+  id: string;
+  nombre: string;
+  precio: number | null;
+  cantidad: number;
+}
+
+// Producto tal como lo devuelve el catálogo público: precio/stock pueden venir
+// null si el admin desactivó mostrarlos (se omiten server-side, no solo en la UI).
+export interface ProductoPublico
+  extends Omit<Producto, "precio" | "stock"> {
+  precio: number | null;
+  stock: number | null;
+}
+
+// Respuesta del endpoint público del catálogo (sin autenticación)
+export interface CatalogoPublicoResponse {
+  empresa: {
+    nombre: string;
+    logoUrl: string;
+    config: CatalogoConfig;
+  };
+  categorias: Categoria[];
+  productos: ProductoPublico[];
+}
