@@ -11,6 +11,7 @@ import {
   Minus,
   X,
   Trash2,
+  StickyNote,
 } from "lucide-react";
 import { formatValue } from "@/utils/FormartValue";
 import type {
@@ -20,12 +21,16 @@ import type {
 
 interface PublicCatalogClientProps {
   data: CatalogoPublicoResponse;
+  shareToken: string;
 }
 
 // id del producto -> cantidad en el carrito
 type Carrito = Record<string, number>;
 
-export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
+export function PublicCatalogClient({
+  data,
+  shareToken,
+}: PublicCatalogClientProps) {
   const { empresa, categorias, productos } = data;
   const config = empresa.config ?? {};
   const colorPrimario = config.colorPrimario || "#2563eb";
@@ -39,6 +44,21 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
   const [carrito, setCarrito] = useState<Carrito>({});
   const [carritoAbierto, setCarritoAbierto] = useState(false);
   const [nombreCliente, setNombreCliente] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  // Observación por producto (igual que en el catálogo interno) + una general para todo el pedido
+  const [observacionesPorProducto, setObservacionesPorProducto] = useState<
+    Record<string, string>
+  >({});
+  const [observacionGeneral, setObservacionGeneral] = useState("");
+  const [notaAbiertaPara, setNotaAbiertaPara] = useState<string | null>(null);
+
+  // Modal "Agregar al carrito" (cantidad + nota) — se abre al hacer clic en Agregar,
+  // igual que en el catálogo interno, en vez de agregar de una y tener que editar después.
+  const [modalProducto, setModalProducto] = useState<ProductoPublico | null>(
+    null,
+  );
+  const [modalCantidad, setModalCantidad] = useState(1);
+  const [modalObservacion, setModalObservacion] = useState("");
 
   const categoriaNombrePorId = useMemo(
     () => new Map(categorias.map((c) => [c.idCategoria, c.nombre])),
@@ -100,8 +120,34 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
     setCarrito((prev) => ({ ...prev, [id]: nueva }));
   };
 
+  const abrirModalAgregar = (p: ProductoPublico) => {
+    setModalProducto(p);
+    setModalCantidad(1);
+    setModalObservacion(observacionesPorProducto[p.id] ?? "");
+  };
+
+  const cerrarModalAgregar = () => setModalProducto(null);
+
+  const confirmarAgregar = () => {
+    if (!modalProducto || modalCantidad < 1) return;
+    const id = modalProducto.id;
+    setCarrito((prev) => {
+      const actual = prev[id] ?? 0;
+      let nueva = actual + modalCantidad;
+      if (modalProducto.stock !== null) nueva = Math.min(nueva, modalProducto.stock);
+      return { ...prev, [id]: nueva };
+    });
+    setObservacionesPorProducto((prev) => ({ ...prev, [id]: modalObservacion }));
+    cerrarModalAgregar();
+  };
+
   const quitarDelCarrito = (id: string) => {
     setCarrito((prev) => {
+      const copia = { ...prev };
+      delete copia[id];
+      return copia;
+    });
+    setObservacionesPorProducto((prev) => {
       const copia = { ...prev };
       delete copia[id];
       return copia;
@@ -116,10 +162,39 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
     return `https://wa.me/${config.whatsappContacto}?text=${texto}`;
   };
 
-  // Arma el mensaje del carrito. Incluye una línea REF con los ids y cantidades en un
-  // formato compacto y estable, pensada para que a futuro la app pueda leer este mensaje
-  // (pegado o reenviado) y montar el pedido automáticamente sin digitarlo de nuevo.
-  const construirMensajeCarrito = () => {
+  // Le pide al backend un link firmado para IMPORTAR este carrito como pedido dentro de la
+  // app (el vendedor/admin lo toca desde WhatsApp, ya logueado, y solo elige el cliente).
+  // Autorizado por el mismo shareToken del catálogo — no requiere login para generarlo.
+  const pedirLinkDePedido = async (): Promise<string | null> => {
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/public/catalogo/${shareToken}/pedido-link`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: itemsCarrito.map((i) => ({
+              productoId: i.producto.id,
+              cantidad: i.cantidad,
+              observacion:
+                observacionesPorProducto[i.producto.id]?.trim() || undefined,
+            })),
+            observacionGeneral: observacionGeneral.trim() || undefined,
+          }),
+        },
+      );
+      if (!res.ok) return null;
+      const { url } = await res.json();
+      return url ?? null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Arma el mensaje del carrito: texto legible + (si se pudo generar) el link para importar
+  // el pedido directo en la app, y como respaldo la línea REF con ids y cantidades en un
+  // formato compacto, por si el link no se pudo generar o el mensaje se reenvía sin él.
+  const construirMensajeCarrito = (linkPedido: string | null) => {
     const lineas = itemsCarrito.map((item, i) => {
       const subtotal =
         item.producto.precio !== null
@@ -128,12 +203,33 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
       return `${i + 1}. ${item.producto.nombre} x${item.cantidad}${subtotal}`;
     });
 
+    // Mismo formato que usa el catálogo interno (buildTextoObservacionesCheckout en
+    // CatalogClient.tsx) para que se vea igual llegue de donde llegue el pedido.
+    const lineasObs = itemsCarrito
+      .map((item) => ({
+        nombre: item.producto.nombre,
+        obs: observacionesPorProducto[item.producto.id]?.trim(),
+      }))
+      .filter((o) => o.obs)
+      .map((o) => `• ${o.nombre}: ${o.obs}`);
+    const bloqueObsProductos = lineasObs.length
+      ? `\nOBSERVACIONES POR PRODUCTO:\n${lineasObs.join("\n")}`
+      : null;
+    const bloqueObsGeneral = observacionGeneral.trim()
+      ? `\nOBSERVACIÓN GENERAL:\n${observacionGeneral.trim()}`
+      : null;
+
     const partes = [
       `🛒 *Pedido - ${empresa.nombre}*`,
       nombreCliente.trim() ? `Cliente: ${nombreCliente.trim()}` : null,
       "",
       lineas.join("\n"),
       totalCarrito !== null ? `\n*Total: ${formatValue(totalCarrito)}*` : null,
+      bloqueObsProductos,
+      bloqueObsGeneral,
+      linkPedido
+        ? `\n👉 Importar este pedido en la app:\n${linkPedido}`
+        : null,
       "\n— código interno, no borrar (permite montar el pedido en el sistema) —",
       `REF:CATPED:1:${itemsCarrito
         .map((i) => `${i.producto.id}:${i.cantidad}`)
@@ -143,14 +239,20 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
     return partes.join("\n");
   };
 
-  const enviarCarritoPorWhatsapp = () => {
+  const enviarCarritoPorWhatsapp = async () => {
     if (!config.whatsappContacto || itemsCarrito.length === 0) return;
-    const texto = encodeURIComponent(construirMensajeCarrito());
-    window.open(
-      `https://wa.me/${config.whatsappContacto}?text=${texto}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
+    setEnviando(true);
+    try {
+      const linkPedido = await pedirLinkDePedido();
+      const texto = encodeURIComponent(construirMensajeCarrito(linkPedido));
+      window.open(
+        `https://wa.me/${config.whatsappContacto}?text=${texto}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -299,46 +401,22 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
                     )}
 
                     {conCarrito ? (
-                      cantidadEnCarrito > 0 ? (
-                        <div className="flex items-center justify-between border rounded-md mt-1">
-                          <button
-                            onClick={() =>
-                              cambiarCantidad(p.id, -1, p.stock)
-                            }
-                            className="p-1.5 hover:bg-slate-100"
+                      <button
+                        onClick={() => abrirModalAgregar(p)}
+                        className="relative flex items-center justify-center gap-1.5 text-xs font-medium text-white rounded-md py-1.5 mt-1"
+                        style={{ backgroundColor: colorPrimario }}
+                      >
+                        <ShoppingCart className="w-3.5 h-3.5" />
+                        Agregar al carrito
+                        {cantidadEnCarrito > 0 && (
+                          <span
+                            className="absolute -top-2 -right-2 text-[10px] font-bold text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center"
+                            style={{ backgroundColor: colorSecundario }}
                           >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            min={0}
-                            max={p.stock ?? undefined}
-                            value={cantidadEnCarrito}
-                            onChange={(e) =>
-                              fijarCantidad(p.id, e.target.valueAsNumber, p.stock)
-                            }
-                            onFocus={(e) => e.target.select()}
-                            className="w-10 text-sm font-medium text-center border-0 focus:outline-none focus:ring-0 bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
-                          <button
-                            onClick={() => cambiarCantidad(p.id, 1, p.stock)}
-                            disabled={p.stock !== null && cantidadEnCarrito >= p.stock}
-                            className="p-1.5 hover:bg-slate-100 disabled:opacity-30"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => cambiarCantidad(p.id, 1, p.stock)}
-                          className="flex items-center justify-center gap-1.5 text-xs font-medium text-white rounded-md py-1.5 mt-1"
-                          style={{ backgroundColor: colorPrimario }}
-                        >
-                          <ShoppingCart className="w-3.5 h-3.5" />
-                          Agregar al carrito
-                        </button>
-                      )
+                            {cantidadEnCarrito}
+                          </span>
+                        )}
+                      </button>
                     ) : (
                       link && (
                         <a
@@ -408,64 +486,102 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
                   Aún no has agregado productos.
                 </p>
               ) : (
-                itemsCarrito.map((item) => (
-                  <div
-                    key={item.producto.id}
-                    className="flex items-center gap-3 border-b pb-3"
-                  >
-                    <img
-                      src={item.producto.imagenUrl || "/placeholder-product.png"}
-                      alt={item.producto.nombre}
-                      className="w-12 h-12 object-contain rounded border flex-shrink-0"
-                      style={{ backgroundColor: colorMarcoImagenes }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium line-clamp-1">
-                        {item.producto.nombre}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <button
-                          onClick={() =>
-                            cambiarCantidad(item.producto.id, -1, item.producto.stock)
-                          }
-                          className="p-1 border rounded hover:bg-slate-100"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </button>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          max={item.producto.stock ?? undefined}
-                          value={item.cantidad}
-                          onChange={(e) =>
-                            fijarCantidad(
-                              item.producto.id,
-                              e.target.valueAsNumber,
-                              item.producto.stock,
-                            )
-                          }
-                          onFocus={(e) => e.target.select()}
-                          className="w-10 text-xs text-center border-0 focus:outline-none focus:ring-0 bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                itemsCarrito.map((item) => {
+                  const tieneNota = !!observacionesPorProducto[
+                    item.producto.id
+                  ]?.trim();
+                  const notaAbierta =
+                    notaAbiertaPara === item.producto.id || tieneNota;
+                  return (
+                    <div key={item.producto.id} className="border-b pb-3 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={item.producto.imagenUrl || "/placeholder-product.png"}
+                          alt={item.producto.nombre}
+                          className="w-12 h-12 object-contain rounded border flex-shrink-0"
+                          style={{ backgroundColor: colorMarcoImagenes }}
                         />
-                        <button
-                          onClick={() =>
-                            cambiarCantidad(item.producto.id, 1, item.producto.stock)
-                          }
-                          className="p-1 border rounded hover:bg-slate-100"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium line-clamp-1">
+                            {item.producto.nombre}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <button
+                              onClick={() =>
+                                cambiarCantidad(item.producto.id, -1, item.producto.stock)
+                              }
+                              className="p-1 border rounded hover:bg-slate-100"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              max={item.producto.stock ?? undefined}
+                              value={item.cantidad}
+                              onChange={(e) =>
+                                fijarCantidad(
+                                  item.producto.id,
+                                  e.target.valueAsNumber,
+                                  item.producto.stock,
+                                )
+                              }
+                              onFocus={(e) => e.target.select()}
+                              className="w-10 text-xs text-center border-0 focus:outline-none focus:ring-0 bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <button
+                              onClick={() =>
+                                cambiarCantidad(item.producto.id, 1, item.producto.stock)
+                              }
+                              className="p-1 border rounded hover:bg-slate-100"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-center gap-2 flex-shrink-0">
+                          <button
+                            onClick={() =>
+                              setNotaAbiertaPara((prev) =>
+                                prev === item.producto.id ? null : item.producto.id,
+                              )
+                            }
+                            title="Agregar observación a este producto"
+                            className={
+                              tieneNota
+                                ? "text-amber-500"
+                                : "text-slate-400 hover:text-slate-600"
+                            }
+                          >
+                            <StickyNote className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => quitarDelCarrito(item.producto.id)}
+                            className="text-slate-400 hover:text-red-500"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
+
+                      {notaAbierta && (
+                        <textarea
+                          value={observacionesPorProducto[item.producto.id] ?? ""}
+                          onChange={(e) =>
+                            setObservacionesPorProducto((prev) => ({
+                              ...prev,
+                              [item.producto.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Ej: entregar sin bolsa, color alterno si no hay..."
+                          className="w-full text-xs rounded-md border border-slate-200 p-2 min-h-14 focus:outline-none focus:ring-1"
+                          style={{ ["--tw-ring-color" as any]: colorPrimario }}
+                        />
+                      )}
                     </div>
-                    <button
-                      onClick={() => quitarDelCarrito(item.producto.id)}
-                      className="text-slate-400 hover:text-red-500 flex-shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -478,6 +594,13 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
                   maxLength={80}
                   className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm"
                 />
+                <textarea
+                  value={observacionGeneral}
+                  onChange={(e) => setObservacionGeneral(e.target.value)}
+                  placeholder="Observación general del pedido (opcional)"
+                  maxLength={500}
+                  className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm min-h-14"
+                />
                 {totalCarrito !== null && (
                   <div className="flex justify-between font-semibold">
                     <span>Total</span>
@@ -488,12 +611,12 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
                 )}
                 <button
                   onClick={enviarCarritoPorWhatsapp}
-                  disabled={!config.whatsappContacto}
+                  disabled={!config.whatsappContacto || enviando}
                   className="w-full flex items-center justify-center gap-2 text-white rounded-md py-2.5 font-medium disabled:opacity-40"
                   style={{ backgroundColor: colorSecundario }}
                 >
                   <MessageCircle className="w-4 h-4" />
-                  Enviar pedido por WhatsApp
+                  {enviando ? "Preparando..." : "Enviar pedido por WhatsApp"}
                 </button>
                 {!config.whatsappContacto && (
                   <p className="text-xs text-red-500 text-center">
@@ -502,6 +625,133 @@ export function PublicCatalogClient({ data }: PublicCatalogClientProps) {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal "Agregar al carrito": cantidad + nota, antes de agregar (no después) */}
+      {modalProducto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={cerrarModalAgregar}
+          />
+          <div className="relative w-full max-w-sm bg-white rounded-lg shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="font-semibold flex items-center gap-2">
+                <ShoppingCart className="w-5 h-5" /> Agregar al carrito
+              </h2>
+              <button onClick={cerrarModalAgregar}>
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="flex gap-3">
+                <img
+                  src={modalProducto.imagenUrl || "/placeholder-product.png"}
+                  alt={modalProducto.nombre}
+                  className="w-16 h-16 object-contain rounded border flex-shrink-0"
+                  style={{ backgroundColor: colorMarcoImagenes }}
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium line-clamp-2">
+                    {modalProducto.nombre}
+                  </p>
+                  {modalProducto.precio !== null && (
+                    <p
+                      className="text-base font-bold mt-1"
+                      style={{ color: colorPrimario }}
+                    >
+                      {formatValue(modalProducto.precio)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Cantidad</label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      setModalCantidad((c) => Math.max(1, c - 1))
+                    }
+                    className="p-2 border rounded-md hover:bg-slate-100"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={modalProducto.stock ?? undefined}
+                    value={modalCantidad}
+                    onChange={(e) => {
+                      const v = e.target.valueAsNumber;
+                      const max = modalProducto.stock ?? Infinity;
+                      setModalCantidad(
+                        Number.isFinite(v) ? Math.max(1, Math.min(v, max)) : 1,
+                      );
+                    }}
+                    onFocus={(e) => e.target.select()}
+                    className="w-16 text-center border rounded-md py-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    onClick={() =>
+                      setModalCantidad((c) =>
+                        modalProducto.stock !== null
+                          ? Math.min(c + 1, modalProducto.stock)
+                          : c + 1,
+                      )
+                    }
+                    disabled={
+                      modalProducto.stock !== null &&
+                      modalCantidad >= modalProducto.stock
+                    }
+                    className="p-2 border rounded-md hover:bg-slate-100 disabled:opacity-30"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                  {modalProducto.stock !== null && (
+                    <span className="text-xs text-slate-400">
+                      Stock: {modalProducto.stock}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">
+                  ¿Quieres agregar una nota para este producto?
+                </label>
+                <textarea
+                  value={modalObservacion}
+                  onChange={(e) => setModalObservacion(e.target.value)}
+                  placeholder="Opcional — ej: color alterno si no hay, entregar sin bolsa..."
+                  className="w-full text-sm rounded-md border border-slate-200 p-2 min-h-16 focus:outline-none focus:ring-1"
+                  style={{ ["--tw-ring-color" as any]: colorPrimario }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Si la dejas vacía, se agrega solo con la cantidad.
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={cerrarModalAgregar}
+                  className="flex-1 py-2 rounded-md border border-slate-200 text-sm font-medium hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmarAgregar}
+                  className="flex-1 py-2 rounded-md text-sm font-medium text-white"
+                  style={{ backgroundColor: colorPrimario }}
+                >
+                  Agregar al carrito
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

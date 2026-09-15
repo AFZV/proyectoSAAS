@@ -19,6 +19,7 @@ import { promises as fs } from 'fs';
 import { GenerarCatalogoPorIdsDto } from './dto/generar-catalogo-por-ids.dto';
 import { UpdateCatalogoConfigDto } from './dto/update-catalogo-config.dto';
 import { signCatalogShareToken } from 'src/lib/catalogShareToken';
+import { signPedidoImportToken } from 'src/lib/pedidoImportToken';
 import { format } from 'date-fns';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { emitirAudit } from 'src/auditoria/auditoria.helper';
@@ -531,6 +532,43 @@ export class ProductosService {
         imagenes: p.imagenes ?? [],
       })),
     };
+  }
+
+  /// Arma el link firmado que un vendedor/admin usa para importar el carrito armado en el
+  /// catálogo público como pedido. Autorizado por el propio token del catálogo (ya validado
+  /// por el controller): si alguien pudo ver el catálogo de esta empresa, puede armar este link.
+  async generarPedidoImportLink(
+    empresaId: string,
+    items: { productoId: string; cantidad: number; observacion?: string }[],
+    observacionGeneral?: string
+  ): Promise<{ url: string }> {
+    // Validación mínima: los productos deben existir y ser de esta empresa (evita que el
+    // link apunte a ids de otra empresa o inventados).
+    const ids = items.map((i) => i.productoId);
+    const existentes = await this.prisma.producto.findMany({
+      where: { id: { in: ids }, empresaId },
+      select: { id: true },
+    });
+    const idsValidos = new Set(existentes.map((p) => p.id));
+    const itemsValidos = items.filter((i) => idsValidos.has(i.productoId));
+
+    if (!itemsValidos.length) {
+      throw new BadRequestException('ningún producto del carrito es válido');
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl) {
+      throw new InternalServerErrorException('FRONTEND_URL no configurado');
+    }
+
+    const token = signPedidoImportToken(
+      empresaId,
+      itemsValidos,
+      observacionGeneral
+    );
+    // Nota: la pantalla vive en el frontend bajo /invoices (así se llama ahí la sección de
+    // Pedidos), aunque la API sea /pedidos — no cambiar sin mover también la carpeta del front.
+    return { url: `${frontendUrl}/invoices/importar/${token}` };
   }
 
   async UpdateEstadoProduct(productoId: string, usuario: UsuarioPayload) {

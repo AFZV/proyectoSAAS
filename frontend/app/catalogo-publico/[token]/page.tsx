@@ -52,5 +52,5 @@ export default async function CatalogoPublicoPage({
     );
   }
 
-  return <PublicCatalogClient data={data} />;
+  return <PublicCatalogClient data={data} shareToken={token} />;
 }

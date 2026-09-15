@@ -29,6 +29,7 @@ model Empresa {
   actualizado     DateTime @updatedAt
   estado          String   @db.Text
   catalogoConfig  Json?
+  notaFactura     String?  @db.Text // nota configurable por empresa (ej. descuento por pronto pago), se imprime en el PDF del pedido si no está vacía
 
   pedidos              Pedido[]
   compras              Compras[]
@@ -323,6 +324,20 @@ model Pedido {
   @@index([usuarioId])
     @@index([empresaId, estadoActual, fechaPedido])
 
+}
+
+// Registro de uso de un link de "importar pedido desde WhatsApp" (ver pedidoImportToken.ts).
+// Sin relaciones/FK a propósito — es solo un log de idempotencia, no necesita integridad
+// referencial. tokenHash único = el mecanismo real que bloquea reusar el mismo link dos veces.
+model PedidoImportUsado {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  empresaId String
+  pedidoId  String?
+  usuarioId String
+  creadoEn  DateTime @default(now())
+
+  @@index([empresaId])
 }
 
 model EstadoPedido {
