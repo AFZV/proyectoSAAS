@@ -114,6 +114,11 @@ export const dataClienteSideBar = [
 
 export const dataHerramientasSideBar = [
   {
+    icon: Settings,
+    label: "Configuración de empresa",
+    href: "/configuracion",
+  },
+  {
     icon: DownloadCloud,
     label: "Respaldos",
     href: "/respaldos",

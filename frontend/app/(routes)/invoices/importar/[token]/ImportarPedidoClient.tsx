@@ -23,11 +23,33 @@ import type { ItemPedidoImportado, ClienteBusqueda } from "./importar.types";
 
 interface ImportarPedidoClientProps {
   itemsIniciales: ItemPedidoImportado[];
+  observacionGeneralInicial?: string;
   token: string;
+}
+
+// Mismo formato que buildTextoObservacionesCheckout en CatalogClient.tsx (catálogo interno),
+// para que un pedido se vea igual sin importar si se armó ahí o por este importador.
+function construirObservacionesIniciales(
+  items: ItemPedidoImportado[],
+  observacionGeneral: string,
+): string {
+  const lineas = items
+    .filter((i) => i.observacion?.trim())
+    .map((i) => `• ${i.nombre}: ${i.observacion!.trim()}`);
+
+  const bloqueProductos = lineas.length
+    ? `OBSERVACIONES POR PRODUCTO:\n${lineas.join("\n")}`
+    : "";
+  const bloqueGeneral = observacionGeneral.trim()
+    ? `${lineas.length ? "\n\n" : ""}OBSERVACIÓN GENERAL:\n${observacionGeneral.trim()}`
+    : "";
+
+  return `${bloqueProductos}${bloqueGeneral}`.trim();
 }
 
 export function ImportarPedidoClient({
   itemsIniciales,
+  observacionGeneralInicial = "",
   token,
 }: ImportarPedidoClientProps) {
   const router = useRouter();
@@ -39,7 +61,9 @@ export function ImportarPedidoClient({
   );
   const itemsNoDisponibles = itemsIniciales.filter((i) => !i.disponible);
 
-  const [observaciones, setObservaciones] = useState("");
+  const [observaciones, setObservaciones] = useState(() =>
+    construirObservacionesIniciales(itemsIniciales, observacionGeneralInicial),
+  );
   const [enviando, setEnviando] = useState(false);
   const [pedidoCreado, setPedidoCreado] = useState(false);
   // Guardado síncrono: `enviando` (estado) solo se refleja en el DOM tras un re-render, y un

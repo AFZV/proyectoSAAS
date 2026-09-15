@@ -1,5 +1,12 @@
 // src/catalogo-publico/catalogo-publico.controller.ts
-import { Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ProductosService } from 'src/productos/productos.service';
 import { verifyCatalogShareToken } from 'src/lib/catalogShareToken';
@@ -47,7 +54,8 @@ export class CatalogoPublicoController {
 
     return this.productosService.generarPedidoImportLink(
       payload.empresaId,
-      dto.items
+      dto.items,
+      dto.observacionGeneral
     );
   }
 }

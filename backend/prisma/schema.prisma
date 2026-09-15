@@ -29,6 +29,7 @@ model Empresa {
   actualizado     DateTime @updatedAt
   estado          String   @db.Text
   catalogoConfig  Json?
+  notaFactura     String?  @db.Text // nota configurable por empresa (ej. descuento por pronto pago), se imprime en el PDF del pedido si no está vacía
 
   pedidos              Pedido[]
   compras              Compras[]

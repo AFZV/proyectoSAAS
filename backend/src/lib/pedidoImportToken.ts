@@ -9,12 +9,14 @@ import { signPayload, verifyPayload } from './hmacToken';
 export interface PedidoImportItem {
   productoId: string;
   cantidad: number;
+  observacion?: string;
 }
 
 export interface PedidoImportPayload {
   type: 'PEDIDO_IMPORT';
   empresaId: string;
   items: PedidoImportItem[];
+  observacionGeneral?: string;
   exp: number; // epoch seconds
 }
 
@@ -30,12 +32,14 @@ function getSecret(): string {
 export function signPedidoImportToken(
   empresaId: string,
   items: PedidoImportItem[],
+  observacionGeneral?: string,
   horas = 24 * 7
 ): string {
   const payload: PedidoImportPayload = {
     type: 'PEDIDO_IMPORT',
     empresaId,
     items,
+    observacionGeneral,
     exp: Math.floor(Date.now() / 1000) + horas * 3600,
   };
   return signPayload(payload, getSecret());

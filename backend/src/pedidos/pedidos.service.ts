@@ -108,6 +108,7 @@ export class PedidosService {
           }, 0)
         : undefined,
       logoUrl: pedido.empresa.logoUrl,
+      notaFactura: pedido.empresa.notaFactura ?? undefined,
       total,
     };
 
@@ -174,6 +175,7 @@ export class PedidosService {
           precio: null,
           stock: null,
           imagenUrl: null,
+          observacion: item.observacion ?? '',
         };
       }
       return {
@@ -188,10 +190,11 @@ export class PedidosService {
         ),
         imagenUrl: producto.imagenUrl ?? '',
         categoria: producto.categoria?.nombre ?? 'Sin categoría',
+        observacion: item.observacion ?? '',
       };
     });
 
-    return { items };
+    return { items, observacionGeneral: payload.observacionGeneral ?? '' };
   }
 
   /// Crea el pedido a partir de un carrito importado, "reclamando" el token de forma atómica
@@ -506,6 +509,7 @@ export class PedidosService {
                 logoUrl: true,
                 nombreComercial: true,
                 direccion: true,
+                notaFactura: true,
               },
             },
           },
@@ -650,6 +654,7 @@ export class PedidosService {
                   }, 0)
                 : undefined,
               logoUrl: pedido.empresa.logoUrl,
+              notaFactura: pedido.empresa.notaFactura ?? undefined,
               total: pedido.productos.reduce(
                 (sum, item) => sum + item.cantidad * item.precio,
                 0

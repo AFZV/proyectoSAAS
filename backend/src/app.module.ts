@@ -37,6 +37,7 @@ import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
 import { ClientesPublicModule } from './clientes-public/clientes-public.module';
 import { AuthPublicModule } from './auth-public/auth-public.module';
 import { CatalogoPublicoModule } from './catalogo-publico/catalogo-publico.module';
+import { EmpresaConfigModule } from './empresa-config/empresa-config.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { CatalogoPublicoModule } from './catalogo-publico/catalogo-publico.modul
     ClientesPublicModule,
     AuthPublicModule,
     CatalogoPublicoModule,
+    EmpresaConfigModule,
     RecibosModule,
     ProductosModule,
     EstadisticasModule,

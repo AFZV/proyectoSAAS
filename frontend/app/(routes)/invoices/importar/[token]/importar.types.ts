@@ -9,6 +9,7 @@ export interface ItemPedidoImportado {
   stock: number | null;
   imagenUrl: string | null;
   categoria?: string;
+  observacion?: string;
 }
 
 export interface ClienteBusqueda {

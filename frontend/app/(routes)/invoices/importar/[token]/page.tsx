@@ -14,6 +14,7 @@ export default async function ImportarPedidoPage({
   const authToken = await getToken();
 
   let items: ItemPedidoImportado[] | null = null;
+  let observacionGeneral = "";
   let error: string | null = null;
 
   try {
@@ -35,6 +36,7 @@ export default async function ImportarPedidoPage({
     } else {
       const data = await res.json();
       items = data.items;
+      observacionGeneral = data.observacionGeneral ?? "";
     }
   } catch {
     error = "No se pudo cargar el pedido. Inténtalo de nuevo más tarde.";
@@ -58,5 +60,11 @@ export default async function ImportarPedidoPage({
     );
   }
 
-  return <ImportarPedidoClient itemsIniciales={items} token={token} />;
+  return (
+    <ImportarPedidoClient
+      itemsIniciales={items}
+      observacionGeneralInicial={observacionGeneral}
+      token={token}
+    />
+  );
 }

@@ -5,7 +5,10 @@ import {
   ArrayMinSize,
   IsArray,
   IsInt,
+  IsOptional,
+  IsString,
   IsUUID,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -17,6 +20,11 @@ class ItemCarritoDto {
   @IsInt()
   @Min(1)
   cantidad: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  observacion?: string;
 }
 
 export class GenerarPedidoLinkDto {
@@ -26,4 +34,9 @@ export class GenerarPedidoLinkDto {
   @ValidateNested({ each: true })
   @Type(() => ItemCarritoDto)
   items: ItemCarritoDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  observacionGeneral?: string;
 }

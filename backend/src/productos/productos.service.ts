@@ -539,7 +539,8 @@ export class ProductosService {
   /// por el controller): si alguien pudo ver el catálogo de esta empresa, puede armar este link.
   async generarPedidoImportLink(
     empresaId: string,
-    items: { productoId: string; cantidad: number }[]
+    items: { productoId: string; cantidad: number; observacion?: string }[],
+    observacionGeneral?: string
   ): Promise<{ url: string }> {
     // Validación mínima: los productos deben existir y ser de esta empresa (evita que el
     // link apunte a ids de otra empresa o inventados).
@@ -560,7 +561,11 @@ export class ProductosService {
       throw new InternalServerErrorException('FRONTEND_URL no configurado');
     }
 
-    const token = signPedidoImportToken(empresaId, itemsValidos);
+    const token = signPedidoImportToken(
+      empresaId,
+      itemsValidos,
+      observacionGeneral
+    );
     // Nota: la pantalla vive en el frontend bajo /invoices (así se llama ahí la sección de
     // Pedidos), aunque la API sea /pedidos — no cambiar sin mover también la carpeta del front.
     return { url: `${frontendUrl}/invoices/importar/${token}` };

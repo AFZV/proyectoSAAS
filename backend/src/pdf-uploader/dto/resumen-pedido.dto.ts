@@ -77,6 +77,10 @@ export class ResumenPedidoDto {
   @IsOptional()
   @IsNumber()
   totalCubicajeM3?: number;
+
+  @IsOptional()
+  @IsString()
+  notaFactura?: string;
 }
 
 export class ProductoResumenDto {
