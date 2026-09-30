@@ -87,18 +87,38 @@ export class HetznerStorageService {
     );
   }
 
-  async deleteSlotFiles(folder: string, slot: string): Promise<void> {
-    const extensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'];
-
-    await Promise.allSettled(
-      extensions.map((ext) => this.deleteByKey(`${folder}/${slot}.${ext}`))
+  /**
+   * Lista las keys existentes bajo folder/ que pertenecen a este slot — tanto el nombre
+   * viejo determinístico ("slot.ext", ej. image1.jpg) como el nuevo con timestamp
+   * ("slot-<ms>.ext"). Se usa para limpiar versiones anteriores DESPUÉS de subir la nueva
+   * (ver uploadProductImage en el controller), nunca antes — así nunca hay una ventana en
+   * la que el slot quede sin ninguna imagen mientras se sube la siguiente.
+   */
+  async listSlotKeys(folder: string, slot: string): Promise<string[]> {
+    const result = await this.s3.send(
+      new ListObjectsV2Command({ Bucket: this.bucket, Prefix: `${folder}/` })
     );
+    return (result.Contents ?? [])
+      .map((o) => o.Key)
+      .filter((key): key is string => !!key)
+      .filter((key) => {
+        const base = key.slice(folder.length + 1); // quita "folder/"
+        return (
+          base === slot ||
+          base.startsWith(`${slot}.`) ||
+          base.startsWith(`${slot}-`)
+        );
+      });
+  }
+
+  async deleteKeys(keys: string[]): Promise<void> {
+    await Promise.allSettled(keys.map((k) => this.deleteByKey(k)));
   }
 
   async uploadPrivateBuffer(
     buffer: Buffer,
     fileName: string,
-    folder: string,
+    folder: string
   ): Promise<string> {
     const fileKey = `${folder}/${fileName}`;
     await this.s3.send(
@@ -107,19 +127,19 @@ export class HetznerStorageService {
         Key: fileKey,
         Body: buffer,
         ContentType: 'application/sql',
-      }),
+      })
     );
     return fileKey;
   }
 
   async listFolder(
-    folder: string,
+    folder: string
   ): Promise<{ key: string; size: number; lastModified: Date }[]> {
     const result = await this.s3.send(
       new ListObjectsV2Command({
         Bucket: this.bucket,
         Prefix: `${folder}/`,
-      }),
+      })
     );
     return (result.Contents ?? [])
       .filter((obj) => obj.Key && obj.Key !== `${folder}/`)
@@ -131,7 +151,10 @@ export class HetznerStorageService {
       .sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
   }
 
-  async getSignedDownloadUrl(key: string, expiresInSeconds = 3600): Promise<string> {
+  async getSignedDownloadUrl(
+    key: string,
+    expiresInSeconds = 3600
+  ): Promise<string> {
     const fileName = key.split('/').pop() ?? 'respaldo.sql';
     const command = new GetObjectCommand({
       Bucket: this.bucket,

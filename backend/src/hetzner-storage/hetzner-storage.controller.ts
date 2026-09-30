@@ -56,15 +56,26 @@ export class HetznerStorageController {
     const usuario = req['usuario'];
     if (!usuario?.empresaId) throw new BadRequestException('Falta empresaId.');
 
-    const ext = imagen.originalname.split('.').pop();
-    const fileName = `logo.${ext}`;
     const folder = `empresas/${usuario.empresaId}/logos`;
+    const keysAntiguas = await this.hetznerStorageService.listSlotKeys(
+      folder,
+      'logo'
+    );
+
+    const ext = imagen.originalname.split('.').pop();
+    // Nombre único por subida (no "logo.ext" fijo) — evita que quede cacheada la
+    // versión anterior del logo bajo la misma URL de siempre.
+    const fileName = `logo-${Date.now()}.${ext}`;
 
     const url = await this.hetznerStorageService.uploadFile(
       imagen.buffer,
       fileName,
       folder
     );
+
+    if (keysAntiguas.length) {
+      void this.hetznerStorageService.deleteKeys(keysAntiguas);
+    }
 
     return { url };
   }
@@ -86,17 +97,30 @@ export class HetznerStorageController {
       throw new BadRequestException('Slot inválido.');
     }
 
-    const ext = file.originalname.split('.').pop();
-    const fileName = `${slot}.${ext}`;
     const folder = `empresas/${usuario.empresaId}/productos/${productoId}`;
 
-    // ── Borrar archivos anteriores del mismo slot (cualquier extensión) ──
-    await this.hetznerStorageService.deleteSlotFiles(folder, slot);
+    // Captura las versiones anteriores de este slot ANTES de subir la nueva — se borran
+    // después de que la nueva ya esté arriba, para no dejar el slot sin imagen mientras tanto.
+    const keysAntiguas = await this.hetznerStorageService.listSlotKeys(
+      folder,
+      slot
+    );
+
+    const ext = file.originalname.split('.').pop();
+    // Nombre único por subida (no "image1.jpg" fijo): evita que el navegador o un CDN de
+    // por medio sigan sirviendo la imagen vieja desde caché bajo la misma URL de siempre —
+    // era la causa de que, al cambiar una foto, algunos equipos siguieran viendo la anterior.
+    const fileName = `${slot}-${Date.now()}.${ext}`;
+
     const url = await this.hetznerStorageService.uploadFile(
       file.buffer,
       fileName,
       folder
     );
+
+    if (keysAntiguas.length) {
+      void this.hetznerStorageService.deleteKeys(keysAntiguas);
+    }
 
     return { url, slot };
   }

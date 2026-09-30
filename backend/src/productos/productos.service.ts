@@ -637,15 +637,15 @@ export class ProductosService {
         },
       });
 
+      const slotOrden: Record<string, number> = {
+        image1: 1,
+        image2: 2,
+        image3: 3,
+      };
+
       // 2. Upsert de imágenes del carrusel si vienen en el payload
       // data.imagenes = [{ slot: 'image1', url: '...' }, { slot: 'image2', url: '...' }]
       if (data.imagenes && data.imagenes.length > 0) {
-        const slotOrden: Record<string, number> = {
-          image1: 1,
-          image2: 2,
-          image3: 3,
-        };
-
         await Promise.all(
           data.imagenes.map((img) =>
             this.prisma.productoImagen.upsert({
@@ -666,6 +666,38 @@ export class ProductosService {
             })
           )
         );
+      }
+
+      // 3. Slots que el usuario quitó sin subir reemplazo — se desactivan (el carrusel ya
+      // filtra por `activo`) y se borra el archivo en Hetzner. Si es image1, además se limpia
+      // producto.imagenUrl (el frontend no debería dejar guardar sin reemplazo, pero por si acaso).
+      if (data.imagenesEliminadas && data.imagenesEliminadas.length > 0) {
+        const folder = `empresas/${usuario.empresaId}/productos/${productoId}`;
+
+        await Promise.all(
+          data.imagenesEliminadas.map(async (slot) => {
+            await this.prisma.productoImagen.updateMany({
+              where: { productoId, orden: slotOrden[slot] },
+              data: { activo: false },
+            });
+            try {
+              const keys = await this.hetznerService.listSlotKeys(
+                folder,
+                slot
+              );
+              if (keys.length) await this.hetznerService.deleteKeys(keys);
+            } catch {
+              // best-effort — si falla el borrado físico no bloquea la actualización
+            }
+          })
+        );
+
+        if (data.imagenesEliminadas.includes('image1')) {
+          await this.prisma.producto.update({
+            where: { id: productoId },
+            data: { imagenUrl: null },
+          });
+        }
       }
 
       emitirAudit(this.eventEmitter, usuario, AuditAccion.ACTUALIZAR, AuditEntidad.PRODUCTO, productoId, {

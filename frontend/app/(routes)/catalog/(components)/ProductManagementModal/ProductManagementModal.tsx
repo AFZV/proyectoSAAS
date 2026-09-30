@@ -97,6 +97,14 @@ export function ProductManagementModal({
     image2: null,
     image3: null,
   });
+  // Slots que el usuario quitó (sin subir un reemplazo) en esta edición — se le avisa al
+  // backend para que de verdad las borre. Si luego elige un archivo nuevo para ese slot, se
+  // desmarca solo (ver handleFileSelectSlot): eso ya no es "quitar", es "cambiar".
+  const [removedSlots, setRemovedSlots] = useState<Record<Slot, boolean>>({
+    image1: false,
+    image2: false,
+    image3: false,
+  });
   ///estados para pdfurl
   const [tempPdfFile, setTempPdfFile] = useState<File | null>(null);
   const [originalManifiestoUrl, setOriginalManifiestoUrl] = useState<
@@ -134,6 +142,7 @@ export function ProductManagementModal({
     });
     setTempImageFiles({ image1: null, image2: null, image3: null });
     setTempImagePreviews({ image1: null, image2: null, image3: null });
+    setRemovedSlots({ image1: false, image2: false, image3: false });
     setOriginalManifiestoUrl(producto.manifiestoUrl ?? null);
     setEditErrors({});
     setTempPdfFile(null);
@@ -260,6 +269,8 @@ export function ProductManagementModal({
     reader.readAsDataURL(file);
 
     setTempImageFiles((prev) => ({ ...prev, [slot]: file }));
+    // Elegir un archivo nuevo para este slot ya no es "quitarlo" — es reemplazarlo.
+    setRemovedSlots((prev) => ({ ...prev, [slot]: false }));
     toast({
       title: `Imagen ${slot} seleccionada`,
       description: "Se subirá al guardar",
@@ -269,6 +280,18 @@ export function ProductManagementModal({
   const removeImageSlot = (slot: Slot) => {
     setTempImageFiles((prev) => ({ ...prev, [slot]: null }));
     setTempImagePreviews((prev) => ({ ...prev, [slot]: null }));
+
+    // Si había una imagen YA GUARDADA en este slot, no basta con limpiar el estado temporal
+    // (eso solo afecta lo que se había seleccionado y no se había subido todavía) — hay que
+    // marcarla para que el backend la borre de verdad al guardar, y reflejarlo ya mismo en
+    // la vista previa para que el botón se sienta que "hizo algo".
+    if (originalImageUrls[slot]) {
+      setRemovedSlots((prev) => ({ ...prev, [slot]: true }));
+      setOriginalImageUrls((prev) => ({ ...prev, [slot]: null }));
+      if (slot === "image1") {
+        setEditingProduct((prev) => (prev ? { ...prev, imagenUrl: "" } : prev));
+      }
+    }
   };
 
   // Validar formulario (ACTUALIZADO para requerir imagen)
@@ -591,6 +614,15 @@ export function ProductManagementModal({
         updateData.imagenes = imagenesPayload;
       }
 
+      // Slots que se quitaron y NO se reemplazaron con un archivo nuevo en esta misma
+      // edición (si se reemplazaron, removeImageSlot/handleFileSelectSlot ya lo desmarcó).
+      const slotsAEliminar = (Object.keys(removedSlots) as Slot[]).filter(
+        (slot) => removedSlots[slot],
+      );
+      if (slotsAEliminar.length > 0) {
+        updateData.imagenesEliminadas = slotsAEliminar;
+      }
+
       // ── 6. Llamar al backend ─────────────────────────────────────────────
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/productos/update/${editingProduct.id}`,
@@ -624,14 +656,14 @@ export function ProductManagementModal({
           if (imagenUrlToSend !== undefined) next.imagenUrl = imagenUrlToSend;
           if (manifiestoUrlToSend !== undefined)
             next.manifiestoUrl = manifiestoUrlToSend as any;
-          // Actualizar imagenes locales con las nuevas URLs
-          if (imagenesPayload.length > 0) {
+          if (imagenesPayload.length > 0 || slotsAEliminar.length > 0) {
             const slotOrden: Record<Slot, number> = {
               image1: 1,
               image2: 2,
               image3: 3,
             };
             const imagenesActuales = [...(p.imagenes || [])];
+            // Nuevas URLs subidas en esta edición
             imagenesPayload.forEach(({ slot, url }) => {
               const orden = slotOrden[slot];
               const idx = imagenesActuales.findIndex((i) => i.orden === orden);
@@ -640,6 +672,13 @@ export function ProductManagementModal({
               } else {
                 imagenesActuales.push({ id: "", url, orden, activo: true });
               }
+            });
+            // Slots quitados sin reemplazo — se desactivan localmente igual que en el
+            // backend, así el carrusel deja de mostrarlas sin esperar un refetch.
+            slotsAEliminar.forEach((slot) => {
+              const orden = slotOrden[slot];
+              const idx = imagenesActuales.findIndex((i) => i.orden === orden);
+              if (idx >= 0) imagenesActuales[idx].activo = false;
             });
             next.imagenes = imagenesActuales;
           }

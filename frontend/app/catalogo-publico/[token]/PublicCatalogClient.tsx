@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
   Package,
@@ -27,6 +27,13 @@ interface PublicCatalogClientProps {
 // id del producto -> cantidad en el carrito
 type Carrito = Record<string, number>;
 
+interface CarritoPersistido {
+  carrito: Carrito;
+  observacionesPorProducto: Record<string, string>;
+  observacionGeneral: string;
+  nombreCliente: string;
+}
+
 export function PublicCatalogClient({
   data,
   shareToken,
@@ -38,6 +45,11 @@ export function PublicCatalogClient({
   const colorFondo = config.colorFondo || "#f8fafc";
   const colorMarcoImagenes = config.colorMarcoImagenes || "#f1f5f9";
   const conCarrito = config.permitirCarrito ?? false;
+
+  // Carrito por link: si se cierra el navegador o se pierde la conexión, al volver a abrir
+  // este mismo link el carrito sigue ahí. Se limpia solo cuando el pedido se envía por WhatsApp.
+  const LS_KEY = `bgacloud:catalogo-publico:v1:${shareToken}`;
+  const [hidratado, setHidratado] = useState(false);
 
   const [busqueda, setBusqueda] = useState("");
   const [categoriaId, setCategoriaId] = useState<string>("todas");
@@ -51,6 +63,54 @@ export function PublicCatalogClient({
   >({});
   const [observacionGeneral, setObservacionGeneral] = useState("");
   const [notaAbiertaPara, setNotaAbiertaPara] = useState<string | null>(null);
+
+  // Cargar el carrito guardado de este link (una sola vez, al montar)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const guardado = JSON.parse(raw) as Partial<CarritoPersistido>;
+        if (guardado.carrito) setCarrito(guardado.carrito);
+        if (guardado.observacionesPorProducto) {
+          setObservacionesPorProducto(guardado.observacionesPorProducto);
+        }
+        if (guardado.observacionGeneral) {
+          setObservacionGeneral(guardado.observacionGeneral);
+        }
+        if (guardado.nombreCliente) setNombreCliente(guardado.nombreCliente);
+      }
+    } catch {
+      // localStorage no disponible (privado/bloqueado) — el catálogo sigue funcionando igual,
+      // simplemente no persiste entre sesiones.
+    } finally {
+      setHidratado(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [LS_KEY]);
+
+  // Guardar en cada cambio — solo después de hidratar, para no pisar lo guardado con el
+  // estado inicial vacío antes de haber leído localStorage.
+  useEffect(() => {
+    if (!hidratado) return;
+    try {
+      const datos: CarritoPersistido = {
+        carrito,
+        observacionesPorProducto,
+        observacionGeneral,
+        nombreCliente,
+      };
+      localStorage.setItem(LS_KEY, JSON.stringify(datos));
+    } catch {
+      /* empty */
+    }
+  }, [
+    hidratado,
+    LS_KEY,
+    carrito,
+    observacionesPorProducto,
+    observacionGeneral,
+    nombreCliente,
+  ]);
 
   // Modal "Agregar al carrito" (cantidad + nota) — se abre al hacer clic en Agregar,
   // igual que en el catálogo interno, en vez de agregar de una y tener que editar después.
@@ -250,6 +310,16 @@ export function PublicCatalogClient({
         "_blank",
         "noopener,noreferrer",
       );
+      // El pedido ya salió por WhatsApp — se limpia el carrito guardado de este link.
+      setCarrito({});
+      setObservacionesPorProducto({});
+      setObservacionGeneral("");
+      setCarritoAbierto(false);
+      try {
+        localStorage.removeItem(LS_KEY);
+      } catch {
+        /* empty */
+      }
     } finally {
       setEnviando(false);
     }
