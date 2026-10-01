@@ -566,10 +566,16 @@ export function FormCrearRecibo({
                       </p>
                       <div className="flex flex-wrap gap-2 pt-1">
                         <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-900">
-                          Valor: {p.valorOriginal.toLocaleString()}
+                          Valor:{" "}
+                          {typeof p.valorOriginal === "number"
+                            ? p.valorOriginal.toLocaleString()
+                            : "—"}
                         </span>
                         <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800">
-                          Saldo: {p.saldoPendiente.toLocaleString()}
+                          Saldo:{" "}
+                          {typeof p.saldoPendiente === "number"
+                            ? p.saldoPendiente.toLocaleString()
+                            : "—"}
                         </span>
                         <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
                           Flete (info): {(p.flete || 0).toLocaleString()}

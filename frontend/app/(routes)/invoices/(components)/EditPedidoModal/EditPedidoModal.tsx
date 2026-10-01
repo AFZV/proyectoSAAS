@@ -95,10 +95,20 @@ function ModalBuscarProducto({
             </div>
           )}
           {productosFiltrados.map((producto) => (
-            <div
+            <button
               key={producto.id}
-              className="flex items-center justify-between py-2 border-b cursor-pointer hover:bg-muted px-2"
-              onClick={() => onSelect(producto)}
+              type="button"
+              className="w-full flex items-center justify-between py-2 border-b cursor-pointer hover:bg-muted px-2 text-left"
+              onClick={(e) => {
+                // En tablets/móviles, dos Dialog de Radix apilados (este + el de "Editar
+                // Pedido" debajo) pueden hacer que el Dialog de abajo también se cierre si
+                // este se desmonta dentro del mismo evento táctil que el de abajo todavía
+                // está procesando para decidir si el toque fue "afuera". stopPropagation +
+                // onSelect en el siguiente tick le dan tiempo a terminar esa evaluación antes
+                // de desmontar este modal.
+                e.stopPropagation();
+                setTimeout(() => onSelect(producto), 0);
+              }}
             >
               <div>
                 <div className="font-medium">{producto.nombre}</div>
@@ -107,7 +117,7 @@ function ModalBuscarProducto({
                 </div>
               </div>
               <div className="font-bold">{formatValue(producto.precio)}</div>
-            </div>
+            </button>
           ))}
         </div>
       </DialogContent>
@@ -309,7 +319,13 @@ function ClienteSelectorModal({
                     isActive ? "bg-muted/80" : ""
                   }`}
                   onMouseEnter={() => setActiveIndex(i)}
-                  onClick={() => handleSelect(c)}
+                  onClick={(e) => {
+                    // Mismo cuidado que en ModalBuscarProducto: este Dialog va apilado sobre
+                    // el de "Editar Pedido" — en tablets/móviles cerrarlo dentro del mismo
+                    // evento táctil puede arrastrar el de abajo. Ver comentario allá.
+                    e.stopPropagation();
+                    setTimeout(() => handleSelect(c), 0);
+                  }}
                 >
                   <div className="font-medium text-base">
                     {highlight(lineaNombre, query)}

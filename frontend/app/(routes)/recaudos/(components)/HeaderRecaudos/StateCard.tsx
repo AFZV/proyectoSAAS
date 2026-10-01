@@ -1,18 +1,26 @@
 // app/recaudos/(components)/StatCard.tsx
 "use client";
-import { ReceiptText } from "lucide-react";
+import { useState } from "react";
+import { ReceiptText, Eye, EyeOff } from "lucide-react";
 
 export function StatCard({
   title,
   value,
   description,
   color = "blue",
+  ocultable = false,
 }: {
   title: string;
   value: number | string;
   description: string;
   color?: "blue" | "green" | "yellow";
+  // Si es true, el valor arranca oculto (••••••) y se revela con un botón tipo "ver
+  // contraseña" — pensado para montos sensibles que no todos deberían ver de un vistazo.
+  ocultable?: boolean;
 }) {
+  const [visible, setVisible] = useState(false);
+  const mostrarValor = !ocultable || visible;
+
   const map = {
     blue: {
       txt: "text-blue-600",
@@ -35,8 +43,27 @@ export function StatCard({
     <div className={`bg-white rounded-lg p-4 border ${map.border} shadow-sm`}>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <p className={`text-2xl font-bold ${map.txt}`}>{value}</p>
+          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+            {title}
+            {ocultable && (
+              <button
+                type="button"
+                onClick={() => setVisible((v) => !v)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+                aria-label={visible ? "Ocultar valor" : "Mostrar valor"}
+                title={visible ? "Ocultar" : "Mostrar"}
+              >
+                {visible ? (
+                  <EyeOff className="w-3.5 h-3.5" />
+                ) : (
+                  <Eye className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
+          </p>
+          <p className={`text-2xl font-bold ${map.txt}`}>
+            {mostrarValor ? value : "••••••••"}
+          </p>
           <p className="text-xs text-muted-foreground mt-1">{description}</p>
         </div>
         <div

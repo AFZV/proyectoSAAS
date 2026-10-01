@@ -14,6 +14,7 @@ import { ReceiptText, Plus, Edit3, RefreshCw, FileDown } from "lucide-react";
 import { FormCrearRecibo } from "../formCrearRecaudo";
 import { FormUpdateRecibo } from "../FormUpdateRecaudo";
 import { FormExportRecaudosHeader } from "../FormExportRecaudos";
+import { ErrorBoundary } from "@/components/ErrorBoundary/ErrorBoundary";
 
 export function HeaderRecaudos({ rol }: { rol: string }) {
   const [openCreate, setOpenCreate] = useState(false);
@@ -93,10 +94,15 @@ export function HeaderRecaudos({ rol }: { rol: string }) {
             </DialogTitle>
             <DialogDescription>Registra un nuevo recibo</DialogDescription>
           </DialogHeader>
-          <FormCrearRecibo
-            setOpenModalCreate={setOpenCreate}
-            onSuccess={() => window.location.reload()}
-          />
+          <ErrorBoundary
+            description="No se pudo mostrar el formulario de recibo. Cierra e intenta de nuevo."
+            onReset={() => setOpenCreate(false)}
+          >
+            <FormCrearRecibo
+              setOpenModalCreate={setOpenCreate}
+              onSuccess={() => window.location.reload()}
+            />
+          </ErrorBoundary>
         </DialogContent>
       </Dialog>
 
@@ -112,7 +118,12 @@ export function HeaderRecaudos({ rol }: { rol: string }) {
               Busca y actualiza un recibo existente
             </DialogDescription>
           </DialogHeader>
-          <FormUpdateRecibo setOpenModalUpdate={setOpenUpdate} />
+          <ErrorBoundary
+            description="No se pudo mostrar el formulario de recibo. Cierra e intenta de nuevo."
+            onReset={() => setOpenUpdate(false)}
+          >
+            <FormUpdateRecibo setOpenModalUpdate={setOpenUpdate} />
+          </ErrorBoundary>
         </DialogContent>
       </Dialog>
 

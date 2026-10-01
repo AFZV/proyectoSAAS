@@ -99,12 +99,14 @@ export default async function RecaudosPage() {
           value={formatCOP(statsObj.totalRecaudado)}
           description="Ingresos por recibos"
           color="green"
+          ocultable
         />
         <StatCard
           title="Pendiente por recaudar"
           value={formatCOP(statsObj.totalPorRecaudar)}
           description="Total pendiente"
           color="yellow"
+          ocultable
         />
       </div>
 
