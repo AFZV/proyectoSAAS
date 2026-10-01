@@ -15,6 +15,7 @@
 // parte del alfabeto base64url, así que no hay ambigüedad al separar, y el token nunca
 // contiene un ".", eliminando esta clase de bug por completo.
 import { createHmac, timingSafeEqual } from 'crypto';
+import { deflateRawSync, inflateRawSync } from 'zlib';
 
 const SEPARADOR = '~';
 
@@ -48,6 +49,42 @@ export function verifyPayload<T>(token: string, secret: string): T | null {
 
   try {
     return JSON.parse(Buffer.from(payloadB64, 'base64').toString('utf8')) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Igual que signPayload, pero comprime el JSON (deflate) antes de firmarlo. Pensado para
+ * payloads que pueden crecer mucho (ej. el carrito del catálogo público con cientos de
+ * ítems) — el JSON de un array de {productoId, cantidad, observacion} es muy repetitivo
+ * (mismas claves una y otra vez) y comprime bien, lo que mantiene el token — y por lo tanto
+ * la URL del link generado — dentro de un tamaño razonable.
+ */
+export function signPayloadCompressed(payload: unknown, secret: string): string {
+  const json = Buffer.from(JSON.stringify(payload), 'utf8');
+  const payloadB64 = base64url(deflateRawSync(json));
+  const firma = base64url(createHmac('sha256', secret).update(payloadB64).digest());
+  return `${payloadB64}${SEPARADOR}${firma}`;
+}
+
+export function verifyPayloadCompressed<T>(token: string, secret: string): T | null {
+  if (!token || typeof token !== 'string') return null;
+  const [payloadB64, firma] = token.split(SEPARADOR);
+  if (!payloadB64 || !firma) return null;
+
+  const firmaEsperada = base64url(
+    createHmac('sha256', secret).update(payloadB64).digest(),
+  );
+
+  const a = Buffer.from(firma);
+  const b = Buffer.from(firmaEsperada);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+
+  try {
+    const compressed = Buffer.from(payloadB64, 'base64');
+    const json = inflateRawSync(compressed).toString('utf8');
+    return JSON.parse(json) as T;
   } catch {
     return null;
   }

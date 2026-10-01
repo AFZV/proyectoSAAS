@@ -40,23 +40,20 @@ export class PedidosController {
 
   // Carrito armado en el catálogo público (llegó por WhatsApp) -> pantalla de revisión
   @Roles('admin', 'vendedor')
-  @Get('importar/:token')
-  resolverPedidoImportado(
-    @Param('token') token: string,
-    @Req() req: UsuarioRequest
-  ) {
-    return this.pedidosService.resolverPedidoImportado(req.usuario, token);
+  @Get('importar/:id')
+  resolverPedidoImportado(@Param('id') id: string, @Req() req: UsuarioRequest) {
+    return this.pedidosService.resolverPedidoImportado(req.usuario, id);
   }
 
-  // Confirma el pedido importado — el token se "reclama" atómicamente, no se puede reusar
+  // Confirma el pedido importado — la fila se "reclama" atómicamente, no se puede reusar
   @Roles('admin', 'vendedor')
-  @Post('importar/:token')
+  @Post('importar/:id')
   crearPedidoImportado(
-    @Param('token') token: string,
+    @Param('id') id: string,
     @Body() data: CreatePedidoDto,
     @Req() req: UsuarioRequest
   ) {
-    return this.pedidosService.crearPedidoImportado(req.usuario, token, data);
+    return this.pedidosService.crearPedidoImportado(req.usuario, id, data);
   }
 
   @Roles('admin', 'bodega')

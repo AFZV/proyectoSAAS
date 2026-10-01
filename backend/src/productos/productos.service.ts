@@ -19,7 +19,7 @@ import { promises as fs } from 'fs';
 import { GenerarCatalogoPorIdsDto } from './dto/generar-catalogo-por-ids.dto';
 import { UpdateCatalogoConfigDto } from './dto/update-catalogo-config.dto';
 import { signCatalogShareToken } from 'src/lib/catalogShareToken';
-import { signPedidoImportToken } from 'src/lib/pedidoImportToken';
+import { generarPedidoImportId } from 'src/lib/pedidoImportStore';
 import { format } from 'date-fns';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { emitirAudit } from 'src/auditoria/auditoria.helper';
@@ -561,14 +561,22 @@ export class ProductosService {
       throw new InternalServerErrorException('FRONTEND_URL no configurado');
     }
 
-    const token = signPedidoImportToken(
-      empresaId,
-      itemsValidos,
-      observacionGeneral
-    );
+    // El carrito se guarda en la base — el link solo lleva el id (corto siempre, sin
+    // importar cuántos ítems tenga el carrito). Ver pedidoImportStore.ts para el porqué.
+    const id = generarPedidoImportId();
+    await this.prisma.pedidoImportPendiente.create({
+      data: {
+        id,
+        empresaId,
+        itemsJson: itemsValidos as unknown as Prisma.InputJsonValue,
+        observacionGeneral,
+        expiraEn: new Date(Date.now() + 7 * 24 * 3600 * 1000), // 7 días
+      },
+    });
+
     // Nota: la pantalla vive en el frontend bajo /invoices (así se llama ahí la sección de
     // Pedidos), aunque la API sea /pedidos — no cambiar sin mover también la carpeta del front.
-    return { url: `${frontendUrl}/invoices/importar/${token}` };
+    return { url: `${frontendUrl}/invoices/importar/${id}` };
   }
 
   async UpdateEstadoProduct(productoId: string, usuario: UsuarioPayload) {

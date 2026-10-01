@@ -30,7 +30,11 @@ class ItemCarritoDto {
 export class GenerarPedidoLinkDto {
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(200) // límite razonable — evita tokens gigantes / abuso del endpoint público
+  // El carrito ya no viaja en la URL (ver PedidoImportPendiente), así que esto NO es un
+  // límite técnico — es solo un tope de sensatez contra abuso del endpoint público (nadie
+  // manda 2000 productos en un pedido real). Antes aquí había 400 por tamaño de link; esa
+  // razón ya no existe.
+  @ArrayMaxSize(2000)
   @ValidateNested({ each: true })
   @Type(() => ItemCarritoDto)
   items: ItemCarritoDto[];

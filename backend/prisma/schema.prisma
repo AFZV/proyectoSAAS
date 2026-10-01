@@ -326,9 +326,10 @@ model Pedido {
 
 }
 
-// Registro de uso de un link de "importar pedido desde WhatsApp" (ver pedidoImportToken.ts).
-// Sin relaciones/FK a propósito — es solo un log de idempotencia, no necesita integridad
-// referencial. tokenHash único = el mecanismo real que bloquea reusar el mismo link dos veces.
+// OBSOLETO — reemplazado por PedidoImportPendiente. El carrito ya no viaja codificado dentro
+// del link (un link de cientos de ítems se volvía una sola "palabra" de varios KB, el tipo de
+// cosa que WhatsApp/el portapapeles pueden truncar al reenviar). Se deja la tabla en la base
+// sin usar, sin riesgo, en vez de borrarla en caliente.
 model PedidoImportUsado {
   id        String   @id @default(uuid())
   tokenHash String   @unique
@@ -338,6 +339,24 @@ model PedidoImportUsado {
   creadoEn  DateTime @default(now())
 
   @@index([empresaId])
+}
+
+// El carrito armado en el catálogo público (llegó por WhatsApp) vive acá — el link que se
+// comparte solo lleva este `id` (aleatorio, no adivinable), no el carrito completo. Así el
+// link mide siempre lo mismo sin importar si son 5 ítems o 500.
+model PedidoImportPendiente {
+  id                 String    @id // generado en código: crypto.randomBytes, no @default(uuid()) — ver pedidoImportStore.ts
+  empresaId          String
+  itemsJson          Json
+  observacionGeneral String?   @db.Text
+  creadoEn           DateTime  @default(now())
+  expiraEn           DateTime
+  usado              Boolean   @default(false)
+  pedidoId           String?
+  usuarioId          String?
+
+  @@index([empresaId])
+  @@index([expiraEn])
 }
 
 model EstadoPedido {

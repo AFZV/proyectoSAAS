@@ -4,7 +4,7 @@
 // y confirma el pedido ya logueado). Reusa CATALOG_SHARE_SECRET; el campo `type` evita que
 // un token de catálogo se cuele como token de importación de pedido, o viceversa.
 import { createHash } from 'crypto';
-import { signPayload, verifyPayload } from './hmacToken';
+import { signPayloadCompressed, verifyPayloadCompressed } from './hmacToken';
 
 export interface PedidoImportItem {
   productoId: string;
@@ -42,13 +42,15 @@ export function signPedidoImportToken(
     observacionGeneral,
     exp: Math.floor(Date.now() / 1000) + horas * 3600,
   };
-  return signPayload(payload, getSecret());
+  // Comprimido a propósito: con carritos de cientos de ítems, el JSON sin comprimir puede
+  // volver el token (y por lo tanto la URL del link) demasiado largo.
+  return signPayloadCompressed(payload, getSecret());
 }
 
 export function verifyPedidoImportToken(
   token: string
 ): PedidoImportPayload | null {
-  const payload = verifyPayload<PedidoImportPayload>(token, getSecret());
+  const payload = verifyPayloadCompressed<PedidoImportPayload>(token, getSecret());
   if (!payload) return null;
   if (payload.type !== 'PEDIDO_IMPORT') return null;
   if (!payload.empresaId || !Array.isArray(payload.items) || !payload.exp) {

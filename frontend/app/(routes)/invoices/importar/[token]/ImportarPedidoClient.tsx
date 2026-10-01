@@ -21,6 +21,56 @@ import { useToast } from "@/hooks/use-toast";
 import { formatValue } from "@/utils/FormartValue";
 import type { ItemPedidoImportado, ClienteBusqueda } from "./importar.types";
 
+// Input de cantidad con un "borrador" de texto propio en vez de reflejar directamente el
+// número confirmado — borrar el campo para escribir uno nuevo pasa un instante por vacío
+// (NaN), y sin esto ese instante se guardaba de una en el pedido. Mismo componente que
+// CantidadInput en el catálogo público (PublicCatalogClient.tsx), duplicado acá porque son
+// árboles de rutas independientes.
+function CantidadInput({
+  value,
+  max,
+  min = 0,
+  onCommit,
+  className,
+}: {
+  value: number;
+  max: number | null;
+  min?: number;
+  onCommit: (valor: number) => void;
+  className?: string;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max ?? undefined}
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        const n = e.target.valueAsNumber;
+        if (!Number.isFinite(n)) return; // vacío o a medio escribir — no tocar el pedido aún
+        let nueva = Math.max(min, Math.floor(n));
+        if (max !== null) nueva = Math.min(nueva, max);
+        onCommit(nueva);
+      }}
+      onBlur={() => {
+        if (!Number.isFinite(Number(draft)) || draft.trim() === "") {
+          setDraft(String(value));
+        }
+      }}
+      onFocus={(e) => e.target.select()}
+      className={className}
+    />
+  );
+}
+
 interface ImportarPedidoClientProps {
   itemsIniciales: ItemPedidoImportado[];
   observacionGeneralInicial?: string;
@@ -244,32 +294,18 @@ export function ImportarPedidoClient({
                 >
                   <Minus className="w-3.5 h-3.5" />
                 </button>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={item.stock ?? undefined}
+                <CantidadInput
                   value={item.cantidad}
-                  onChange={(e) => {
-                    const v = e.target.valueAsNumber;
+                  max={item.stock}
+                  onCommit={(n) =>
                     setItems((prev) =>
                       prev.map((i) =>
                         i.productoId === item.productoId
-                          ? {
-                              ...i,
-                              cantidad: Number.isFinite(v)
-                                ? Math.max(
-                                    0,
-                                    i.stock !== null
-                                      ? Math.min(v, i.stock)
-                                      : v,
-                                  )
-                                : 0,
-                            }
+                          ? { ...i, cantidad: n }
                           : i,
                       ),
-                    );
-                  }}
+                    )
+                  }
                   className="w-10 text-sm text-center border-0 focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <button

@@ -14,6 +14,7 @@ import {
   StickyNote,
 } from "lucide-react";
 import { formatValue } from "@/utils/FormartValue";
+import { useToast } from "@/hooks/use-toast";
 import type {
   CatalogoPublicoResponse,
   ProductoPublico,
@@ -32,6 +33,65 @@ interface CarritoPersistido {
   observacionesPorProducto: Record<string, string>;
   observacionGeneral: string;
   nombreCliente: string;
+}
+
+// Input de cantidad con un "borrador" de texto propio, en vez de reflejar directamente el
+// número ya confirmado. Sin esto, borrar el campo para escribir un número nuevo (Backspace)
+// pasa un instante por vacío -> NaN -> se interpretaba como cantidad 0 -> el ítem se filtraba
+// del carrito (cantidad > 0) a mitad de edición -> el <input> se desmontaba con el foco puesto
+// ahí, perdiendo el resto de lo que la persona seguía escribiendo. Así, mientras el campo está
+// vacío o a medio escribir, no se toca el carrito todavía — solo se confirma con un número
+// completo y válido.
+function CantidadInput({
+  value,
+  max,
+  min = 0,
+  onCommit,
+  onFocus,
+  className,
+}: {
+  value: number;
+  max: number | null;
+  min?: number;
+  onCommit: (valor: number) => void;
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+  className?: string;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  // Si el valor confirmado cambia desde afuera (botones +/-, u otra acción), reflejarlo.
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max ?? undefined}
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        const n = e.target.valueAsNumber;
+        if (!Number.isFinite(n)) return; // vacío o a medio escribir — no tocar el carrito aún
+        let nueva = Math.max(min, Math.floor(n));
+        if (max !== null) nueva = Math.min(nueva, max);
+        onCommit(nueva);
+      }}
+      onBlur={() => {
+        // Si quedó vacío/incompleto al salir del campo, vuelve a mostrar el último valor real.
+        if (!Number.isFinite(Number(draft)) || draft.trim() === "") {
+          setDraft(String(value));
+        }
+      }}
+      onFocus={(e) => {
+        e.target.select();
+        onFocus?.(e);
+      }}
+      className={className}
+    />
+  );
 }
 
 export function PublicCatalogClient({
@@ -63,6 +123,7 @@ export function PublicCatalogClient({
   >({});
   const [observacionGeneral, setObservacionGeneral] = useState("");
   const [notaAbiertaPara, setNotaAbiertaPara] = useState<string | null>(null);
+  const { toast } = useToast();
 
   // Cargar el carrito guardado de este link (una sola vez, al montar)
   useEffect(() => {
@@ -252,8 +313,9 @@ export function PublicCatalogClient({
   };
 
   // Arma el mensaje del carrito: texto legible + (si se pudo generar) el link para importar
-  // el pedido directo en la app, y como respaldo la línea REF con ids y cantidades en un
-  // formato compacto, por si el link no se pudo generar o el mensaje se reenvía sin él.
+  // el pedido directo en la app. Ya no se adjunta ningún código tipo REF:... con ids/cantidades
+  // como respaldo manual — ahora que el carrito vive en la base (PedidoImportPendiente) el link
+  // es confiable por sí solo, y ese código no era legible para una carga manual de todos modos.
   const construirMensajeCarrito = (linkPedido: string | null) => {
     const lineas = itemsCarrito.map((item, i) => {
       const subtotal =
@@ -290,10 +352,6 @@ export function PublicCatalogClient({
       linkPedido
         ? `\n👉 Importar este pedido en la app:\n${linkPedido}`
         : null,
-      "\n— código interno, no borrar (permite montar el pedido en el sistema) —",
-      `REF:CATPED:1:${itemsCarrito
-        .map((i) => `${i.producto.id}:${i.cantidad}`)
-        .join(",")}`,
     ].filter((p) => p !== null);
 
     return partes.join("\n");
@@ -304,6 +362,14 @@ export function PublicCatalogClient({
     setEnviando(true);
     try {
       const linkPedido = await pedirLinkDePedido();
+      if (!linkPedido) {
+        toast({
+          title: "El pedido se envía sin link de importación automática",
+          description:
+            "Puede pasar en pedidos muy grandes. Igual se manda por WhatsApp con el detalle completo — quien lo reciba deberá cargarlo manual.",
+          variant: "destructive",
+        });
+      }
       const texto = encodeURIComponent(construirMensajeCarrito(linkPedido));
       window.open(
         `https://wa.me/${config.whatsappContacto}?text=${texto}`,
@@ -584,20 +650,12 @@ export function PublicCatalogClient({
                             >
                               <Minus className="w-3 h-3" />
                             </button>
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              min={0}
-                              max={item.producto.stock ?? undefined}
+                            <CantidadInput
                               value={item.cantidad}
-                              onChange={(e) =>
-                                fijarCantidad(
-                                  item.producto.id,
-                                  e.target.valueAsNumber,
-                                  item.producto.stock,
-                                )
+                              max={item.producto.stock}
+                              onCommit={(n) =>
+                                fijarCantidad(item.producto.id, n, item.producto.stock)
                               }
-                              onFocus={(e) => e.target.select()}
                               className="w-10 text-xs text-center border-0 focus:outline-none focus:ring-0 bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                             <button
@@ -750,20 +808,11 @@ export function PublicCatalogClient({
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={modalProducto.stock ?? undefined}
+                  <CantidadInput
                     value={modalCantidad}
-                    onChange={(e) => {
-                      const v = e.target.valueAsNumber;
-                      const max = modalProducto.stock ?? Infinity;
-                      setModalCantidad(
-                        Number.isFinite(v) ? Math.max(1, Math.min(v, max)) : 1,
-                      );
-                    }}
-                    onFocus={(e) => e.target.select()}
+                    max={modalProducto.stock}
+                    min={1}
+                    onCommit={setModalCantidad}
                     className="w-16 text-center border rounded-md py-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <button
