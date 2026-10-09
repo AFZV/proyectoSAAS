@@ -9,8 +9,6 @@ import {
   FileText,
   Search,
   Plus,
-  Grid3X3,
-  List,
   RefreshCw,
   AlertCircle,
   CheckCircle,
@@ -29,7 +27,6 @@ import { InvoiceDetailModal } from "../InvoiceDetailModal";
 import { EditPedidoModal } from "../EditPedidoModal";
 import type { Pedido, MetaPaginacion } from "../../types/invoices.types";
 import { RenderCompactView } from "../RenderCompactView";
-import { RenderCardsView } from "../RenderCardsView";
 
 interface InvoicesClientProps {
   pedidos: Pedido[];
@@ -44,8 +41,6 @@ interface InvoicesClientProps {
     pedidosHoy?: number;
   } | null;
 }
-
-type ViewMode = "compact" | "cards" | "full-table";
 
 export function InvoicesClient({
   pedidos: pedidosIniciales,
@@ -72,7 +67,6 @@ export function InvoicesClient({
   // const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  const [viewMode, setViewMode] = useState<ViewMode>("compact");
 
   const { getToken } = useAuth();
   const { toast } = useToast();
@@ -231,15 +225,6 @@ export function InvoicesClient({
     return (
       razon || nombreCompleto || `Cliente ID: ${pedido.clienteId.slice(0, 5)}`
     );
-  };
-
-  const getNombreVendedor = (pedido: Pedido): string => {
-    if (!pedido.usuario) {
-      return `Usuario ID: ${pedido.usuarioId.slice(0, 5)}`;
-    }
-    return `${pedido.usuario.nombre || "Usuario"} ${
-      pedido.usuario.apellidos || ""
-    }`.trim();
   };
 
   const getEstadoBadge = (estado: string) => {
@@ -590,34 +575,6 @@ export function InvoicesClient({
                     </option>
                   ))}
                 </select>
-
-                {/* Vista */}
-                <div className="flex bg-gray-100 rounded-lg p-1 shrink-0">
-                  <Button
-                    variant={viewMode === "compact" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setViewMode("compact")}
-                    className="rounded-r-none px-2 lg:px-3"
-                    title="Vista Compacta"
-                  >
-                    <List className="h-4 w-4" />
-                    <span className="ml-1 hidden md:inline lg:inline">
-                      Compacta
-                    </span>
-                  </Button>
-                  <Button
-                    variant={viewMode === "cards" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setViewMode("cards")}
-                    className="rounded-none px-2 lg:px-3"
-                    title="Vista Tarjetas"
-                  >
-                    <Grid3X3 className="h-4 w-4" />
-                    <span className="ml-1 hidden md:inline lg:inline">
-                      Tarjetas
-                    </span>
-                  </Button>
-                </div>
               </div>
             </div>
           </div>
@@ -644,36 +601,17 @@ export function InvoicesClient({
             </Button>
           </div>
         ) : (
-          <>
-            {viewMode === "compact" && (
-              <RenderCompactView
-                pedidos={pedidosPaginaActual}
-                userType={userType}
-                getEstadoActual={getEstadoActual}
-                getFechaParaMostrar={getFechaParaMostrar}
-                getEstadoBadge={getEstadoBadge}
-                onVerDetalle={handleVerDetalle}
-                onEditarPedido={handleEditarPedido}
-                onDescargarPdf={handleDescargarPdf}
-                onDescargarManifiestos={handleDescargarManifiestos}
-              />
-            )}
-
-            {viewMode === "cards" && (
-              <RenderCardsView
-                pedidos={pedidosPaginaActual}
-                userType={userType}
-                getEstadoActual={getEstadoActual}
-                getFechaParaMostrar={getFechaParaMostrar}
-                getNombreVendedor={getNombreVendedor}
-                getEstadoBadge={getEstadoBadge}
-                onVerDetalle={handleVerDetalle}
-                onEditarPedido={handleEditarPedido}
-                onDescargarPdf={handleDescargarPdf}
-                onDescargarManifiestos={handleDescargarManifiestos}
-              />
-            )}
-          </>
+          <RenderCompactView
+            pedidos={pedidosPaginaActual}
+            userType={userType}
+            getEstadoActual={getEstadoActual}
+            getFechaParaMostrar={getFechaParaMostrar}
+            getEstadoBadge={getEstadoBadge}
+            onVerDetalle={handleVerDetalle}
+            onEditarPedido={handleEditarPedido}
+            onDescargarPdf={handleDescargarPdf}
+            onDescargarManifiestos={handleDescargarManifiestos}
+          />
         )}
 
         {/* Paginación */}

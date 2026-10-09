@@ -965,6 +965,102 @@ export class PedidosService {
     return pedidosConSaldo;
   }
 
+  // Resumen de estadísticas para el header de /invoices. Antes se calculaba en el
+  // frontend trayendo TODOS los pedidos de la empresa con sus relaciones completas
+  // (cliente, usuario, productos, estados) solo para sumar/contar en JS — esa traída
+  // completa era la causante de los 10-15s de carga. Acá se agrega directo en SQL y se
+  // devuelve ya reducido, preservando exactamente el mismo cálculo (mismo "estado actual"
+  // = último EstadoPedido por fechaEstado, o 'GENERADO' si no tiene ninguno).
+  async obtenerEstadisticasResumen(usuario: UsuarioPayload) {
+    if (!usuario) throw new BadRequestException('El usuario es requerido');
+    const { empresaId, id: usuarioId, rol, clienteId } = usuario;
+
+    let scopeFilter: Prisma.Sql;
+    if (rol === 'CLIENTE') {
+      if (!clienteId) {
+        throw new BadRequestException('Cliente no vinculado correctamente');
+      }
+      scopeFilter = Prisma.sql`p."empresaId" = ${empresaId} AND p."clienteId" = ${clienteId}`;
+    } else if (rol === 'admin' || rol === 'bodega') {
+      scopeFilter = Prisma.sql`p."empresaId" = ${empresaId}`;
+    } else {
+      scopeFilter = Prisma.sql`p."empresaId" = ${empresaId} AND p."usuarioId" = ${usuarioId}`;
+    }
+
+    // "Hoy" en el calendario local del servidor, calculado en Node (no con NOW() de
+    // Postgres) — mismo criterio usado en el resto del proyecto (ver estadisticas.service.ts).
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const mañana = new Date(hoy);
+    mañana.setDate(mañana.getDate() + 1);
+
+    const filas = await this.prisma.$queryRaw<
+      Array<{
+        estado: string;
+        cantidad: number;
+        ventas: number | null;
+        ventasHoy: number | null;
+        pedidosHoy: number;
+      }>
+    >(Prisma.sql`
+      WITH scoped AS (
+        SELECT p.id, p.total, p."fechaPedido"
+        FROM "Pedido" p
+        WHERE ${scopeFilter}
+      ),
+      ultimo_estado AS (
+        SELECT DISTINCT ON (e."pedidoId") e."pedidoId", e."estado"
+        FROM "EstadoPedido" e
+        WHERE e."pedidoId" IN (SELECT id FROM scoped)
+        ORDER BY e."pedidoId", e."fechaEstado" DESC
+      )
+      SELECT
+        COALESCE(ue."estado", 'GENERADO') AS estado,
+        COUNT(*)::int AS cantidad,
+        SUM(CASE WHEN COALESCE(ue."estado", 'GENERADO') IN ('FACTURADO', 'ENVIADO')
+            THEN s.total ELSE 0 END) AS ventas,
+        SUM(CASE WHEN COALESCE(ue."estado", 'GENERADO') IN ('FACTURADO', 'ENVIADO')
+                 AND s."fechaPedido" >= ${hoy} AND s."fechaPedido" < ${mañana}
+            THEN s.total ELSE 0 END) AS "ventasHoy",
+        COUNT(*) FILTER (WHERE s."fechaPedido" >= ${hoy} AND s."fechaPedido" < ${mañana})::int AS "pedidosHoy"
+      FROM scoped s
+      LEFT JOIN ultimo_estado ue ON ue."pedidoId" = s.id
+      GROUP BY COALESCE(ue."estado", 'GENERADO')
+    `);
+
+    const pedidosPorEstado: Record<string, number> = {};
+    let totalPedidos = 0;
+    let ventasTotal = 0;
+    let ventasHoy = 0;
+    let pedidosHoy = 0;
+
+    for (const fila of filas) {
+      const cantidad = Number(fila.cantidad);
+      pedidosPorEstado[fila.estado] = cantidad;
+      totalPedidos += cantidad;
+      ventasTotal += Number(fila.ventas || 0);
+      ventasHoy += Number(fila.ventasHoy || 0);
+      pedidosHoy += Number(fila.pedidosHoy || 0);
+    }
+
+    const pedidosCancelados = pedidosPorEstado['CANCELADO'] || 0;
+    const pedidosEnviados = pedidosPorEstado['ENVIADO'] || 0;
+    const porcentajeExito =
+      totalPedidos > 0 ? (pedidosEnviados / totalPedidos) * 100 : 0;
+
+    return {
+      totalPedidos,
+      pedidosPorEstado,
+      ventasTotal,
+      ventasHoy,
+      pedidosHoy,
+      pedidosCancelados,
+      pedidosEnviados,
+      ventasPerdidas: 0, // paridad con el cálculo anterior: nunca se incrementaba
+      porcentajeExito,
+    };
+  }
+
   ////////////////////////////////////////////////////////////////
   //actualizar un pedido con el update
 

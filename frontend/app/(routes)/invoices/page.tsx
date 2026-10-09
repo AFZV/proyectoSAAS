@@ -33,47 +33,49 @@ export default async function InvoicesPage() {
   }
 
   try {
-    // Obtener token y datos del usuario
+    // Obtener token y lanzar las 3 peticiones en paralelo — ninguna depende del
+    // resultado de otra, antes se esperaban una por una y eso sumaba su latencia.
     const token = await getToken();
-    const userResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/auth/usuario-actual`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      }
-    );
 
-    if (!userResponse.ok) {
+    const [userResult, pedidosResult, estadisticasResult] =
+      await Promise.allSettled([
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/usuario-actual`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        }),
+        invoicesService.obtenerPedidosPaginados(token, {
+          pagina: 1,
+          limite: 10,
+        }),
+        invoicesService.obtenerEstadisticasPedidos(token),
+      ]);
+
+    if (userResult.status !== "fulfilled" || !userResult.value.ok) {
       throw new Error("Error al cargar usuario");
     }
 
-    const usuario = await userResponse.json();
+    const usuario = await userResult.value.json();
 
     // ✅ Obtener pedidos con tipo correcto
     let pedidos: Pedido[] = [];
     let metaInicial = null;
 
-    try {
-      const resp = await invoicesService.obtenerPedidosPaginados(token, {
-        pagina: 1,
-        limite: 10,
-      });
-
-      pedidos = resp.data;
-      metaInicial = resp.meta;
-    } catch (error) {
-      pedidos = [];
-      metaInicial = null;
+    if (pedidosResult.status === "fulfilled") {
+      pedidos = pedidosResult.value.data;
+      metaInicial = pedidosResult.value.meta;
     }
 
     // ✅ Obtener estadísticas con tipo correcto
     let estadisticas: EstadisticasBackend | null = null;
-    try {
-      estadisticas = await invoicesService.obtenerEstadisticasPedidos(token);
-    } catch (error) {
-      console.warn("No se pudieron cargar estadísticas:", error);
+    if (estadisticasResult.status === "fulfilled") {
+      estadisticas = estadisticasResult.value;
+    } else {
+      console.warn(
+        "No se pudieron cargar estadísticas:",
+        estadisticasResult.reason
+      );
       // Estadísticas básicas como fallback
       estadisticas = {
         totalPedidos: pedidos.length,

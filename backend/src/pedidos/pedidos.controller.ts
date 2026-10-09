@@ -88,6 +88,13 @@ export class PedidosController {
     return this.pedidosService.obtenerPedidosPaginados(usuario, query);
   }
 
+  @Roles('admin', 'vendedor', 'bodega', 'CLIENTE')
+  @Get('estadisticas/resumen')
+  obtenerEstadisticasResumen(@Req() req: UsuarioRequest) {
+    const usuario = req.usuario;
+    return this.pedidosService.obtenerEstadisticasResumen(usuario);
+  }
+
   @Roles('admin', 'bodega')
   @Patch(':idPedido')
   actualizarPedido(

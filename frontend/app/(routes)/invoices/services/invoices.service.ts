@@ -182,81 +182,16 @@ export class InvoicesService {
   }
 
   // 📊 OBTENER ESTADÍSTICAS - SIN ENTREGADO
+  // Antes traía TODOS los pedidos (con cliente/usuario/productos/estados) y reducía en JS —
+  // eso era lo que hacía lenta la página de /invoices. Ahora el backend agrega en SQL
+  // (ver PedidosService.obtenerEstadisticasResumen) y devuelve el mismo shape ya calculado.
   async obtenerEstadisticasPedidos(
     token: string,
   ): Promise<EstadisticasPedidos> {
-    const pedidos = await this.obtenerPedidos(token);
-
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    const mañana = new Date(hoy);
-    mañana.setDate(mañana.getDate() + 1);
-
-    const stats = {
-      totalPedidos: pedidos.length,
-      pedidosPorEstado: {} as Record<string, number>,
-      ventasTotal: 0,
-      ventasHoy: 0,
-      pedidosHoy: 0,
-      pedidosCancelados: 0,
-      pedidosEnviados: 0, // ✅ ENVIADO ahora es el estado final exitoso
-      ventasPerdidas: 0,
-      porcentajeExito: 0, // ✅ % de pedidos que llegan a ENVIADO
-    };
-
-    pedidos.forEach((pedido: any) => {
-      let estadoActual = "GENERADO";
-
-      if (
-        pedido.estados &&
-        Array.isArray(pedido.estados) &&
-        pedido.estados.length > 0
-      ) {
-        const estadosOrdenados = pedido.estados.sort(
-          (a: any, b: any) =>
-            new Date(b.fechaEstado).getTime() -
-            new Date(a.fechaEstado).getTime(),
-        );
-        estadoActual = estadosOrdenados[0].estado;
-      }
-
-      // ✅ Contar por estado
-      stats.pedidosPorEstado[estadoActual] =
-        (stats.pedidosPorEstado[estadoActual] || 0) + 1;
-
-      const fechaPedido = new Date(pedido.fechaPedido);
-
-      // ✅ Pedidos de hoy
-      if (fechaPedido >= hoy && fechaPedido < mañana) {
-        stats.pedidosHoy++;
-      }
-
-      // ✅ Estadísticas de ventas - FACTURADO y ENVIADO generan ventas
-      if (["FACTURADO", "ENVIADO"].includes(estadoActual)) {
-        stats.ventasTotal += pedido.total || 0;
-
-        if (fechaPedido >= hoy && fechaPedido < mañana) {
-          stats.ventasHoy += pedido.total || 0;
-        }
-      }
-
-      // ✅ Estadísticas específicas
-      if (estadoActual === "CANCELADO") {
-        stats.pedidosCancelados++;
-      }
-
-      if (estadoActual === "ENVIADO") {
-        stats.pedidosEnviados++;
-      }
-    });
-
-    // ✅ Calcular porcentaje de éxito (pedidos que llegan a ENVIADO)
-    if (stats.totalPedidos > 0) {
-      stats.porcentajeExito =
-        (stats.pedidosEnviados / stats.totalPedidos) * 100;
-    }
-
-    return stats;
+    return this.makeRequest<EstadisticasPedidos>(
+      "/pedidos/estadisticas/resumen",
+      token,
+    );
   }
 
   // 🔍 BUSCAR CLIENTE POR NIT
