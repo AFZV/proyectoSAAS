@@ -10,15 +10,15 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ReceiptText, Plus, Edit3, RefreshCw, FileDown } from "lucide-react";
+import { ReceiptText, Plus, RefreshCw, FileDown } from "lucide-react";
 import { FormCrearRecibo } from "../formCrearRecaudo";
-import { FormUpdateRecibo } from "../FormUpdateRecaudo";
 import { FormExportRecaudosHeader } from "../FormExportRecaudos";
 import { ErrorBoundary } from "@/components/ErrorBoundary/ErrorBoundary";
 
-export function HeaderRecaudos({ rol }: { rol: string }) {
+// "Actualizar Recibo" (buscar por ID pegado a mano) se quitó de aquí: quedaba
+// redundante ahora que cada fila de la tabla tiene su propia acción "Editar recibo".
+export function HeaderRecaudos() {
   const [openCreate, setOpenCreate] = useState(false);
-  const [openUpdate, setOpenUpdate] = useState(false);
   const [openExport, setOpenExport] = useState(false);
 
   return (
@@ -61,17 +61,6 @@ export function HeaderRecaudos({ rol }: { rol: string }) {
             <span className="hidden sm:inline">Exportar Excel</span>
           </Button>
 
-          {/* Actualizar Recibo */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setOpenUpdate(true)}
-            className="text-white hover:bg-white/10 border border-white/20 hover:border-white/30"
-          >
-            <Edit3 className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">Actualizar Recibo</span>
-          </Button>
-
           {/* Crear Recibo */}
           <Button
             size="sm"
@@ -102,27 +91,6 @@ export function HeaderRecaudos({ rol }: { rol: string }) {
               setOpenModalCreate={setOpenCreate}
               onSuccess={() => window.location.reload()}
             />
-          </ErrorBoundary>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal ACTUALIZAR */}
-      <Dialog open={openUpdate} onOpenChange={setOpenUpdate}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Edit3 className="w-4 h-4 text-blue-600" />
-              Actualizar Recibo
-            </DialogTitle>
-            <DialogDescription>
-              Busca y actualiza un recibo existente
-            </DialogDescription>
-          </DialogHeader>
-          <ErrorBoundary
-            description="No se pudo mostrar el formulario de recibo. Cierra e intenta de nuevo."
-            onReset={() => setOpenUpdate(false)}
-          >
-            <FormUpdateRecibo setOpenModalUpdate={setOpenUpdate} />
           </ErrorBoundary>
         </DialogContent>
       </Dialog>

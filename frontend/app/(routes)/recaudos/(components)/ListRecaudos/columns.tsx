@@ -7,6 +7,7 @@ import {
   MoreHorizontal,
   CheckCircle,
   Loader2,
+  Edit3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,8 +18,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { formatValue } from "@/utils/FormartValue";
 import { ReciboDetallesModal } from "../DetalleModalRecibo";
+import { FormUpdateRecibo } from "../FormUpdateRecaudo";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@clerk/nextjs";
 
@@ -54,8 +63,15 @@ function toBool(v: unknown) {
   return typeof v === "string" ? v === "true" : !!v;
 }
 
-/** Toggle de "revisado" con chulo verde */
-function RevisadoToggle({ recibo }: { recibo: ReciboConRelaciones }) {
+/** Toggle de "revisado" con chulo verde — marcar es solo de admin (el backend ya lo
+ * bloquea para los demás roles); a los demás se les muestra el estado pero sin botón. */
+function RevisadoToggle({
+  recibo,
+  isAdmin,
+}: {
+  recibo: ReciboConRelaciones;
+  isAdmin: boolean;
+}) {
   const [revisado, setRevisado] = useState(!!recibo.revisado);
   const [loading, setLoading] = useState(false);
   const { getToken } = useAuth();
@@ -126,26 +142,34 @@ function RevisadoToggle({ recibo }: { recibo: ReciboConRelaciones }) {
     }
   };
 
-  return (
-    <button
-      onClick={toggle}
-      disabled={loading}
-      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-medium
+  const badgeClass = `inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-medium
         ${
           revisado
             ? "bg-emerald-50 border-emerald-200 text-emerald-700"
             : "bg-muted border-muted-foreground/20 text-muted-foreground"
-        }`}
+        }`;
+  const iconClass = `w-4 h-4 ${revisado ? "text-emerald-600" : "text-muted-foreground"}`;
+
+  if (!isAdmin) {
+    return (
+      <span className={badgeClass} title={revisado ? "Revisado" : "Pendiente"}>
+        <CheckCircle className={iconClass} />
+        {revisado ? "Revisado" : "Pendiente"}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={loading}
+      className={badgeClass}
       title={revisado ? "Revisado" : "Marcar como revisado"}
     >
       {loading ? (
         <Loader2 className="w-4 h-4 animate-spin" />
       ) : (
-        <CheckCircle
-          className={`w-4 h-4 ${
-            revisado ? "text-emerald-600" : "text-muted-foreground"
-          }`}
-        />
+        <CheckCircle className={iconClass} />
       )}
       {revisado ? "Revisado" : "Pendiente"}
     </button>
@@ -153,9 +177,18 @@ function RevisadoToggle({ recibo }: { recibo: ReciboConRelaciones }) {
 }
 
 /** Acciones desplegable (opcionalmente podrías agregar aquí también el toggle) */
-function ReciboDropdownActions({ recibo }: { recibo: ReciboConRelaciones }) {
+function ReciboDropdownActions({
+  recibo,
+  onUpdated,
+  isAdmin,
+}: {
+  recibo: ReciboConRelaciones;
+  onUpdated?: () => void;
+  isAdmin: boolean;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [open, setOpen] = useState(false);
+  const [openEditar, setOpenEditar] = useState(false);
   const { toast } = useToast();
 
   const pdfUrl = `https://files.bgacloudsaas.com/empresas/${recibo.empresaId}/recibos/recibo_${recibo.id}.pdf`;
@@ -163,6 +196,12 @@ function ReciboDropdownActions({ recibo }: { recibo: ReciboConRelaciones }) {
   const openDetallesSafely = () => {
     // si hay algo más que cerrar, hazlo aquí antes
     setTimeout(() => setOpen(true), 0); // o requestAnimationFrame(() => setOpen(true))
+  };
+
+  const openEditarSafely = () => {
+    // mismo truco: esperar a que el DropdownMenu termine de cerrarse antes de abrir el
+    // Dialog, para evitar la carrera entre el cierre del menú y el Dialog recién abierto
+    setTimeout(() => setOpenEditar(true), 0);
   };
 
   const handleCopy = async () => {
@@ -215,6 +254,19 @@ function ReciboDropdownActions({ recibo }: { recibo: ReciboConRelaciones }) {
             Ver detalles
           </DropdownMenuItem>
 
+          {isAdmin && (
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                setMenuOpen(false);
+                openEditarSafely();
+              }}
+            >
+              <Edit3 className="w-4 h-4 mr-2" />
+              Editar recibo
+            </DropdownMenuItem>
+          )}
+
           <DropdownMenuItem
             onSelect={(e) => {
               e.preventDefault();
@@ -243,11 +295,34 @@ function ReciboDropdownActions({ recibo }: { recibo: ReciboConRelaciones }) {
         onClose={() => setOpen(false)}
         recibo={recibo}
       />
+
+      <Dialog open={openEditar} onOpenChange={setOpenEditar}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="w-4 h-4 text-blue-600" />
+              Editar Recibo
+            </DialogTitle>
+            <DialogDescription>
+              Recibo #{recibo.id.slice(0, 5).toUpperCase()}
+            </DialogDescription>
+          </DialogHeader>
+          <FormUpdateRecibo
+            setOpenModalUpdate={setOpenEditar}
+            reciboIdInicial={recibo.id}
+            onUpdated={onUpdated}
+          />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
 
-export const columns: ColumnDef<ReciboConRelaciones>[] = [
+export function columns(
+  onUpdated?: () => void,
+  isAdmin: boolean = false
+): ColumnDef<ReciboConRelaciones>[] {
+  return [
   {
     accessorKey: "id",
     header: "Número",
@@ -356,13 +431,24 @@ export const columns: ColumnDef<ReciboConRelaciones>[] = [
     enableSorting: true,
     enableHiding: true,
     cell: ({ row }) => (
-      <RevisadoToggle key={row.original.id} recibo={row.original} />
+      <RevisadoToggle
+        key={row.original.id}
+        recibo={row.original}
+        isAdmin={isAdmin}
+      />
     ),
   },
 
   {
     id: "acciones",
     header: "Acciones",
-    cell: ({ row }) => <ReciboDropdownActions recibo={row.original} />,
+    cell: ({ row }) => (
+      <ReciboDropdownActions
+        recibo={row.original}
+        onUpdated={onUpdated}
+        isAdmin={isAdmin}
+      />
+    ),
   },
-];
+  ];
+}

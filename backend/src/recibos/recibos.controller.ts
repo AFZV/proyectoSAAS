@@ -11,6 +11,7 @@ import {
   Patch,
   BadRequestException,
   Res,
+  Query,
 
   //Res,
 } from '@nestjs/common';
@@ -25,6 +26,7 @@ import { UsuarioGuard } from 'src/common/guards/usuario.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { ExportRecaudosDto } from './dto/export-recibo.dto';
+import { GetRecibosPaginadosDto } from './dto/get-recibos-paginados.dto';
 
 @UseGuards(UsuarioGuard, RolesGuard)
 @Controller('recibos')
@@ -52,6 +54,16 @@ export class RecibosController {
     const usuario = req.usuario;
 
     return this.recibosService.getRecibos(usuario);
+  }
+
+  @Roles('admin', 'vendedor')
+  @Get('paginado')
+  async getRecibosPaginados(
+    @Req() req: UsuarioRequest,
+    @Query() query: GetRecibosPaginadosDto
+  ) {
+    const usuario = req.usuario;
+    return this.recibosService.obtenerRecibosPaginados(usuario, query);
   }
 
   //endpoint para crear un recibo

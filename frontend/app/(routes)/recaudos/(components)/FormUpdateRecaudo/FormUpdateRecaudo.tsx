@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -74,11 +74,19 @@ type AjusteItem = { idPedido: string; ajuste: number };
  * ======================= */
 export function FormUpdateRecibo({
   setOpenModalUpdate,
+  reciboIdInicial,
+  onUpdated,
 }: {
   setOpenModalUpdate: (v: boolean) => void;
+  // Cuando viene desde las acciones de una fila de la tabla ya sabemos el ID — nos
+  // saltamos el paso de "pegar el ID" y buscamos directo.
+  reciboIdInicial?: string;
+  // Refresca solo la tabla (sin perder página/búsqueda), en vez del router.refresh()
+  // genérico que recarga toda la página.
+  onUpdated?: () => void;
 }) {
   const [step, setStep] = useState<"search" | "edit">("search");
-  const [isSearching, setIsSearching] = useState(false);
+  const [isSearching, setIsSearching] = useState(!!reciboIdInicial);
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [pedidosDisponibles, setPedidosDisponibles] = useState<
@@ -105,6 +113,16 @@ export function FormUpdateRecibo({
     control: editForm.control,
     name: "pedidos",
   });
+
+  // Si ya sabemos el ID (viene de las acciones de una fila), buscamos directo sin
+  // mostrar el paso de "pegar el ID".
+  useEffect(() => {
+    if (reciboIdInicial) {
+      searchForm.setValue("idRecibo", reciboIdInicial);
+      onSearch({ idRecibo: reciboIdInicial });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* -----------------------
    * Buscar recibo
@@ -195,7 +213,11 @@ export function FormUpdateRecibo({
 
       toast({ title: "Recibo actualizado correctamente" });
       setOpenModalUpdate(false);
-      router.refresh();
+      if (onUpdated) {
+        onUpdated();
+      } else {
+        router.refresh();
+      }
     } catch (error: any) {
       console.error("Update error:", error?.response?.data || error);
       toast({
@@ -225,6 +247,12 @@ export function FormUpdateRecibo({
    * Render
    * ----------------------- */
   if (isUpdating) return <Loading title="Actualizando recibo..." />;
+  // Mientras buscamos automáticamente (vino con reciboIdInicial) mostramos un loader en
+  // vez del formulario de "pegar el ID" — si falla, isSearching vuelve a false y el
+  // usuario cae en el formulario de búsqueda normal, con el ID ya puesto.
+  if (reciboIdInicial && step === "search" && isSearching) {
+    return <Loading title="Cargando recibo..." />;
+  }
 
   return (
     <div className="space-y-6">

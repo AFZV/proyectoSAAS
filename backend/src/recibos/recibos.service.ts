@@ -17,7 +17,9 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { emitirAudit } from 'src/auditoria/auditoria.helper';
 import { AuditAccion, AuditEntidad } from 'src/auditoria/auditoria.events';
 import { ExportRecaudosDto } from './dto/export-recibo.dto';
+import { GetRecibosPaginadosDto } from './dto/get-recibos-paginados.dto';
 import * as ExcelJS from 'exceljs';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class RecibosService {
@@ -463,6 +465,84 @@ export class RecibosService {
 
     return recibos;
   }
+
+  // Versión paginada de getRecibos — antes /recaudos traía SIEMPRE la lista completa de
+  // recibos de la empresa (miles de filas con cliente/usuario/detalleRecibo incluidos) y
+  // paginaba/filtraba del lado del navegador. Acá se pagina, busca y ordena en SQL,
+  // devolviendo solo la página pedida.
+  async obtenerRecibosPaginados(
+    usuario: UsuarioPayload,
+    params: GetRecibosPaginadosDto
+  ) {
+    if (!usuario) throw new UnauthorizedException();
+
+    const { id, empresaId, rol } = usuario;
+    const {
+      pagina = 1,
+      limite = 20,
+      q,
+      sortBy = 'fecha',
+      sortDir = 'desc',
+    } = params;
+
+    const page = Math.max(1, pagina);
+    const take = Math.max(1, limite);
+    const skip = (page - 1) * take;
+
+    const where: Prisma.ReciboWhereInput =
+      rol === 'admin' ? { empresaId } : { empresaId, usuario: { id } };
+
+    if (q && q.trim() !== '') {
+      const term = q.trim();
+      where.cliente = {
+        OR: [
+          { nit: { contains: term, mode: 'insensitive' } },
+          { nombre: { contains: term, mode: 'insensitive' } },
+          { apellidos: { contains: term, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    const orderBy: Prisma.ReciboOrderByWithRelationInput =
+      sortBy === 'nombre'
+        ? { cliente: { nombre: sortDir } }
+        : sortBy === 'revisado'
+          ? { revisado: sortDir }
+          : { Fechacrecion: sortDir };
+
+    const [recibos, totalItems] = await this.prisma.$transaction([
+      this.prisma.recibo.findMany({
+        where,
+        include: {
+          cliente: {
+            select: { nombre: true, apellidos: true, nit: true, email: true },
+          },
+          detalleRecibo: {
+            select: {
+              valorTotal: true,
+              saldoPendiente: true,
+              estado: true,
+              idPedido: true,
+              idRecibo: true,
+            },
+          },
+          usuario: { select: { nombre: true, rol: true } },
+        },
+        orderBy,
+        skip,
+        take,
+      }),
+      this.prisma.recibo.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(totalItems / take);
+
+    return {
+      data: recibos,
+      meta: { totalItems, totalPages, currentPage: page, pageSize: take },
+    };
+  }
+
   //logica para actualizar un recibo y sus relaciones
 
   async actualizarRecibo(

@@ -43,15 +43,21 @@ export default async function RecaudosPage() {
   if (!token) return <NoDisponible />;
 
   /* ----- Fetch en paralelo ----- */
+  // Antes /recibos/all traía TODOS los recibos de la empresa sin paginar (miles de filas)
+  // y la tabla paginaba/filtraba del lado del navegador. Ahora solo se trae la página 1;
+  // ListRecaudos pide las siguientes páginas / búsquedas directamente al endpoint paginado.
   const [userRes, dataRes, statsRes] = await Promise.all([
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/usuario-actual`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     }),
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/recibos/all`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    }),
+    fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/recibos/paginado?pagina=1&limite=20`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }
+    ),
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/recibos/getStats/summary`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
@@ -64,7 +70,13 @@ export default async function RecaudosPage() {
   const usuario = await userRes.json();
   const rol: string = usuario?.rol ?? "user";
 
-  const data = (await dataRes.json()) ?? [];
+  let dataInicial = [];
+  let metaInicial = null;
+  if (dataRes.ok) {
+    const json = await dataRes.json();
+    dataInicial = json?.data ?? [];
+    metaInicial = json?.meta ?? null;
+  }
 
   const rawStats: StatsApi = await statsRes.json();
   // Hay backend que devuelve stats bajo otra clave (ej: rawStats.data o rawStats.debugPedidos)
@@ -84,7 +96,7 @@ export default async function RecaudosPage() {
   return (
     <div className="min-h-screen bg-background text-foreground px-4 py-6 space-y-6">
       {/* Header estilo Reportes, sin tarjetas */}
-      <HeaderRecaudos rol={rol} />
+      <HeaderRecaudos />
 
       {/* Tarjetas de estadísticas fuera del header */}
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -111,7 +123,11 @@ export default async function RecaudosPage() {
       </div>
 
       {/* Lista de recibos */}
-      <ListRecaudos data={data} />
+      <ListRecaudos
+        dataInicial={dataInicial}
+        metaInicial={metaInicial}
+        rol={rol}
+      />
     </div>
   );
 }
