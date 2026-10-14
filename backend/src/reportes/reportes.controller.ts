@@ -27,6 +27,7 @@ type VentaProductoRow = {
   pedidoId: string;
   cliente: string;
   rasonZocial: string | null;
+  ciudad: string | null;
   vendedor: string;
   codigoProducto: number | string | null;
   nombreProducto: string;
@@ -312,6 +313,7 @@ export class ReportesController {
       { header: 'ID Pedido', key: 'pedidoId', width: 15 },
       { header: 'Cliente', key: 'cliente', width: 35 },
       { header: 'Razón Social', key: 'rasonZocial', width: 35 },
+      { header: 'Ciudad', key: 'ciudad', width: 20 },
       { header: 'Vendedor', key: 'vendedor', width: 25 },
       { header: 'Código Prod.', key: 'codigoProducto', width: 15 },
       { header: 'Cantidad', key: 'cantidad', width: 12, numFmt: '#,##0' },
@@ -393,6 +395,7 @@ export class ReportesController {
       { header: 'Nombre', key: 'nombre', width: 30 },
       { header: 'Apellidos', key: 'apellidos', width: 30 },
       { header: 'RazonSocial', key: 'rasonZocial', width: 30 },
+      { header: 'Ciudad', key: 'ciudad', width: 20 },
       { header: 'Fecha', key: 'fecha', width: 25 },
       { header: 'Vendedor', key: 'vendedor', width: 25 },
       {
@@ -449,6 +452,7 @@ export class ReportesController {
       { header: 'Nombre', key: 'nombre', width: 30 },
       { header: 'Apellidos', key: 'apellidos', width: 30 },
       { header: 'RazonSocial', key: 'rasonZocial', width: 30 },
+      { header: 'Ciudad', key: 'ciudad', width: 20 },
       { header: 'Fecha', key: 'fechaPedido', width: 25 },
       {
         header: 'Total',
@@ -505,6 +509,7 @@ export class ReportesController {
         { header: 'Nombre', key: 'nombre', width: 40 },
         { header: 'Apellidos', key: 'apellidos', width: 40 },
         { header: 'RazonSocial', key: 'rasonZocial', width: 40 },
+        { header: 'Ciudad', key: 'ciudad', width: 20 },
         {
           header: 'Fecha Pedido',
           key: 'fecha',
@@ -561,6 +566,7 @@ export class ReportesController {
         { header: 'Nombre', key: 'nombre', width: 40 },
         { header: 'Apellidos', key: 'apellidos', width: 40 },
         { header: 'RazonSocial', key: 'rasonZocial', width: 40 },
+        { header: 'Ciudad', key: 'ciudad', width: 20 },
         {
           header: 'Fecha Pedido',
           key: 'fecha',
@@ -657,6 +663,7 @@ export class ReportesController {
       { header: 'Tipo', key: 'tipo', width: 20 },
       { header: 'Cliente', key: 'cliente', width: 35 },
       { header: 'Razon Social', key: 'rasonZocial', width: 35 },
+      { header: 'Ciudad', key: 'ciudad', width: 20 },
       { header: 'Valor', key: 'valor', width: 25, numFmt: '#,##0.00' },
       { header: 'PedidosAfectados', key: 'pedidosAfectados', width: 20 },
       { header: 'Vendedor', key: 'vendedor', width: 20 },
@@ -716,6 +723,7 @@ export class ReportesController {
       { header: 'Tipo', key: 'tipo', width: 20 },
       { header: 'Cliente', key: 'cliente', width: 35 },
       { header: 'Razon Social', key: 'rasonZocial', width: 35 },
+      { header: 'Ciudad', key: 'ciudad', width: 20 },
       { header: 'Valor', key: 'valor', width: 25, numFmt: '#,##0.00' },
       { header: 'PedidosAfectados', key: 'pedidosAfectados', width: 20 },
       { header: 'Concepto', key: 'concepto', width: 45 },

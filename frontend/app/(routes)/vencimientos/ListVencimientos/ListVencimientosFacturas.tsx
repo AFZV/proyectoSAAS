@@ -9,6 +9,7 @@ type VencimientoFacturaCliente = {
   fechaVencimiento: string;
   total: number;
   saldo: number;
+  clienteId: string;
   cliente: {
     rasonZocial: string;
     nit?: string | null;
@@ -16,7 +17,10 @@ type VencimientoFacturaCliente = {
     apellidos?: string;
     telefono?: string | "";
     email?: string | "";
+    ciudad?: string | null;
   };
+  vendedor?: string | null;
+  pdfUrl?: string | null;
   diasRestantes?: number;
   estado?: string | null;
   prioridadCobro?: "ALTA" | "MEDIA" | "BAJA";
@@ -47,9 +51,24 @@ function computePrioridad(diasRestantes: number, saldo: number) {
   return "BAJA" as const;
 }
 
-async function getVencimientosClientes(): Promise<VencimientoFacturaCliente[]> {
-  const token = await getToken();
-  if (!token) return [];
+async function getNombreEmpresa(token: string): Promise<string> {
+  const API = process.env.NEXT_PUBLIC_API_URL!;
+  try {
+    const res = await fetch(`${API}/auth/usuario-actual`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    return data?.nombreEmpresa ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function getVencimientosClientes(
+  token: string
+): Promise<VencimientoFacturaCliente[]> {
   const API = process.env.NEXT_PUBLIC_API_URL!;
   const res = await fetch(`${API}/balance/vencimientos-clientes/saldos`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -80,6 +99,15 @@ async function getVencimientosClientes(): Promise<VencimientoFacturaCliente[]> {
 }
 
 export async function ListVencimientosFacturasPage() {
-  const data = await getVencimientosClientes();
-  return <VencimientosClientesClient initialData={data} />;
+  const token = await getToken();
+  if (!token) return <VencimientosClientesClient initialData={[]} />;
+
+  const [data, nombreEmpresa] = await Promise.all([
+    getVencimientosClientes(token),
+    getNombreEmpresa(token),
+  ]);
+
+  return (
+    <VencimientosClientesClient initialData={data} nombreEmpresa={nombreEmpresa} />
+  );
 }

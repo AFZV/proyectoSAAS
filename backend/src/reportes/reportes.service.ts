@@ -237,7 +237,12 @@ export class ReportesService {
       },
       include: {
         cliente: {
-          select: { nombre: true, apellidos: true, rasonZocial: true },
+          select: {
+            nombre: true,
+            apellidos: true,
+            rasonZocial: true,
+            ciudad: true,
+          },
         },
         usuario: { select: { nombre: true } },
         // Traer fecha exacta de facturación para mostrar en el reporte
@@ -255,6 +260,7 @@ export class ReportesService {
       nombre: p.cliente.nombre,
       apellidos: p.cliente.apellidos,
       rasonZocial: p.cliente.rasonZocial,
+      ciudad: p.cliente.ciudad,
       // Mostrar fecha de facturación (no de creación)
       fecha: p.estados[0]?.fechaEstado ?? p.fechaPedido,
       total: p.total,
@@ -289,7 +295,12 @@ export class ReportesService {
       },
       include: {
         cliente: {
-          select: { nombre: true, apellidos: true, rasonZocial: true },
+          select: {
+            nombre: true,
+            apellidos: true,
+            rasonZocial: true,
+            ciudad: true,
+          },
         },
         // Traer la fecha exacta de facturación
         estados: {
@@ -306,6 +317,7 @@ export class ReportesService {
       nombre: p.cliente.nombre,
       apellidos: p.cliente.apellidos,
       rasonZocial: p.cliente.rasonZocial,
+      ciudad: p.cliente.ciudad,
       fechaPedido: p.fechaPedido,
       fechaFacturacion: p.estados[0]?.fechaEstado ?? null,
       total: p.total,
@@ -335,7 +347,12 @@ export class ReportesService {
       },
       include: {
         cliente: {
-          select: { nombre: true, apellidos: true, rasonZocial: true },
+          select: {
+            nombre: true,
+            apellidos: true,
+            rasonZocial: true,
+            ciudad: true,
+          },
         },
         detalleRecibo: { select: { valorTotal: true } },
         detalleAjusteCartera: { select: { valor: true } },
@@ -354,6 +371,7 @@ export class ReportesService {
           nombre: p.cliente.nombre,
           apellidos: p.cliente.apellidos,
           rasonZocial: p.cliente.rasonZocial,
+          ciudad: p.cliente.ciudad,
           fecha: p.fechaPedido,
           vendedor: p.usuario.nombre,
           saldoPendiente,
@@ -385,7 +403,12 @@ export class ReportesService {
       },
       include: {
         cliente: {
-          select: { nombre: true, apellidos: true, rasonZocial: true },
+          select: {
+            nombre: true,
+            apellidos: true,
+            rasonZocial: true,
+            ciudad: true,
+          },
         },
         detalleRecibo: { select: { valorTotal: true } },
         detalleAjusteCartera: { select: { valor: true } },
@@ -412,6 +435,7 @@ export class ReportesService {
           nombre: p.cliente.nombre,
           apellidos: p.cliente.apellidos,
           rasonZocial: p.cliente.rasonZocial,
+          ciudad: p.cliente.ciudad,
           fecha: p.fechaPedido,
           saldoPendiente,
         };
@@ -496,7 +520,12 @@ export class ReportesService {
         },
         usuario: { select: { nombre: true, apellidos: true } },
         cliente: {
-          select: { nombre: true, apellidos: true, rasonZocial: true },
+          select: {
+            nombre: true,
+            apellidos: true,
+            rasonZocial: true,
+            ciudad: true,
+          },
         },
       },
     });
@@ -546,6 +575,7 @@ export class ReportesService {
         tipo: r.tipo,
         cliente: `${r.cliente.nombre} ${r.cliente.apellidos}`.trim(),
         rasonZocial: r.cliente.rasonZocial,
+        ciudad: r.cliente.ciudad,
         valor: totalRecaudo,
         vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
         concepto: r.concepto,
@@ -582,7 +612,12 @@ export class ReportesService {
         },
         usuario: { select: { nombre: true, apellidos: true } },
         cliente: {
-          select: { nombre: true, apellidos: true, rasonZocial: true },
+          select: {
+            nombre: true,
+            apellidos: true,
+            rasonZocial: true,
+            ciudad: true,
+          },
         },
       },
     });
@@ -631,6 +666,7 @@ export class ReportesService {
         tipo: r.tipo,
         cliente: `${r.cliente.nombre} ${r.cliente.apellidos}`.trim(),
         rasonZocial: r.cliente.rasonZocial,
+        ciudad: r.cliente.ciudad,
         valor: totalRecaudo,
         vendedor: `${r.usuario.nombre} ${r.usuario.apellidos}`.trim(),
         concepto: r.concepto,
@@ -807,6 +843,7 @@ export class ReportesService {
                 nombre: true,
                 apellidos: true,
                 rasonZocial: true,
+                ciudad: true,
               },
             },
             usuario: {
@@ -859,6 +896,7 @@ export class ReportesService {
         cliente:
           `${d.pedido.cliente.nombre} ${d.pedido.cliente.apellidos}`.trim(),
         rasonZocial: d.pedido.cliente.rasonZocial,
+        ciudad: d.pedido.cliente.ciudad,
         vendedor: `${d.pedido.usuario?.nombre || ''} ${d.pedido.usuario?.apellidos || ''
           }`.trim(),
         codigoProducto: d.producto?.codigo,

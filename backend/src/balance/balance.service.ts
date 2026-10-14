@@ -28,12 +28,16 @@ export type VencimientoFacturaClienteDTO = {
   fechaVencimiento: string;
   total: number;
   saldo: number;
+  clienteId: string;
   cliente: {
     rasonZocial: string;
     nit?: string | null;
     telefono?: string | null;
     email?: string | null;
+    ciudad?: string | null;
   };
+  vendedor?: string | null;
+  pdfUrl?: string | null;
   diasRestantes?: number;
   estado?: string | null;
 };
@@ -41,6 +45,33 @@ type DbClient = Prisma.TransactionClient | PrismaClient;
 @Injectable()
 export class BalanceService {
   constructor(private prisma: PrismaService) {}
+
+  // Normaliza un teléfono de cliente al formato esperado por los links de WhatsApp
+  // (57 + 10 dígitos, celular). Se usa tanto en vencimientos como en saldos por cliente.
+  private normalizePhoneCO(raw?: string | null): string | null {
+    if (!raw) return null;
+    const digits = raw.replace(/\D/g, ''); // quita todo lo no numérico
+
+    // Ya viene con 57 + 10 dígitos (móvil)
+    if (/^57[3]\d{9}$/.test(digits)) return digits;
+
+    // Solo 10 dígitos y parece móvil (inicia con 3) -> anteponer 57
+    if (/^[3]\d{9}$/.test(digits)) return `57${digits}`;
+
+    // Quitar ceros iniciales comunes y reintentar
+    const noLeadingZeros = digits.replace(/^0+/, '');
+    if (/^[3]\d{9}$/.test(noLeadingZeros)) return `57${noLeadingZeros}`;
+
+    // Si vino 57 + algo mal, intenta corregir ceros
+    if (/^57[0]+([3]\d{9})$/.test(digits)) {
+      const m = digits.match(/^57[0]+([3]\d{9})$/);
+      return m ? `57${m[1]}` : null;
+    }
+
+    // No es móvil colombiano válido para WhatsApp
+    return null;
+  }
+
   // Saldo de un pedido (derivado)
   async getSaldoPedido(db: DbClient, pedidoId: string) {
     const pedido = await db.pedido.findUnique({
@@ -784,6 +815,8 @@ export class BalanceService {
         .join(' ')
         .trim();
       const nombreVisible = razon || nombres || '(Sin nombre)';
+      const telefonoNormalizado =
+        this.normalizePhoneCO(c?.telefono) ?? undefined;
 
       if (!porCliente.has(p.clienteId)) {
         porCliente.set(p.clienteId, {
@@ -791,7 +824,7 @@ export class BalanceService {
           nombre: nombreVisible,
           identificacion: c?.nit ?? undefined,
           ciudad: c?.ciudad ?? undefined,
-          telefono: c?.telefono ?? undefined,
+          telefono: telefonoNormalizado,
           email: c?.email ?? undefined,
           saldoPendienteCOP: 0,
           cliente: {
@@ -800,7 +833,7 @@ export class BalanceService {
             apellidos: c?.apellidos ?? null,
             identificacion: c?.nit ?? null,
             ciudad: c?.ciudad ?? null,
-            telefono: c?.telefono ?? null,
+            telefono: telefonoNormalizado ?? null,
             email: c?.email ?? null,
           },
         });
@@ -1050,10 +1083,12 @@ export class BalanceService {
             },
       select: {
         id: true,
+        clienteId: true,
         total: true,
         fechaPedido: true,
         fechaEnvio: true,
         credito: true,
+        pdfUrl: true,
         cliente: {
           select: {
             rasonZocial: true,
@@ -1062,8 +1097,10 @@ export class BalanceService {
             apellidos: true,
             telefono: true,
             email: true,
+            ciudad: true,
           },
         },
+        usuario: { select: { nombre: true, apellidos: true } },
         estados: { select: { estado: true, fechaEstado: true } },
         detalleRecibo: { select: { valorTotal: true } },
         detalleAjusteCartera: { select: { valor: true } },
@@ -1135,30 +1172,7 @@ export class BalanceService {
 
         // 9) Regla de mora (>=15 días después del vencimiento y con saldo)
         const enMora = saldo > 0 && diasVencidos >= DIAS_MORA_VENCIDO;
-        const normalizePhoneCO = (raw?: string | null): string | null => {
-          if (!raw) return null;
-          const digits = raw.replace(/\D/g, ''); // quita todo lo no numérico
-
-          // Ya viene con 57 + 10 dígitos (móvil)
-          if (/^57[3]\d{9}$/.test(digits)) return digits;
-
-          // Solo 10 dígitos y parece móvil (inicia con 3) -> anteponer 57
-          if (/^[3]\d{9}$/.test(digits)) return `57${digits}`;
-
-          // Quitar ceros iniciales comunes y reintentar
-          const noLeadingZeros = digits.replace(/^0+/, '');
-          if (/^[3]\d{9}$/.test(noLeadingZeros)) return `57${noLeadingZeros}`;
-
-          // Si vino 57 + algo mal, intenta corregir ceros
-          if (/^57[0]+([3]\d{9})$/.test(digits)) {
-            const m = digits.match(/^57[0]+([3]\d{9})$/);
-            return m ? `57${m[1]}` : null;
-          }
-
-          // No es móvil colombiano válido para WhatsApp
-          return null;
-        };
-        const telefonoNormalizado = normalizePhoneCO(p.cliente?.telefono);
+        const telefonoNormalizado = this.normalizePhoneCO(p.cliente?.telefono);
 
         return {
           idPedido: p.id,
@@ -1167,6 +1181,7 @@ export class BalanceService {
           fechaVencimiento: fechaVenc.toISOString(),
           total: totalFactura,
           saldo,
+          clienteId: p.clienteId,
           cliente: {
             rasonZocial: p.cliente?.rasonZocial ?? '',
             nit: p.cliente?.nit ?? null,
@@ -1174,7 +1189,12 @@ export class BalanceService {
             apellidos: p.cliente?.apellidos ?? '',
             telefono: telefonoNormalizado,
             email: p.cliente?.email ?? null,
+            ciudad: p.cliente?.ciudad ?? null,
           },
+          vendedor:
+            `${p.usuario?.nombre ?? ''} ${p.usuario?.apellidos ?? ''}`.trim() ||
+            null,
+          pdfUrl: p.pdfUrl ?? null,
           estado: lastEstado,
           diasRestantes,
           alerta: enMora ? 'MORA_100' : null,

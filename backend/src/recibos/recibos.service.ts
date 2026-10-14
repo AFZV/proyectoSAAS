@@ -503,12 +503,17 @@ export class RecibosService {
       };
     }
 
-    const orderBy: Prisma.ReciboOrderByWithRelationInput =
+    // Al ordenar por nombre o por revisado, muchos recibos empatan en esa columna
+    // (varios "pendiente", varios con el mismo cliente) — sin una segunda clave de
+    // orden, Postgres los devuelve en un orden arbitrario dentro de ese empate. Se
+    // agrega Fechacrecion desc como desempate para que, dentro de cada grupo, siempre
+    // se vea del más reciente al más antiguo.
+    const orderBy: Prisma.ReciboOrderByWithRelationInput[] =
       sortBy === 'nombre'
-        ? { cliente: { nombre: sortDir } }
+        ? [{ cliente: { nombre: sortDir } }, { Fechacrecion: 'desc' }]
         : sortBy === 'revisado'
-          ? { revisado: sortDir }
-          : { Fechacrecion: sortDir };
+          ? [{ revisado: sortDir }, { Fechacrecion: 'desc' }]
+          : [{ Fechacrecion: sortDir }];
 
     const [recibos, totalItems] = await this.prisma.$transaction([
       this.prisma.recibo.findMany({

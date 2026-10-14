@@ -1,6 +1,6 @@
 import { getToken } from "@/lib/getToken";
-import { columns, ClienteConSaldo } from "./columns"; // crea columnas similares a proveedores
-import { DataTableClients } from "./data-table";
+import { ClienteConSaldo } from "./columns"; // crea columnas similares a proveedores
+import { ClientesConSaldoTable } from "./ClientesConSaldoTable";
 import { Users2, WalletMinimal, AlertCircle } from "lucide-react";
 
 /**
@@ -13,10 +13,9 @@ import { Users2, WalletMinimal, AlertCircle } from "lucide-react";
  *      Sumar el campo `saldo` únicamente para facturas vigentes/no anuladas.
  */
 
-export async function getClientesConSaldo(): Promise<ClienteConSaldo[]> {
-  const token = await getToken();
-  if (!token) return [];
-
+export async function getClientesConSaldo(
+  token: string
+): Promise<ClienteConSaldo[]> {
   const API = process.env.NEXT_PUBLIC_API_URL;
 
   // 1) Intento directo
@@ -34,6 +33,21 @@ export async function getClientesConSaldo(): Promise<ClienteConSaldo[]> {
   return [];
 }
 
+async function getNombreEmpresa(token: string): Promise<string> {
+  const API = process.env.NEXT_PUBLIC_API_URL;
+  try {
+    const res = await fetch(`${API}/auth/usuario-actual`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    return data?.nombreEmpresa ?? "";
+  } catch {
+    return "";
+  }
+}
+
 const fmtCOP = (v: number) =>
   new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -43,7 +57,13 @@ const fmtCOP = (v: number) =>
   }).format(v || 0);
 
 export async function ListClientsVencimientosPage() {
-  const data = await getClientesConSaldo();
+  const token = await getToken();
+  if (!token) return null;
+
+  const [data, nombreEmpresa] = await Promise.all([
+    getClientesConSaldo(token),
+    getNombreEmpresa(token),
+  ]);
 
   const totalClientes = data.length;
 
@@ -72,10 +92,10 @@ export async function ListClientsVencimientosPage() {
               )}
             </div>
 
-            <DataTableClients
+            <ClientesConSaldoTable
               searchColumnId="buscar"
               searchPlaceholder="Buscar por razón social, NIT, nombre, apellidos, email…"
-              columns={columns}
+              nombreEmpresa={nombreEmpresa}
               data={data}
             />
           </div>

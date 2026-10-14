@@ -31,7 +31,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { formatValue } from "@/utils/FormartValue";
-import { Eye, MoreHorizontal, X } from "lucide-react";
+import { Eye, MoreHorizontal, X, Share2 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import React from "react";
 import * as XLSX from "xlsx";
@@ -1038,20 +1038,320 @@ function ClienteHistorial({
   );
 }
 
-function ClienteActions({ cliente }: { cliente: ClienteConSaldo }) {
+type PedidoConSaldo = {
+  id: string;
+  fecha: string;
+  saldoPendiente: number;
+  valorOriginal: number;
+  flete?: number;
+};
+
+function carteraFileName(clienteNombre: string) {
+  const clean = (clienteNombre || "cliente")
+    .replace(/[^a-zA-Z0-9\s_-]/g, "")
+    .trim()
+    .replace(/\s+/g, "_");
+  const today = new Date().toISOString().slice(0, 10);
+  return `estado_cartera_${clean}_${today}.xlsx`;
+}
+
+const isValidCoMobile = (phone?: string | null) =>
+  /^57[3]\d{9}$/.test(phone ?? "");
+
+// =============== Estado de Cartera (todas las facturas con saldo del cliente) ===============
+function ClienteEstadoCartera({
+  cliente,
+  nombreEmpresa,
+  onClose,
+}: {
+  cliente: ClienteConSaldo;
+  nombreEmpresa?: string;
+  onClose: () => void;
+}) {
+  const { getToken } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [pedidos, setPedidos] = useState<PedidoConSaldo[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+  const empresaLabel = nombreEmpresa?.trim() || "nuestra empresa";
+  const nombreCliente =
+    cliente.cliente?.rasonZocial ||
+    [cliente.cliente?.nombre, cliente.cliente?.apellidos]
+      .filter(Boolean)
+      .join(" ") ||
+    cliente.nombre ||
+    "Cliente";
+
+  useEffect(() => {
+    const fetchPedidos = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const token = await getToken();
+        const res = await fetch(
+          `${API}/recibos/PedidosSaldoPendiente/${cliente.idCliente}`,
+          { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+        );
+        if (!res.ok)
+          throw new Error(
+            await res.text().catch(() => `HTTP ${res.status}`)
+          );
+        const data: PedidoConSaldo[] = await res.json();
+        setPedidos(Array.isArray(data) ? data : []);
+      } catch (e: any) {
+        console.error("Error cargando cartera del cliente:", e);
+        setError(e?.message || "Error cargando cartera");
+        setPedidos([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPedidos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cliente.idCliente]);
+
+  const totalPendiente = pedidos.reduce(
+    (s, p) => s + (p.saldoPendiente || 0),
+    0
+  );
+
+  const fmtDate = (iso?: string) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    const off = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - off * 60_000);
+    return local.toLocaleDateString("es-CO");
+  };
+
+  const fmtMoneyCOP = (v: number) =>
+    new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
+      minimumFractionDigits: 0,
+    }).format(v || 0);
+
+  // Mensaje de WhatsApp con una tabla alineada en bloque monoespaciado (```), lo más
+  // parecido a una cuadrícula que WhatsApp puede mostrar dentro de un simple texto.
+  const buildWhatsAppText = () => {
+    const pad = (s: string, len: number) =>
+      s.length >= len ? s.slice(0, len) : s + " ".repeat(len - s.length);
+
+    const filas = pedidos.map((p, i) => ({
+      no: String(i + 1),
+      factura: `#${p.id.slice(0, 8).toUpperCase()}`,
+      fecha: fmtDate(p.fecha),
+      saldo: fmtMoneyCOP(p.saldoPendiente),
+    }));
+
+    const colFactura = Math.max(
+      7,
+      ...filas.map((f) => f.factura.length)
+    );
+    const colFecha = Math.max(10, ...filas.map((f) => f.fecha.length));
+    const colSaldo = Math.max(10, ...filas.map((f) => f.saldo.length));
+
+    const header = `${pad("Factura", colFactura)}  ${pad(
+      "Fecha",
+      colFecha
+    )}  ${pad("Saldo", colSaldo)}`;
+    const separador = "-".repeat(header.length);
+    const lineas = filas
+      .map(
+        (f) =>
+          `${pad(f.factura, colFactura)}  ${pad(f.fecha, colFecha)}  ${pad(
+            f.saldo,
+            colSaldo
+          )}`
+      )
+      .join("\n");
+
+    return `
+*📊 Estado de Cartera*
+🏢 ${empresaLabel}
+
+👤 *Cliente:* ${nombreCliente}${
+      cliente.identificacion ? ` • NIT: ${cliente.identificacion}` : ""
+    }
+
+Estas son tus facturas con saldo pendiente a la fecha:
+
+\`\`\`
+${header}
+${separador}
+${lineas}
+\`\`\`
+
+━━━━━━━━━━━━━━━
+💰 *Total pendiente:* ${fmtMoneyCOP(totalPendiente)}
+━━━━━━━━━━━━━━━
+
+Estimado/a ${
+      nombreCliente.split(" ")[0] || ""
+    }, te compartimos tu estado de cartera actualizado de parte de *${empresaLabel}*.
+Por favor, indícanos la fecha estimada de pago o si necesitas asistencia adicional. 🙏
+¡Gracias por tu atención y preferencia, si ya cancelaste alguna de estas facturas omite ese ítem!
+`;
+  };
+
+  const enviarWhatsApp = () => {
+    const text = encodeURIComponent(buildWhatsAppText());
+    const telefono = cliente.telefono || "";
+    const url = isValidCoMobile(telefono)
+      ? `https://api.whatsapp.com/send?phone=${telefono}&text=${text}`
+      : `https://api.whatsapp.com/send?text=${text}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const exportarExcelCartera = () => {
+    const aoa = [
+      ["ESTADO DE CARTERA"],
+      [""],
+      ["Cliente:", nombreCliente],
+      ["NIT:", cliente.identificacion || "—"],
+      ["Ciudad:", cliente.ciudad || "—"],
+      ["Fecha de reporte:", new Date().toLocaleDateString("es-CO")],
+      [""],
+      ["Factura", "Fecha", "Saldo Pendiente"],
+      ...pedidos.map((p) => [
+        `#${p.id.slice(0, 8).toUpperCase()}`,
+        fmtDate(p.fecha),
+        Number(p.saldoPendiente || 0),
+      ]),
+      [""],
+      ["", "Total pendiente", Number(totalPendiente)],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    (ws as any)["!cols"] = [20, 16, 20].map((w) => ({ wch: w }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Cartera");
+    XLSX.writeFile(wb, carteraFileName(nombreCliente));
+  };
+
+  const phoneOk = isValidCoMobile(cliente.telefono);
+
+  return (
+    <div className="space-y-4">
+      {loading ? (
+        <div className="p-6 text-sm text-muted-foreground">
+          Cargando cartera…
+        </div>
+      ) : error ? (
+        <div className="p-6 text-sm text-red-600">Error: {error}</div>
+      ) : pedidos.length === 0 ? (
+        <div className="p-6 text-sm text-muted-foreground">
+          Este cliente no tiene facturas con saldo pendiente.
+        </div>
+      ) : (
+        <>
+          <Card className="border-blue-100/60 shadow-sm">
+            <CardContent className="p-0">
+              <div className="max-h-[50vh] overflow-y-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 z-10 bg-blue-50/70 backdrop-blur border-b border-blue-100">
+                    <TableRow>
+                      <TableHead className="text-left text-xs font-medium text-blue-600 uppercase">
+                        Factura
+                      </TableHead>
+                      <TableHead className="text-left text-xs font-medium text-blue-600 uppercase">
+                        Fecha
+                      </TableHead>
+                      <TableHead className="text-right text-xs font-medium text-blue-600 uppercase">
+                        Saldo
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pedidos.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="font-mono text-sm">
+                          #{p.id.slice(0, 8).toUpperCase()}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {fmtDate(p.fecha)}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-medium">
+                          {fmtMoneyCOP(p.saldoPendiente)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex items-center justify-between px-1">
+            <span className="text-sm text-muted-foreground">
+              Total pendiente
+            </span>
+            <span className="text-base font-semibold">
+              {fmtMoneyCOP(totalPendiente)}
+            </span>
+          </div>
+        </>
+      )}
+
+      <div className="flex justify-end gap-2 pt-2 border-t">
+        <Button
+          variant="outline"
+          className="border-blue-500 text-blue-600 hover:bg-blue-50"
+          onClick={onClose}
+        >
+          <X className="mr-2 h-4 w-4" />
+          Cerrar
+        </Button>
+        <Button
+          variant="outline"
+          onClick={exportarExcelCartera}
+          disabled={loading || pedidos.length === 0}
+        >
+          <FileSpreadsheet className="h-4 w-4 mr-2" />
+          Exportar Excel
+        </Button>
+        <Button
+          onClick={enviarWhatsApp}
+          disabled={loading || pedidos.length === 0 || !phoneOk}
+          title={
+            phoneOk
+              ? "Enviar estado de cartera por WhatsApp"
+              : "Sin número móvil válido (Colombia: 57 + 10 dígitos)"
+          }
+          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
+          <Share2 className="h-4 w-4 mr-2" />
+          Enviar por WhatsApp
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ClienteActions({
+  cliente,
+  nombreEmpresa,
+}: {
+  cliente: ClienteConSaldo;
+  nombreEmpresa?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [openHistory, setOpenHistory] = useState(false);
+  const [openCartera, setOpenCartera] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [pending, setPending] = useState<null | "details" | "history">(null);
+  const [pending, setPending] = useState<
+    null | "details" | "history" | "cartera"
+  >(null);
   const justOpenedAt = React.useRef(0);
 
   // Limpia overflow por si Radix lo dejó
   useEffect(() => {
-    if (!open && !openHistory) {
+    if (!open && !openHistory && !openCartera) {
       document.documentElement.classList.remove("overflow-hidden");
       document.body.classList.remove("overflow-hidden");
     }
-  }, [open, openHistory]);
+  }, [open, openHistory, openCartera]);
 
   // Cuando el menú termine de cerrarse, abrimos el dialog pendiente
   useEffect(() => {
@@ -1059,6 +1359,7 @@ function ClienteActions({ cliente }: { cliente: ClienteConSaldo }) {
       const id = requestAnimationFrame(() => {
         if (pending === "details") setOpen(true);
         if (pending === "history") setOpenHistory(true);
+        if (pending === "cartera") setOpenCartera(true);
         justOpenedAt.current = performance.now(); // marca para “ignorar” outside
         setPending(null);
       });
@@ -1075,7 +1376,7 @@ function ClienteActions({ cliente }: { cliente: ClienteConSaldo }) {
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
 
           <DropdownMenuItem
@@ -1096,6 +1397,16 @@ function ClienteActions({ cliente }: { cliente: ClienteConSaldo }) {
             }}
           >
             <Eye className="mr-2 h-4 w-4" /> Ver historial
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setPending("cartera");
+              setMenuOpen(false);
+            }}
+          >
+            <FileSpreadsheet className="mr-2 h-4 w-4" /> Estado de Cartera
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -1149,12 +1460,41 @@ function ClienteActions({ cliente }: { cliente: ClienteConSaldo }) {
           />
         </DialogContent>
       </Dialog>
+
+      <Dialog open={openCartera} onOpenChange={setOpenCartera}>
+        <DialogContent
+          className="max-w-2xl w-full z-[120]"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => {
+            if (performance.now() - justOpenedAt.current < 200) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <FileSpreadsheet className="w-5 h-5 mr-2" /> Estado de Cartera
+            </DialogTitle>
+            <DialogDescription>
+              Facturas con saldo pendiente de {cliente.nombre}
+            </DialogDescription>
+          </DialogHeader>
+          <ClienteEstadoCartera
+            cliente={cliente}
+            nombreEmpresa={nombreEmpresa}
+            onClose={() => setOpenCartera(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
 
 // =============== Columns (export principal) ===============
-export const columns: ColumnDef<ClienteConSaldo>[] = [
+export function columns(
+  nombreEmpresa?: string
+): ColumnDef<ClienteConSaldo>[] {
+  return [
   {
     id: "buscar",
     header: "Buscar",
@@ -1263,8 +1603,9 @@ export const columns: ColumnDef<ClienteConSaldo>[] = [
     header: () => <div className="text-right">Acciones</div>,
     cell: ({ row }) => (
       <div className="text-right">
-        <ClienteActions cliente={row.original} />
+        <ClienteActions cliente={row.original} nombreEmpresa={nombreEmpresa} />
       </div>
     ),
   },
-];
+  ];
+}

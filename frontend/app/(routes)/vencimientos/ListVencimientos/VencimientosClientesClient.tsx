@@ -19,6 +19,7 @@ type Row = {
   fechaVencimiento: string; // ISO
   total: number;
   saldo: number;
+  clienteId: string;
   cliente: {
     rasonZocial: string;
     nit?: string | null;
@@ -26,7 +27,10 @@ type Row = {
     apellidos?: string;
     telefono?: string | "";
     email?: string | "";
+    ciudad?: string | null;
   };
+  vendedor?: string | null;
+  pdfUrl?: string | null;
   diasRestantes?: number;
   estado?: string | null;
   prioridadCobro?: "ALTA" | "MEDIA" | "BAJA";
@@ -35,8 +39,10 @@ type Row = {
 
 export function VencimientosClientesClient({
   initialData,
+  nombreEmpresa,
 }: {
   initialData: Row[];
+  nombreEmpresa?: string;
 }) {
   const [q, setQ] = useState("");
   const [prioridad, setPrioridad] = useState<"" | "ALTA" | "MEDIA" | "BAJA">(
@@ -44,6 +50,9 @@ export function VencimientosClientesClient({
   );
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(0);
+
+  const empresaLabel = nombreEmpresa?.trim() || "nuestra empresa";
+
   const buildReminderText = (f: Row) => {
     const nombreCliente =
       f.cliente?.rasonZocial ||
@@ -66,6 +75,7 @@ export function VencimientosClientesClient({
     // 💌 Mensaje estilizado con Markdown de WhatsApp
     return `
 *📄 Recordatorio de pago*
+🏢 ${empresaLabel}
 
 👤 *Cliente:* ${nombreCliente}${
       f.cliente?.nit ? ` • NIT: ${f.cliente.nit}` : ""
@@ -83,15 +93,18 @@ export function VencimientosClientesClient({
 🏦 *Saldo pendiente:* ${fmtMoney(f.saldo)}
 📊 *${prioridad}*
 ━━━━━━━━━━━━━━━
-
+${f.pdfUrl ? `\n📎 *Factura en PDF:* ${f.pdfUrl}\n` : ""}
 Estimado/a ${
       nombreCliente.split(" ")[0] || ""
-    }, te contactamos para informarte sobre el saldo pendiente de esta factura.  
-Por favor, indícanos la fecha estimada de pago o si necesitas asistencia adicional. 🙏  
-¡Gracias por tu atención y preferencia, Si ya cancelaste omite este mensaje!
+    }, te contactamos de parte de *${empresaLabel}* para informarte sobre el saldo pendiente de esta factura.
+Por favor, indícanos la fecha estimada de pago o si necesitas asistencia adicional. 🙏
+¡Gracias por tu atención y preferencia, si ya cancelaste omite este mensaje!
 `;
   };
 
+  // Estado de cartera general: trae TODAS las facturas con saldo pendiente de este
+  // cliente (no solo la de la fila) y arma un resumen, reusando el endpoint que ya
+  // usa el formulario de actualizar recibo para la misma consulta.
   const isValidCoMobile = (phone?: string) => /^57[3]\d{9}$/.test(phone ?? "");
   const openWhatsApp = (f: Row) => {
     const text = encodeURIComponent(buildReminderText(f));
@@ -125,6 +138,8 @@ Por favor, indícanos la fecha estimada de pago o si necesitas asistencia adicio
           f.cliente?.nit || "",
           f.cliente?.nombre || "",
           f.cliente?.apellidos || "",
+          f.cliente?.ciudad || "",
+          f.vendedor || "",
           f.numero || "",
         ]
           .join(" ")
@@ -192,7 +207,7 @@ Por favor, indícanos la fecha estimada de pago o si necesitas asistencia adicio
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Buscar por razón social, NIT, nombre, apellidos o N° factura…"
+                  placeholder="Buscar por razón social, NIT, nombre, apellidos, ciudad, vendedor o N° factura…"
                   className="w-full pl-9 pr-3 py-2 border rounded-md bg-background"
                 />
               </div>
@@ -220,6 +235,12 @@ Por favor, indícanos la fecha estimada de pago o si necesitas asistencia adicio
                     <tr>
                       <th className="text-left px-4 py-3 font-medium">
                         Cliente
+                      </th>
+                      <th className="text-left px-4 py-3 font-medium">
+                        Ciudad
+                      </th>
+                      <th className="text-left px-4 py-3 font-medium">
+                        Vendedor
                       </th>
                       <th className="text-left px-4 py-3 font-medium">N°</th>
                       <th className="text-left px-4 py-3 font-medium">
@@ -296,6 +317,14 @@ Por favor, indícanos la fecha estimada de pago o si necesitas asistencia adicio
                                 )}
                               </div>
                             </div>
+                          </td>
+
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {f.cliente?.ciudad || "—"}
+                          </td>
+
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {f.vendedor || "—"}
                           </td>
 
                           <td className="px-4 py-3">
