@@ -29,6 +29,7 @@ import {
 import { UpdateEnvioDto } from './dto/update-envio-pedido.dto';
 import { GetPedidosPaginadosDto } from './dto/get-pedidos-paginados.dto';
 import type { PedidoImportItem } from 'src/lib/pedidoImportToken';
+import { aplicarPorcentajeCatalogoPublico } from 'src/lib/catalogoPrecio';
 type PedidoParaPDF = Prisma.PedidoGetPayload<{
   include: {
     cliente: true;
@@ -150,17 +151,33 @@ export class PedidosService {
 
     const payloadItems = pendiente.itemsJson as unknown as PedidoImportItem[];
     const ids = payloadItems.map((i) => i.productoId);
-    const productos = await this.prisma.producto.findMany({
-      where: { id: { in: ids }, empresaId: usuario.empresaId },
-      include: {
-        inventario: {
-          where: { idEmpresa: usuario.empresaId },
-          select: { stockActual: true },
+    const [productos, empresa] = await Promise.all([
+      this.prisma.producto.findMany({
+        where: { id: { in: ids }, empresaId: usuario.empresaId },
+        include: {
+          inventario: {
+            where: { idEmpresa: usuario.empresaId },
+            select: { stockActual: true },
+          },
+          categoria: { select: { nombre: true } },
         },
-        categoria: { select: { nombre: true } },
-      },
-    });
+      }),
+      this.prisma.empresa.findUnique({
+        where: { id: usuario.empresaId },
+        select: { catalogoConfig: true },
+      }),
+    ]);
     const productoPorId = new Map(productos.map((p) => [p.id, p]));
+
+    // Mismo porcentaje que se aplicó en el catálogo público (ver catalogoPrecio.ts) — el
+    // pedido debe quedar con el precio que el cliente vio al armar el carrito, no con el
+    // precio base interno.
+    const configEmpresa =
+      (empresa?.catalogoConfig as Record<string, unknown>) ?? {};
+    const porcentajeCatalogoPublico =
+      typeof configEmpresa.porcentajeCatalogoPublico === 'number'
+        ? configEmpresa.porcentajeCatalogoPublico
+        : undefined;
 
     const items = payloadItems.map((item) => {
       const producto = productoPorId.get(item.productoId);
@@ -181,7 +198,10 @@ export class PedidosService {
         nombre: producto.nombre,
         disponible: true,
         cantidad: item.cantidad,
-        precio: producto.precioVenta ?? 0,
+        precio: aplicarPorcentajeCatalogoPublico(
+          producto.precioVenta ?? 0,
+          porcentajeCatalogoPublico
+        ),
         stock: producto.inventario.reduce(
           (acc, inv) => acc + (inv.stockActual || 0),
           0

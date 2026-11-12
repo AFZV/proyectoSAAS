@@ -5,6 +5,7 @@ import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectTrigger,
@@ -50,6 +51,7 @@ interface ProductoCompraFormData {
 
 interface CompraFormData {
   idProveedor: string;
+  observaciones: string;
   ProductosCompras: ProductoCompraFormData[];
 }
 
@@ -108,6 +110,7 @@ export function NuevaCompraModal({
   const [productos, setProductos] = useState<Producto[]>([]);
   const [formData, setFormData] = useState<CompraFormData>({
     idProveedor: "",
+    observaciones: "",
     ProductosCompras: [],
   });
   const [loading, setLoading] = useState(false);
@@ -180,7 +183,7 @@ export function NuevaCompraModal({
   // Reset al cerrar modal
   useEffect(() => {
     if (!open) {
-      setFormData({ idProveedor: "", ProductosCompras: [] });
+      setFormData({ idProveedor: "", observaciones: "", ProductosCompras: [] });
       setSearchTerm("");
       setShowDropdown(false);
     }
@@ -277,6 +280,7 @@ export function NuevaCompraModal({
       if (!token) throw new Error("Token no disponible");
       const payload = {
         idProveedor: formData.idProveedor,
+        observaciones: formData.observaciones.trim() || undefined,
         ProductosCompras: formData.ProductosCompras.map((it) => ({
           idProducto: it.idProducto,
           cantidad: it.cantidad,
@@ -361,6 +365,22 @@ export function NuevaCompraModal({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Observación */}
+            <div>
+              <Label>Observación</Label>
+              <Textarea
+                placeholder="Ej: entrega parcial, pago a 30 días, etc. (opcional)"
+                value={formData.observaciones}
+                onChange={(e) =>
+                  setFormData((f) => ({
+                    ...f,
+                    observaciones: e.target.value,
+                  }))
+                }
+                rows={2}
+              />
             </div>
 
             {/* Productos */}

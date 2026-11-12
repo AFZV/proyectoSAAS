@@ -17,6 +17,7 @@ export type Compra = {
   FechaCompra: string;
   proveedor: string;
   totalCompra: number;
+  observaciones?: string | null;
   productos: {
     nombre: string;
     cantidad: number;
@@ -165,6 +166,25 @@ export const columns: ColumnDef<Compra>[] = [
               más
             </span>
           )}
+        </div>
+      );
+    },
+  },
+  {
+    id: "observaciones",
+    header: "Observación",
+    accessorFn: (row: Compra) => row.observaciones ?? "",
+    cell: ({ getValue }) => {
+      const obs = getValue() as string;
+      if (!obs) {
+        return <span className="text-muted-foreground text-sm">—</span>;
+      }
+      return (
+        <div
+          className="max-w-[220px] truncate text-sm text-muted-foreground"
+          title={obs}
+        >
+          {obs}
         </div>
       );
     },

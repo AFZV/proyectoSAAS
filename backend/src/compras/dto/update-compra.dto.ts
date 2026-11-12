@@ -27,6 +27,13 @@ export class UpdateCompraDto {
   @IsString()
   idProveedor?: string; // Opcional en update
 
+  // Sin transform de "" -> undefined a propósito: si el campo viene en el body
+  // (aunque sea "") significa "el usuario tocó el textarea", y "" debe borrar la
+  // observación (guardarla null), no dejar la anterior intacta.
+  @IsOptional()
+  @IsString()
+  observaciones?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ProductosCompraUpdateDto)

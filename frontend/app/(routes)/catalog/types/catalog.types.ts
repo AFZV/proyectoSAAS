@@ -97,6 +97,10 @@ export interface CatalogoConfig {
   mostrarPrecio?: boolean;
   mostrarStock?: boolean;
   permitirCarrito?: boolean;
+  // Porcentaje que se suma sobre el precio base de venta SOLO en el catálogo público.
+  // Vacío o 0 = se muestran los precios base. Afecta también el precio del pedido
+  // creado desde el link (queda igual al que vio el cliente en el catálogo).
+  porcentajeCatalogoPublico?: number;
 }
 
 // Item del carrito del catálogo público (independiente del carrito interno autenticado)

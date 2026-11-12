@@ -10,6 +10,8 @@ import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { Loader2, X, DollarSign, DownloadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 interface CompraDetalleModalProps {
   open: boolean;
@@ -29,6 +31,7 @@ interface RecepcionCompra {
 interface CompraDetalle {
   idCompra: string;
   FechaCompra: string;
+  observaciones?: string | null;
   productos: Producto[];
   recepcion?: RecepcionCompra; // 👈 NUEVO (opcional)
 }
@@ -62,6 +65,7 @@ export function CompraDetalleModal({
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [recibida, setRecibida] = useState<boolean>(false);
+  const [editingObservaciones, setEditingObservaciones] = useState("");
 
   const [editingProducts, setEditingProducts] = useState<
     Array<{
@@ -96,6 +100,7 @@ export function CompraDetalleModal({
       if (!c) return;
 
       setCompra(c);
+      setEditingObservaciones(c.observaciones || "");
 
       // productos para edición (usa precio del backend o precioCompra como fallback)
       if (Array.isArray(c.productos)) {
@@ -244,6 +249,7 @@ export function CompraDetalleModal({
     try {
       const token = await getToken();
       const body = {
+        observaciones: editingObservaciones.trim(),
         ProductosCompras: editingProducts
           .filter((p) => p.cantidad > 0) // Solo productos con cantidad > 0
           .map((p) => ({
@@ -342,6 +348,7 @@ export function CompraDetalleModal({
     setIsEditing(false);
     setSearchTerm("");
     setShowDropdown(false);
+    setEditingObservaciones(compra?.observaciones || "");
     // Resetear a los productos originales
     if (compra?.productos) {
       setEditingProducts(
@@ -569,6 +576,31 @@ export function CompraDetalleModal({
                 </p>
               </div>
             </div>
+
+            {isEditing ? (
+              <div>
+                <Label className="font-semibold text-sm text-gray-600">
+                  Observación
+                </Label>
+                <Textarea
+                  placeholder="Ej: entrega parcial, pago a 30 días, etc. (opcional)"
+                  value={editingObservaciones}
+                  onChange={(e) => setEditingObservaciones(e.target.value)}
+                  rows={2}
+                />
+              </div>
+            ) : (
+              compra.observaciones && (
+                <div>
+                  <p className="font-semibold text-sm text-gray-600">
+                    Observación
+                  </p>
+                  <p className="text-sm bg-gray-50 p-2 rounded border whitespace-pre-wrap">
+                    {compra.observaciones}
+                  </p>
+                </div>
+              )
+            )}
 
             <div className="mt-6">
               <div className="flex items-center justify-between mb-4">

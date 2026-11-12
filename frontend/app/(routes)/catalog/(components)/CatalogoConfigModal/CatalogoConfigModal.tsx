@@ -34,6 +34,7 @@ const DEFAULT_CONFIG: CatalogoConfig = {
   mostrarPrecio: true,
   mostrarStock: true,
   permitirCarrito: false,
+  porcentajeCatalogoPublico: undefined,
 };
 
 // Campo color: swatch + input de texto sincronizados
@@ -182,6 +183,7 @@ export function CatalogoConfigModal({
         mostrarPrecio: config.mostrarPrecio,
         mostrarStock: config.mostrarStock,
         permitirCarrito: config.permitirCarrito,
+        porcentajeCatalogoPublico: config.porcentajeCatalogoPublico,
       });
       toast({ title: "✅ Configuración guardada" });
       onClose();
@@ -354,6 +356,55 @@ export function CatalogoConfigModal({
                   setConfig((prev) => ({ ...prev, mostrarStock: v }))
                 }
               />
+            </div>
+
+            {/* Porcentaje adicional del catálogo público */}
+            <div className="space-y-2">
+              <Label>Porcentaje adicional (catálogo público)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  max={500}
+                  step="0.1"
+                  value={config.porcentajeCatalogoPublico ?? ""}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      porcentajeCatalogoPublico:
+                        e.target.value === ""
+                          ? undefined
+                          : Number(e.target.value),
+                    }))
+                  }
+                  placeholder="0"
+                  className="max-w-[120px]"
+                />
+                <span className="text-sm text-muted-foreground">%</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Se suma sobre el precio base de venta solo en este catálogo
+                público — el precio interno no cambia. Déjalo vacío para
+                mostrar los precios base.
+                {!!config.porcentajeCatalogoPublico &&
+                  config.porcentajeCatalogoPublico > 0 && (
+                    <>
+                      {" "}
+                      Ej: un producto de $100.000 se vería en{" "}
+                      <strong>
+                        $
+                        {Math.round(
+                          100000 * (1 + config.porcentajeCatalogoPublico / 100)
+                        ).toLocaleString("es-CO")}
+                      </strong>
+                      .
+                    </>
+                  )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Los pedidos que se tomen desde ese link quedan con este mismo
+                precio ajustado, no con el precio base.
+              </p>
             </div>
 
             {/* Modo de pedido */}

@@ -20,6 +20,7 @@ import { GenerarCatalogoPorIdsDto } from './dto/generar-catalogo-por-ids.dto';
 import { UpdateCatalogoConfigDto } from './dto/update-catalogo-config.dto';
 import { signCatalogShareToken } from 'src/lib/catalogShareToken';
 import { generarPedidoImportId } from 'src/lib/pedidoImportStore';
+import { aplicarPorcentajeCatalogoPublico } from 'src/lib/catalogoPrecio';
 import { format } from 'date-fns';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { emitirAudit } from 'src/auditoria/auditoria.helper';
@@ -510,6 +511,10 @@ export class ProductosService {
     // Por defecto se muestran (solo se ocultan si el admin lo desactivó explícitamente)
     const mostrarPrecio = config.mostrarPrecio !== false;
     const mostrarStock = config.mostrarStock !== false;
+    const porcentajeCatalogoPublico =
+      typeof config.porcentajeCatalogoPublico === 'number'
+        ? config.porcentajeCatalogoPublico
+        : undefined;
 
     return {
       empresa: {
@@ -523,7 +528,12 @@ export class ProductosService {
       productos: productos.map((p) => ({
         id: p.id,
         nombre: p.nombre,
-        precio: mostrarPrecio ? (p.precioVenta ?? 0) : null,
+        precio: mostrarPrecio
+          ? aplicarPorcentajeCatalogoPublico(
+              p.precioVenta ?? 0,
+              porcentajeCatalogoPublico
+            )
+          : null,
         categoria: p.categoria?.nombre ?? 'Sin categoría',
         imagenUrl: p.imagenUrl ?? '',
         stock: mostrarStock

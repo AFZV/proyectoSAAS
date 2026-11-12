@@ -215,11 +215,12 @@ model DetalleCompra {
 }
 
 model Compras {
-  idCompra    String   @id @default(uuid())
-  idProveedor String
-  FechaCompra DateTime @default(now())
-  idEmpresa   String
-  recibido    Boolean? @default(false) //campo para saber si ya se recibio la compra
+  idCompra      String   @id @default(uuid())
+  idProveedor   String
+  FechaCompra   DateTime @default(now())
+  idEmpresa     String
+  recibido      Boolean? @default(false) //campo para saber si ya se recibio la compra
+  observaciones String?  @db.Text
 
   empresa               Empresa                @relation(fields: [idEmpresa], references: [id])
   proveedor             Proveedores            @relation(fields: [idProveedor], references: [idProveedor])

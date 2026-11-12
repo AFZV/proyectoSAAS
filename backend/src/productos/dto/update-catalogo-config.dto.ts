@@ -2,12 +2,15 @@
 import {
   IsBoolean,
   IsHexColor,
+  IsNumber,
   IsOptional,
   IsString,
   IsUrl,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 // El frontend puede mandar "" en un campo que el usuario no tocó (no lo borró, simplemente
 // nunca lo llenó). @IsOptional() de class-validator solo salta la validación si el valor es
@@ -75,4 +78,16 @@ export class UpdateCatalogoConfigDto {
   @IsOptional()
   @IsBoolean()
   permitirCarrito?: boolean;
+
+  // Porcentaje que se suma sobre el precio base de venta SOLO en el catálogo público (no
+  // afecta el precio interno). Vacío o 0 = se muestran los precios base, sin ajuste. Este
+  // mismo porcentaje queda aplicado al precio con el que se crea el pedido importado desde
+  // el link — ver src/lib/catalogoPrecio.ts.
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(500)
+  porcentajeCatalogoPublico?: number;
 }

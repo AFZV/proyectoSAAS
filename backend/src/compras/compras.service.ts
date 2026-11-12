@@ -112,6 +112,7 @@ export class ComprasService {
           data: {
             proveedor: { connect: { idProveedor: data.idProveedor } },
             empresa: { connect: { id: usuario.empresaId } },
+            observaciones: data.observaciones,
           },
         });
 
@@ -310,6 +311,15 @@ export class ComprasService {
           });
         }
 
+        // Actualizar observación de la compra si vino en el payload (incluso "" para
+        // borrarla) — aplica sin importar si la compra ya fue recibida o no.
+        if (data.observaciones !== undefined) {
+          await tx.compras.update({
+            where: { idCompra: compraId },
+            data: { observaciones: data.observaciones.trim() || null },
+          });
+        }
+
         // ✅ Si NO está recibida: terminamos acá.
         //    (No toques producto.precioCompra, no inventario, no movimientos)
         if (!yaRecibida) {
@@ -492,6 +502,7 @@ export class ComprasService {
             idCompra: true,
             proveedor: { select: { razonsocial: true } },
             FechaCompra: true,
+            observaciones: true,
             movimientosInventario: {
               // 2) preguntamos sólo los movimientos de tipo ENTRADA
               //    y para este producto en concreto
@@ -522,6 +533,7 @@ export class ComprasService {
       idCompra: string;
       proveedor: string;
       FechaCompra: Date;
+      observaciones: string | null;
 
       productos: Array<{
         id: string;
@@ -540,6 +552,7 @@ export class ComprasService {
           idCompra: key,
           proveedor: dc.compra.proveedor.razonsocial,
           FechaCompra: dc.compra.FechaCompra,
+          observaciones: dc.compra.observaciones,
 
           productos: [],
         };
@@ -565,6 +578,7 @@ export class ComprasService {
         idCompra: compra.idCompra,
         proveedor: compra.proveedor,
         FechaCompra: compra.FechaCompra,
+        observaciones: compra.observaciones,
         totalCompra,
         productos: compra.productos,
       };
@@ -601,6 +615,7 @@ export class ComprasService {
           select: {
             idCompra: true,
             FechaCompra: true,
+            observaciones: true,
             // 👇 MANTENGO tu select de movimientos por si lo usas en el front
             movimientosInventario: {
               where: { idTipoMovimiento: TipoEntrada?.idTipoMovimiento },
@@ -692,6 +707,7 @@ export class ComprasService {
     return {
       idCompra: first.idCompra,
       FechaCompra: first.FechaCompra,
+      observaciones: first.observaciones,
       productos,
       resumen: {
         cantidadProductos: productos.length,

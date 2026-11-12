@@ -5,8 +5,14 @@ import {
   IsArray,
   ArrayMinSize,
   ValidateNested,
+  IsOptional,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
+
+// "" no es undefined para @IsOptional() — la normalizamos antes de validar para que
+// el campo sea realmente opcional y no guarde una nota vacía en vez de null.
+const emptyToUndefined = ({ value }: { value: unknown }) =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value;
 
 class ProductosCompra {
   @IsString()
@@ -24,6 +30,11 @@ class ProductosCompra {
 export class CreateCompraDto {
   @IsString()
   idProveedor: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  observaciones?: string;
 
   @IsArray()
   @ArrayMinSize(1, { message: 'Debe haber al menos un producto en la compra' })
